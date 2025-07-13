@@ -76,7 +76,9 @@ class CodebaseLSPClient(AbstractLSPClient):
     async def get_document_symbols(self, uri: str) -> list[dict[str, Any]] | None:
         """Get document symbols using LSP."""
         symbols_params = {"textDocument": {"uri": uri}}
-        request = self.protocol.create_request(LSPMethod.DOCUMENT_SYMBOLS, symbols_params)
+        request = self.protocol.create_request(
+            LSPMethod.DOCUMENT_SYMBOLS, symbols_params
+        )
         response = await self._send_request(request, timeout=10.0)
         return response.get("result") if response else None
 
