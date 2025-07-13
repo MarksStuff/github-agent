@@ -254,13 +254,13 @@ class MCPMaster:
         logger.info("🔍 Validating all service prerequisites...")
 
         try:
-            # Get repository configurations
-            repositories = self.repository_manager.repositories
-
             # Repository validation is already done by RepositoryManager.create_from_config()
             logger.info(
                 "✅ Repository validation completed during configuration loading"
             )
+
+            # Get repository configurations for service validation
+            repositories = self.repository_manager.repositories
 
             # Validate GitHub service prerequisites
             github_tools.validate(logger, repositories)

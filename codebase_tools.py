@@ -5,7 +5,6 @@ Codebase Tools for MCP Server
 Contains codebase-related tool implementations for repository analysis and management.
 """
 
-import importlib.util
 import json
 import logging
 import os
@@ -39,11 +38,8 @@ def validate(logger: logging.Logger, repositories: dict[str, Any]) -> None:
 
     # Validate language-specific tools for each repository
     for repo_name, repo_config in repositories.items():
-        language = getattr(repo_config, "language", None)
-        workspace = getattr(repo_config, "workspace", None)
-
-        if not workspace:
-            continue
+        language = repo_config.language
+        workspace = repo_config.workspace
 
         # Validate workspace accessibility
         _validate_workspace_access(logger, workspace, repo_name)
@@ -91,17 +87,22 @@ def _validate_symbol_storage(logger: logging.Logger) -> None:
     Validate that symbol storage service is available and configured.
     """
     try:
-        # Check if symbol_storage module is available
-        if importlib.util.find_spec("symbol_storage") is None:
-            raise ImportError("symbol_storage module not found")
+        from constants import DATA_DIR
+        from symbol_storage import SQLiteSymbolStorage
 
-        # Try to import the main storage class
-        import symbol_storage  # noqa: F401
+        # Create storage instance and test connection
+        storage = SQLiteSymbolStorage(DATA_DIR / "symbols.db")
+        if not storage.health_check():
+            raise RuntimeError("Symbol storage connection failed")
 
-        logger.debug("Symbol storage validation passed: SQLiteSymbolStorage available")
+        logger.debug("Symbol storage validation passed: connection successful")
     except ImportError as e:
         raise RuntimeError(
             f"Symbol storage not available: {e}. Required for codebase indexing."
+        ) from e
+    except Exception as e:
+        raise RuntimeError(
+            f"Symbol storage validation failed: {e}. Required for codebase indexing."
         ) from e
 
 
