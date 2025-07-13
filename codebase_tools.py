@@ -14,8 +14,8 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from constants import Language
-from symbol_storage import AbstractSymbolStorage
+from constants import DATA_DIR, Language
+from symbol_storage import AbstractSymbolStorage, SQLiteSymbolStorage
 
 logger = logging.getLogger(__name__)
 
@@ -87,9 +87,6 @@ def _validate_symbol_storage(logger: logging.Logger) -> None:
     Validate that symbol storage service is available and configured.
     """
     try:
-        from constants import DATA_DIR
-        from symbol_storage import SQLiteSymbolStorage
-
         # Create storage instance and test connection
         storage = SQLiteSymbolStorage(DATA_DIR / "symbols.db")
         if not storage.health_check():

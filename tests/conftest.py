@@ -245,6 +245,7 @@ class MockSymbolStorage(AbstractSymbolStorage):
         """Initialize mock storage."""
         self.symbols: list[Symbol] = []
         self.deleted_repositories: list[str] = []
+        self._health_check_result: bool = True
 
     def create_schema(self) -> None:
         """Create schema (no-op for mock)."""
@@ -303,8 +304,12 @@ class MockSymbolStorage(AbstractSymbolStorage):
         ]
 
     def health_check(self) -> bool:
-        """Mock health check always returns True."""
-        return True
+        """Mock health check returns configurable result."""
+        return self._health_check_result
+
+    def set_health_check_result(self, result: bool) -> None:
+        """Set the health check result for testing."""
+        self._health_check_result = result
 
 
 class MockSymbolExtractor(AbstractSymbolExtractor):

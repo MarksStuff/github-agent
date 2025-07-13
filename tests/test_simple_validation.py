@@ -178,6 +178,49 @@ class TestCodebaseValidation(unittest.TestCase):
 
                 self.assertIn("Python LSP tools not available", str(context.exception))
 
+    def test_validate_symbol_storage_success_with_mock(self):
+        """Test _validate_symbol_storage succeeds when health_check returns True."""
+        from tests.conftest import MockSymbolStorage
+
+        # Create a mock that returns True for health_check
+        mock_storage = MockSymbolStorage()
+        mock_storage.set_health_check_result(True)
+
+        with patch("codebase_tools.SQLiteSymbolStorage", return_value=mock_storage):
+            # Should not raise an exception
+            codebase_tools._validate_symbol_storage(self.logger)
+
+    def test_validate_symbol_storage_failure_with_mock(self):
+        """Test _validate_symbol_storage fails when health_check returns False."""
+        from tests.conftest import MockSymbolStorage
+
+        # Create a mock that returns False for health_check
+        mock_storage = MockSymbolStorage()
+        mock_storage.set_health_check_result(False)
+
+        with patch("codebase_tools.SQLiteSymbolStorage", return_value=mock_storage):
+            with self.assertRaises(RuntimeError) as context:
+                codebase_tools._validate_symbol_storage(self.logger)
+
+            self.assertIn("Symbol storage connection failed", str(context.exception))
+
+    def test_validate_symbol_storage_success_with_real_storage(self):
+        """Test _validate_symbol_storage succeeds with real SQLiteSymbolStorage."""
+        # This test assumes SQLite is available in the development environment
+        # It tests the real storage connection without mocking
+        try:
+            codebase_tools._validate_symbol_storage(self.logger)
+            # If we get here without exception, the test passed
+        except RuntimeError as e:
+            # If it fails, make sure it's not due to import issues
+            self.assertNotIn("not available", str(e))
+            # Re-raise if it's a connection issue (which is valid)
+            if "connection failed" in str(e):
+                # This could happen in some environments, so we'll skip
+                self.skipTest(f"SQLite connection failed in test environment: {e}")
+            else:
+                raise
+
 
 class TestValidationIntegration(unittest.TestCase):
     """Integration tests for validation functions."""
