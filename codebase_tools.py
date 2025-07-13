@@ -694,40 +694,40 @@ async def _setup_lsp_client_for_request(
 ) -> tuple[CodebaseLSPClient, str]:
     """
     Set up LSP client and validate file for LSP requests.
-    
+
     Args:
         repo_name: Repository name for logging
         repository_workspace: Path to the repository workspace
         file_path: File path containing the symbol
         python_path: Python path for LSP server
-        
+
     Returns:
         Tuple of (LSP client, resolved file path)
-        
+
     Raises:
         ValueError: If file validation fails
         RuntimeError: If LSP setup fails
     """
     logger.info(f"Setting up LSP client for {repo_name} at {file_path}")
-    
+
     # Resolve file path
     resolved_file_path = _resolve_file_path(file_path, repository_workspace)
-    
+
     # Check if file exists
     if not Path(resolved_file_path).exists():
         raise ValueError(f"File not found: {file_path}")
-    
+
     # Create LSP client
     lsp_client = CodebaseLSPClient(repository_workspace, python_path)
-    
+
     # Connect to LSP server
     if not await lsp_client.connect():
         raise RuntimeError("Failed to connect to LSP server")
-    
+
     if lsp_client.state != LSPClientState.INITIALIZED:
         await lsp_client.disconnect()
         raise RuntimeError("LSP client not properly initialized")
-    
+
     return lsp_client, resolved_file_path
 
 
@@ -1063,9 +1063,6 @@ async def execute_find_references(
                 "method": "lsp_failed",
             }
         )
-
-
-
 
 
 # Tool execution mapping
