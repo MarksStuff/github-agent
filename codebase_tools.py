@@ -686,6 +686,51 @@ async def execute_search_symbols(
         return json.dumps(error_response)
 
 
+async def _setup_lsp_client_for_request(
+    repo_name: str,
+    repository_workspace: str,
+    file_path: str,
+    python_path: str,
+) -> tuple[CodebaseLSPClient, str]:
+    """
+    Set up LSP client and validate file for LSP requests.
+    
+    Args:
+        repo_name: Repository name for logging
+        repository_workspace: Path to the repository workspace
+        file_path: File path containing the symbol
+        python_path: Python path for LSP server
+        
+    Returns:
+        Tuple of (LSP client, resolved file path)
+        
+    Raises:
+        ValueError: If file validation fails
+        RuntimeError: If LSP setup fails
+    """
+    logger.info(f"Setting up LSP client for {repo_name} at {file_path}")
+    
+    # Resolve file path
+    resolved_file_path = _resolve_file_path(file_path, repository_workspace)
+    
+    # Check if file exists
+    if not Path(resolved_file_path).exists():
+        raise ValueError(f"File not found: {file_path}")
+    
+    # Create LSP client
+    lsp_client = CodebaseLSPClient(repository_workspace, python_path)
+    
+    # Connect to LSP server
+    if not await lsp_client.connect():
+        raise RuntimeError("Failed to connect to LSP server")
+    
+    if lsp_client.state != LSPClientState.INITIALIZED:
+        await lsp_client.disconnect()
+        raise RuntimeError("LSP client not properly initialized")
+    
+    return lsp_client, resolved_file_path
+
+
 async def execute_find_definition(
     repo_name: str,
     repository_workspace: str,
@@ -693,7 +738,7 @@ async def execute_find_definition(
     file_path: str,
     line: int,
     column: int,
-    python_path: str | None = None,
+    python_path: str,
 ) -> str:
     """Execute LSP-based definition lookup for a symbol
 
@@ -704,7 +749,7 @@ async def execute_find_definition(
         file_path: File path containing the symbol
         line: Line number (1-based)
         column: Column number (1-based)
-        python_path: Optional Python path for LSP server
+        python_path: Python path for LSP server
 
     Returns:
         JSON string with definition results
@@ -714,43 +759,12 @@ async def execute_find_definition(
     )
 
     try:
-        # Resolve file path
-        resolved_file_path = _resolve_file_path(file_path, repository_workspace)
-
-        # Check if file exists
-        if not Path(resolved_file_path).exists():
-            return json.dumps(
-                {
-                    "error": f"File not found: {file_path}",
-                    "symbol": symbol,
-                    "repository": repo_name,
-                }
-            )
-
-        # Use default Python path if not provided
-        if python_path is None:
-            python_path = sys.executable
-
-        # Create LSP client
-        lsp_client = CodebaseLSPClient(repository_workspace, python_path)
+        # Setup LSP client and validate file
+        lsp_client, resolved_file_path = await _setup_lsp_client_for_request(
+            repo_name, repository_workspace, file_path, python_path
+        )
 
         try:
-            # Connect to LSP server
-            if not await lsp_client.connect():
-                # Fallback to symbol index search
-                logger.warning("LSP server unavailable, falling back to symbol index")
-                return await _fallback_definition_search(
-                    repo_name, symbol, file_path, line, column
-                )
-
-            if lsp_client.state != LSPClientState.INITIALIZED:
-                logger.warning(
-                    "LSP client not properly initialized, falling back to symbol index"
-                )
-                return await _fallback_definition_search(
-                    repo_name, symbol, file_path, line, column
-                )
-
             # Convert to LSP position format
             lsp_position = _user_friendly_to_lsp_position(line, column)
 
@@ -768,12 +782,7 @@ async def execute_find_definition(
             response = await lsp_client._send_request(request, timeout=10.0)
 
             if response is None:
-                logger.warning(
-                    "LSP definition request failed, falling back to symbol index"
-                )
-                return await _fallback_definition_search(
-                    repo_name, symbol, file_path, line, column
-                )
+                raise RuntimeError("LSP definition request returned None response")
 
             # Process response
             result = response.get("result")
@@ -888,27 +897,20 @@ async def execute_find_definition(
         logger.exception(
             f"Error during LSP definition lookup for {symbol} in {repo_name}"
         )
-        # Fallback to symbol index on any error
-        try:
-            return await _fallback_definition_search(
-                repo_name, symbol, file_path, line, column
-            )
-        except Exception as fallback_error:
-            logger.error(f"Fallback definition search also failed: {fallback_error}")
-            return json.dumps(
-                {
-                    "error": f"Definition lookup failed: {e!s}",
-                    "symbol": symbol,
-                    "repository": repo_name,
-                    "query_location": {
-                        "file_path": file_path,
-                        "line": line,
-                        "column": column,
-                    },
-                    "definitions": [],
-                    "method": "lsp_failed",
-                }
-            )
+        return json.dumps(
+            {
+                "error": f"Definition lookup failed: {e!s}",
+                "symbol": symbol,
+                "repository": repo_name,
+                "query_location": {
+                    "file_path": file_path,
+                    "line": line,
+                    "column": column,
+                },
+                "definitions": [],
+                "method": "lsp_failed",
+            }
+        )
 
 
 async def execute_find_references(
@@ -918,8 +920,8 @@ async def execute_find_references(
     file_path: str,
     line: int,
     column: int,
+    python_path: str,
     include_declaration: bool = True,
-    python_path: str | None = None,
 ) -> str:
     """Execute LSP-based reference lookup for a symbol
 
@@ -931,7 +933,7 @@ async def execute_find_references(
         line: Line number (1-based)
         column: Column number (1-based)
         include_declaration: Whether to include declaration in results
-        python_path: Optional Python path for LSP server
+        python_path: Python path for LSP server
 
     Returns:
         JSON string with reference results
@@ -941,43 +943,12 @@ async def execute_find_references(
     )
 
     try:
-        # Resolve file path
-        resolved_file_path = _resolve_file_path(file_path, repository_workspace)
-
-        # Check if file exists
-        if not Path(resolved_file_path).exists():
-            return json.dumps(
-                {
-                    "error": f"File not found: {file_path}",
-                    "symbol": symbol,
-                    "repository": repo_name,
-                }
-            )
-
-        # Use default Python path if not provided
-        if python_path is None:
-            python_path = sys.executable
-
-        # Create LSP client
-        lsp_client = CodebaseLSPClient(repository_workspace, python_path)
+        # Setup LSP client and validate file
+        lsp_client, resolved_file_path = await _setup_lsp_client_for_request(
+            repo_name, repository_workspace, file_path, python_path
+        )
 
         try:
-            # Connect to LSP server
-            if not await lsp_client.connect():
-                # Fallback to symbol index search
-                logger.warning("LSP server unavailable, falling back to symbol index")
-                return await _fallback_references_search(
-                    repo_name, symbol, file_path, line, column
-                )
-
-            if lsp_client.state != LSPClientState.INITIALIZED:
-                logger.warning(
-                    "LSP client not properly initialized, falling back to symbol index"
-                )
-                return await _fallback_references_search(
-                    repo_name, symbol, file_path, line, column
-                )
-
             # Convert to LSP position format
             lsp_position = _user_friendly_to_lsp_position(line, column)
 
@@ -996,12 +967,7 @@ async def execute_find_references(
             response = await lsp_client._send_request(request, timeout=15.0)
 
             if response is None:
-                logger.warning(
-                    "LSP references request failed, falling back to symbol index"
-                )
-                return await _fallback_references_search(
-                    repo_name, symbol, file_path, line, column
-                )
+                raise RuntimeError("LSP references request returned None response")
 
             # Process response
             result = response.get("result")
@@ -1083,75 +1049,23 @@ async def execute_find_references(
         logger.exception(
             f"Error during LSP references lookup for {symbol} in {repo_name}"
         )
-        # Fallback to symbol index on any error
-        try:
-            return await _fallback_references_search(
-                repo_name, symbol, file_path, line, column
-            )
-        except Exception as fallback_error:
-            logger.error(f"Fallback references search also failed: {fallback_error}")
-            return json.dumps(
-                {
-                    "error": f"References lookup failed: {e!s}",
-                    "symbol": symbol,
-                    "repository": repo_name,
-                    "query_location": {
-                        "file_path": file_path,
-                        "line": line,
-                        "column": column,
-                    },
-                    "references": [],
-                    "method": "lsp_failed",
-                }
-            )
+        return json.dumps(
+            {
+                "error": f"References lookup failed: {e!s}",
+                "symbol": symbol,
+                "repository": repo_name,
+                "query_location": {
+                    "file_path": file_path,
+                    "line": line,
+                    "column": column,
+                },
+                "references": [],
+                "method": "lsp_failed",
+            }
+        )
 
 
-async def _fallback_definition_search(
-    repo_name: str, symbol: str, file_path: str, line: int, column: int
-) -> str:
-    """Fallback definition search using symbol index when LSP is unavailable."""
-    logger.info(f"Using fallback symbol index search for definition of '{symbol}'")
 
-    # This is a simplified fallback - in a real implementation, you might
-    # use the symbol storage to find definitions
-    return json.dumps(
-        {
-            "symbol": symbol,
-            "repository": repo_name,
-            "query_location": {
-                "file_path": file_path,
-                "line": line,
-                "column": column,
-            },
-            "definitions": [],
-            "message": "LSP server unavailable, symbol index fallback not yet implemented",
-            "method": "fallback",
-        }
-    )
-
-
-async def _fallback_references_search(
-    repo_name: str, symbol: str, file_path: str, line: int, column: int
-) -> str:
-    """Fallback references search using symbol index when LSP is unavailable."""
-    logger.info(f"Using fallback symbol index search for references of '{symbol}'")
-
-    # This is a simplified fallback - in a real implementation, you might
-    # use the symbol storage to find references
-    return json.dumps(
-        {
-            "symbol": symbol,
-            "repository": repo_name,
-            "query_location": {
-                "file_path": file_path,
-                "line": line,
-                "column": column,
-            },
-            "references": [],
-            "message": "LSP server unavailable, symbol index fallback not yet implemented",
-            "method": "fallback",
-        }
-    )
 
 
 # Tool execution mapping
