@@ -15,9 +15,168 @@ from pathlib import Path
 from typing import Any
 
 from constants import DATA_DIR, Language
+from lsp_client import AbstractLSPClient, LSPClientState
+from lsp_constants import LSPMethod
+from pyright_lsp_manager import PyrightLSPManager
 from symbol_storage import AbstractSymbolStorage, SQLiteSymbolStorage
 
 logger = logging.getLogger(__name__)
+
+
+# LSP Tools Implementation
+class CodebaseLSPClient(AbstractLSPClient):
+    """Concrete LSP client implementation for codebase tools."""
+
+    def __init__(self, workspace_root: str, python_path: str):
+        """Initialize the LSP client for codebase operations."""
+        server_manager = PyrightLSPManager(workspace_root, python_path)
+        super().__init__(
+            server_manager=server_manager,
+            workspace_root=workspace_root,
+            logger=logger,
+        )
+
+    async def get_definition(
+        self, uri: str, line: int, character: int
+    ) -> list[dict[str, Any]] | None:
+        """Get definition for a symbol using LSP."""
+        definition_params = {
+            "textDocument": {"uri": uri},
+            "position": {"line": line, "character": character},
+        }
+        request = self.protocol.create_request(LSPMethod.DEFINITION, definition_params)
+        response = await self._send_request(request, timeout=10.0)
+        return response.get("result") if response else None
+
+    async def get_references(
+        self, uri: str, line: int, character: int, include_declaration: bool = True
+    ) -> list[dict[str, Any]] | None:
+        """Get references for a symbol using LSP."""
+        references_params = {
+            "textDocument": {"uri": uri},
+            "position": {"line": line, "character": character},
+            "context": {"includeDeclaration": include_declaration},
+        }
+        request = self.protocol.create_request(LSPMethod.REFERENCES, references_params)
+        response = await self._send_request(request, timeout=15.0)
+        return response.get("result") if response else None
+
+    async def get_hover(
+        self, uri: str, line: int, character: int
+    ) -> dict[str, Any] | None:
+        """Get hover information for a symbol using LSP."""
+        hover_params = {
+            "textDocument": {"uri": uri},
+            "position": {"line": line, "character": character},
+        }
+        request = self.protocol.create_request(LSPMethod.HOVER, hover_params)
+        response = await self._send_request(request, timeout=5.0)
+        return response.get("result") if response else None
+
+    async def get_document_symbols(self, uri: str) -> list[dict[str, Any]] | None:
+        """Get document symbols using LSP."""
+        symbols_params = {"textDocument": {"uri": uri}}
+        request = self.protocol.create_request(LSPMethod.DOCUMENT_SYMBOLS, symbols_params)
+        response = await self._send_request(request, timeout=10.0)
+        return response.get("result") if response else None
+
+    async def connect(self) -> bool:
+        """Connect to the LSP server."""
+        try:
+            if not await self._start_server():
+                return False
+
+            self._start_reader_thread()
+
+            if not await self._initialize_connection():
+                return False
+
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to connect to LSP server: {e}")
+            return False
+
+    async def disconnect(self) -> None:
+        """Disconnect from the LSP server."""
+        await self.stop()
+
+
+def _resolve_file_path(file_path: str, workspace_root: str) -> str:
+    """
+    Resolve file path to absolute path within workspace.
+
+    Args:
+        file_path: Relative or absolute file path
+        workspace_root: Root directory of the workspace
+
+    Returns:
+        Absolute file path within workspace
+
+    Raises:
+        ValueError: If file path is outside workspace
+    """
+    workspace_path = Path(workspace_root).resolve()
+
+    if Path(file_path).is_absolute():
+        resolved_path = Path(file_path).resolve()
+    else:
+        resolved_path = (workspace_path / file_path).resolve()
+
+    # Ensure the file is within the workspace
+    try:
+        resolved_path.relative_to(workspace_path)
+    except ValueError as e:
+        raise ValueError(
+            f"File path '{file_path}' is outside workspace '{workspace_root}'"
+        ) from e
+
+    return str(resolved_path)
+
+
+def _path_to_uri(file_path: str) -> str:
+    """Convert file path to LSP URI format."""
+    return f"file://{Path(file_path).as_posix()}"
+
+
+def _uri_to_path(uri: str) -> str:
+    """Convert LSP URI to file path."""
+    if uri.startswith("file://"):
+        return uri[7:]  # Remove "file://" prefix
+    return uri
+
+
+def _lsp_position_to_user_friendly(line: int, character: int) -> dict[str, int]:
+    """
+    Convert LSP position (0-based) to user-friendly format (1-based).
+
+    Args:
+        line: LSP line number (0-based)
+        character: LSP character position (0-based)
+
+    Returns:
+        Dictionary with 1-based line and column numbers
+    """
+    return {
+        "line": line + 1,
+        "column": character + 1,
+    }
+
+
+def _user_friendly_to_lsp_position(line: int, column: int) -> dict[str, int]:
+    """
+    Convert user-friendly position (1-based) to LSP format (0-based).
+
+    Args:
+        line: User-friendly line number (1-based)
+        column: User-friendly column position (1-based)
+
+    Returns:
+        Dictionary with 0-based line and character positions
+    """
+    return {
+        "line": max(0, line - 1),
+        "character": max(0, column - 1),
+    }
 
 
 def validate(logger: logging.Logger, repositories: dict[str, Any]) -> None:
@@ -185,6 +344,67 @@ def get_tools(repo_name: str, repository_workspace: str) -> list[dict]:
                     },
                 },
                 "required": ["query"],
+            },
+        },
+        {
+            "name": "find_definition",
+            "description": f"Find the definition of a symbol in the {repo_name} repository using LSP. Returns the exact file location and line number where the symbol is defined.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Symbol name to find the definition for",
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "File path containing the symbol (relative to repository root or absolute)",
+                    },
+                    "line": {
+                        "type": "integer",
+                        "description": "Line number where the symbol appears (1-based)",
+                        "minimum": 1,
+                    },
+                    "column": {
+                        "type": "integer",
+                        "description": "Column number where the symbol appears (1-based)",
+                        "minimum": 1,
+                    },
+                },
+                "required": ["symbol", "file_path", "line", "column"],
+            },
+        },
+        {
+            "name": "find_references",
+            "description": f"Find all references to a symbol in the {repo_name} repository using LSP. Returns all usage locations for the symbol across the codebase.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Symbol name to find references for",
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "File path containing the symbol (relative to repository root or absolute)",
+                    },
+                    "line": {
+                        "type": "integer",
+                        "description": "Line number where the symbol appears (1-based)",
+                        "minimum": 1,
+                    },
+                    "column": {
+                        "type": "integer",
+                        "description": "Column number where the symbol appears (1-based)",
+                        "minimum": 1,
+                    },
+                    "include_declaration": {
+                        "type": "boolean",
+                        "description": "Whether to include the declaration/definition in results (default: true)",
+                        "default": True,
+                    },
+                },
+                "required": ["symbol", "file_path", "line", "column"],
             },
         },
     ]
@@ -464,10 +684,480 @@ async def execute_search_symbols(
         return json.dumps(error_response)
 
 
+async def execute_find_definition(
+    repo_name: str,
+    repository_workspace: str,
+    symbol: str,
+    file_path: str,
+    line: int,
+    column: int,
+    python_path: str | None = None,
+) -> str:
+    """Execute LSP-based definition lookup for a symbol
+
+    Args:
+        repo_name: Repository name for logging
+        repository_workspace: Path to the repository workspace
+        symbol: Symbol name to find definition for
+        file_path: File path containing the symbol
+        line: Line number (1-based)
+        column: Column number (1-based)
+        python_path: Optional Python path for LSP server
+
+    Returns:
+        JSON string with definition results
+    """
+    logger.info(
+        f"Finding definition for '{symbol}' in {repo_name} at {file_path}:{line}:{column}"
+    )
+
+    try:
+        # Resolve file path
+        resolved_file_path = _resolve_file_path(file_path, repository_workspace)
+
+        # Check if file exists
+        if not Path(resolved_file_path).exists():
+            return json.dumps(
+                {
+                    "error": f"File not found: {file_path}",
+                    "symbol": symbol,
+                    "repository": repo_name,
+                }
+            )
+
+        # Use default Python path if not provided
+        if python_path is None:
+            python_path = sys.executable
+
+        # Create LSP client
+        lsp_client = CodebaseLSPClient(repository_workspace, python_path)
+
+        try:
+            # Connect to LSP server
+            if not await lsp_client.connect():
+                # Fallback to symbol index search
+                logger.warning("LSP server unavailable, falling back to symbol index")
+                return await _fallback_definition_search(
+                    repo_name, symbol, file_path, line, column
+                )
+
+            if lsp_client.state != LSPClientState.INITIALIZED:
+                logger.warning(
+                    "LSP client not properly initialized, falling back to symbol index"
+                )
+                return await _fallback_definition_search(
+                    repo_name, symbol, file_path, line, column
+                )
+
+            # Convert to LSP position format
+            lsp_position = _user_friendly_to_lsp_position(line, column)
+
+            # Prepare LSP definition request
+            uri = _path_to_uri(resolved_file_path)
+            definition_params = {
+                "textDocument": {"uri": uri},
+                "position": lsp_position,
+            }
+
+            # Send definition request
+            request = lsp_client.protocol.create_request(
+                LSPMethod.DEFINITION, definition_params
+            )
+            response = await lsp_client._send_request(request, timeout=10.0)
+
+            if response is None:
+                logger.warning(
+                    "LSP definition request failed, falling back to symbol index"
+                )
+                return await _fallback_definition_search(
+                    repo_name, symbol, file_path, line, column
+                )
+
+            # Process response
+            result = response.get("result")
+            if not result:
+                return json.dumps(
+                    {
+                        "symbol": symbol,
+                        "repository": repo_name,
+                        "query_location": {
+                            "file_path": file_path,
+                            "line": line,
+                            "column": column,
+                        },
+                        "definitions": [],
+                        "message": "No definition found",
+                        "method": "lsp",
+                    }
+                )
+
+            # Handle different result formats (Location | Location[] | LocationLink[])
+            definitions = []
+            if isinstance(result, list):
+                for item in result:
+                    if "targetUri" in item:  # LocationLink
+                        def_uri = item["targetUri"]
+                        def_range = item.get(
+                            "targetRange", item.get("targetSelectionRange", {})
+                        )
+                    else:  # Location
+                        def_uri = item.get("uri")
+                        def_range = item.get("range", {})
+
+                    if def_uri and def_range:
+                        def_file_path = _uri_to_path(def_uri)
+                        start_pos = def_range.get("start", {})
+                        if start_pos:
+                            user_pos = _lsp_position_to_user_friendly(
+                                start_pos.get("line", 0), start_pos.get("character", 0)
+                            )
+                            # Make path relative to workspace if possible
+                            try:
+                                rel_path = Path(def_file_path).relative_to(
+                                    repository_workspace
+                                )
+                                display_path = str(rel_path)
+                            except ValueError:
+                                display_path = def_file_path
+
+                            definitions.append(
+                                {
+                                    "file_path": display_path,
+                                    "line": user_pos["line"],
+                                    "column": user_pos["column"],
+                                    "absolute_path": def_file_path,
+                                }
+                            )
+            else:
+                # Single Location
+                def_uri = result.get("uri")
+                def_range = result.get("range", {})
+                if def_uri and def_range:
+                    def_file_path = _uri_to_path(def_uri)
+                    start_pos = def_range.get("start", {})
+                    if start_pos:
+                        user_pos = _lsp_position_to_user_friendly(
+                            start_pos.get("line", 0), start_pos.get("character", 0)
+                        )
+                        # Make path relative to workspace if possible
+                        try:
+                            rel_path = Path(def_file_path).relative_to(
+                                repository_workspace
+                            )
+                            display_path = str(rel_path)
+                        except ValueError:
+                            display_path = def_file_path
+
+                        definitions.append(
+                            {
+                                "file_path": display_path,
+                                "line": user_pos["line"],
+                                "column": user_pos["column"],
+                                "absolute_path": def_file_path,
+                            }
+                        )
+
+            result_data = {
+                "symbol": symbol,
+                "repository": repo_name,
+                "query_location": {
+                    "file_path": file_path,
+                    "line": line,
+                    "column": column,
+                },
+                "definitions": definitions,
+                "total_results": len(definitions),
+                "method": "lsp",
+            }
+
+            logger.info(
+                f"Found {len(definitions)} definition(s) for '{symbol}' using LSP"
+            )
+            return json.dumps(result_data, indent=2)
+
+        finally:
+            # Always cleanup LSP client
+            try:
+                await lsp_client.disconnect()
+            except Exception as cleanup_error:
+                logger.warning(f"Error during LSP client cleanup: {cleanup_error}")
+
+    except Exception as e:
+        logger.exception(
+            f"Error during LSP definition lookup for {symbol} in {repo_name}"
+        )
+        # Fallback to symbol index on any error
+        try:
+            return await _fallback_definition_search(
+                repo_name, symbol, file_path, line, column
+            )
+        except Exception as fallback_error:
+            logger.error(f"Fallback definition search also failed: {fallback_error}")
+            return json.dumps(
+                {
+                    "error": f"Definition lookup failed: {e!s}",
+                    "symbol": symbol,
+                    "repository": repo_name,
+                    "query_location": {
+                        "file_path": file_path,
+                        "line": line,
+                        "column": column,
+                    },
+                    "definitions": [],
+                    "method": "lsp_failed",
+                }
+            )
+
+
+async def execute_find_references(
+    repo_name: str,
+    repository_workspace: str,
+    symbol: str,
+    file_path: str,
+    line: int,
+    column: int,
+    include_declaration: bool = True,
+    python_path: str | None = None,
+) -> str:
+    """Execute LSP-based reference lookup for a symbol
+
+    Args:
+        repo_name: Repository name for logging
+        repository_workspace: Path to the repository workspace
+        symbol: Symbol name to find references for
+        file_path: File path containing the symbol
+        line: Line number (1-based)
+        column: Column number (1-based)
+        include_declaration: Whether to include declaration in results
+        python_path: Optional Python path for LSP server
+
+    Returns:
+        JSON string with reference results
+    """
+    logger.info(
+        f"Finding references for '{symbol}' in {repo_name} at {file_path}:{line}:{column}"
+    )
+
+    try:
+        # Resolve file path
+        resolved_file_path = _resolve_file_path(file_path, repository_workspace)
+
+        # Check if file exists
+        if not Path(resolved_file_path).exists():
+            return json.dumps(
+                {
+                    "error": f"File not found: {file_path}",
+                    "symbol": symbol,
+                    "repository": repo_name,
+                }
+            )
+
+        # Use default Python path if not provided
+        if python_path is None:
+            python_path = sys.executable
+
+        # Create LSP client
+        lsp_client = CodebaseLSPClient(repository_workspace, python_path)
+
+        try:
+            # Connect to LSP server
+            if not await lsp_client.connect():
+                # Fallback to symbol index search
+                logger.warning("LSP server unavailable, falling back to symbol index")
+                return await _fallback_references_search(
+                    repo_name, symbol, file_path, line, column
+                )
+
+            if lsp_client.state != LSPClientState.INITIALIZED:
+                logger.warning(
+                    "LSP client not properly initialized, falling back to symbol index"
+                )
+                return await _fallback_references_search(
+                    repo_name, symbol, file_path, line, column
+                )
+
+            # Convert to LSP position format
+            lsp_position = _user_friendly_to_lsp_position(line, column)
+
+            # Prepare LSP references request
+            uri = _path_to_uri(resolved_file_path)
+            references_params = {
+                "textDocument": {"uri": uri},
+                "position": lsp_position,
+                "context": {"includeDeclaration": include_declaration},
+            }
+
+            # Send references request
+            request = lsp_client.protocol.create_request(
+                LSPMethod.REFERENCES, references_params
+            )
+            response = await lsp_client._send_request(request, timeout=15.0)
+
+            if response is None:
+                logger.warning(
+                    "LSP references request failed, falling back to symbol index"
+                )
+                return await _fallback_references_search(
+                    repo_name, symbol, file_path, line, column
+                )
+
+            # Process response
+            result = response.get("result")
+            if not result:
+                return json.dumps(
+                    {
+                        "symbol": symbol,
+                        "repository": repo_name,
+                        "query_location": {
+                            "file_path": file_path,
+                            "line": line,
+                            "column": column,
+                        },
+                        "references": [],
+                        "include_declaration": include_declaration,
+                        "message": "No references found",
+                        "method": "lsp",
+                    }
+                )
+
+            # Process references
+            references = []
+            for item in result:
+                ref_uri = item.get("uri")
+                ref_range = item.get("range", {})
+
+                if ref_uri and ref_range:
+                    ref_file_path = _uri_to_path(ref_uri)
+                    start_pos = ref_range.get("start", {})
+                    if start_pos:
+                        user_pos = _lsp_position_to_user_friendly(
+                            start_pos.get("line", 0), start_pos.get("character", 0)
+                        )
+                        # Make path relative to workspace if possible
+                        try:
+                            rel_path = Path(ref_file_path).relative_to(
+                                repository_workspace
+                            )
+                            display_path = str(rel_path)
+                        except ValueError:
+                            display_path = ref_file_path
+
+                        references.append(
+                            {
+                                "file_path": display_path,
+                                "line": user_pos["line"],
+                                "column": user_pos["column"],
+                                "absolute_path": ref_file_path,
+                            }
+                        )
+
+            result_data = {
+                "symbol": symbol,
+                "repository": repo_name,
+                "query_location": {
+                    "file_path": file_path,
+                    "line": line,
+                    "column": column,
+                },
+                "references": references,
+                "total_results": len(references),
+                "include_declaration": include_declaration,
+                "method": "lsp",
+            }
+
+            logger.info(
+                f"Found {len(references)} reference(s) for '{symbol}' using LSP"
+            )
+            return json.dumps(result_data, indent=2)
+
+        finally:
+            # Always cleanup LSP client
+            try:
+                await lsp_client.disconnect()
+            except Exception as cleanup_error:
+                logger.warning(f"Error during LSP client cleanup: {cleanup_error}")
+
+    except Exception as e:
+        logger.exception(
+            f"Error during LSP references lookup for {symbol} in {repo_name}"
+        )
+        # Fallback to symbol index on any error
+        try:
+            return await _fallback_references_search(
+                repo_name, symbol, file_path, line, column
+            )
+        except Exception as fallback_error:
+            logger.error(f"Fallback references search also failed: {fallback_error}")
+            return json.dumps(
+                {
+                    "error": f"References lookup failed: {e!s}",
+                    "symbol": symbol,
+                    "repository": repo_name,
+                    "query_location": {
+                        "file_path": file_path,
+                        "line": line,
+                        "column": column,
+                    },
+                    "references": [],
+                    "method": "lsp_failed",
+                }
+            )
+
+
+async def _fallback_definition_search(
+    repo_name: str, symbol: str, file_path: str, line: int, column: int
+) -> str:
+    """Fallback definition search using symbol index when LSP is unavailable."""
+    logger.info(f"Using fallback symbol index search for definition of '{symbol}'")
+
+    # This is a simplified fallback - in a real implementation, you might
+    # use the symbol storage to find definitions
+    return json.dumps(
+        {
+            "symbol": symbol,
+            "repository": repo_name,
+            "query_location": {
+                "file_path": file_path,
+                "line": line,
+                "column": column,
+            },
+            "definitions": [],
+            "message": "LSP server unavailable, symbol index fallback not yet implemented",
+            "method": "fallback",
+        }
+    )
+
+
+async def _fallback_references_search(
+    repo_name: str, symbol: str, file_path: str, line: int, column: int
+) -> str:
+    """Fallback references search using symbol index when LSP is unavailable."""
+    logger.info(f"Using fallback symbol index search for references of '{symbol}'")
+
+    # This is a simplified fallback - in a real implementation, you might
+    # use the symbol storage to find references
+    return json.dumps(
+        {
+            "symbol": symbol,
+            "repository": repo_name,
+            "query_location": {
+                "file_path": file_path,
+                "line": line,
+                "column": column,
+            },
+            "references": [],
+            "message": "LSP server unavailable, symbol index fallback not yet implemented",
+            "method": "fallback",
+        }
+    )
+
+
 # Tool execution mapping
 TOOL_HANDLERS: dict[str, Callable[..., Awaitable[str]]] = {
     "codebase_health_check": execute_codebase_health_check,
     "search_symbols": execute_search_symbols,
+    "find_definition": execute_find_definition,
+    "find_references": execute_find_references,
 }
 
 

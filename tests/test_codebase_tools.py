@@ -37,7 +37,7 @@ class TestCodebaseTools:
         tools = codebase_tools.get_tools(repo_name, repo_path)
 
         assert isinstance(tools, list)
-        assert len(tools) == 2
+        assert len(tools) == 4  # Updated to include new LSP tools
 
         # Test health check tool
         health_check_tool = tools[0]

@@ -583,6 +583,18 @@ class MCPWorker:
                                         repository_workspace=self.repo_path,
                                         **tool_args,
                                     )
+                                elif tool_name in [
+                                    "find_definition",
+                                    "find_references",
+                                ]:
+                                    # LSP tools need repo_name, repo_path, and python_path
+                                    result = await module.execute_tool(
+                                        tool_name,
+                                        repo_name=self.repo_name,
+                                        repository_workspace=self.repo_path,
+                                        python_path=self.python_path,
+                                        **tool_args,
+                                    )
                                 elif tool_name == "github_post_pr_reply":
                                     # This tool only needs repo_name, not repo_path
                                     result = await module.execute_tool(
