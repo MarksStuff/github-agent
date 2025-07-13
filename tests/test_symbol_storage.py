@@ -380,3 +380,22 @@ class TestSQLiteSymbolStorage:
         for method_name in abstract_methods:
             assert hasattr(storage, method_name)
             assert callable(getattr(storage, method_name))
+
+    def test_health_check_success(self, storage):
+        """Test that health_check returns True for a functioning database."""
+        # The storage fixture creates a working SQLite database
+        result = storage.health_check()
+        assert result is True
+
+    def test_health_check_with_real_database(self):
+        """Test health_check with a real SQLite database (assumes SQLite available)."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "health_test.db"
+            storage = SQLiteSymbolStorage(db_path)
+
+            try:
+                # Test health check on a fresh database
+                result = storage.health_check()
+                assert result is True
+            finally:
+                storage.close()

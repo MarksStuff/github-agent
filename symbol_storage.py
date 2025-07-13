@@ -115,6 +115,11 @@ class AbstractSymbolStorage(ABC):
         """Get all symbols from a specific file."""
         pass
 
+    @abstractmethod
+    def health_check(self) -> bool:
+        """Check if the symbol storage is accessible and functional."""
+        pass
+
 
 class SQLiteSymbolStorage(AbstractSymbolStorage):
     """SQLite implementation of symbol storage with error handling and resilience."""
@@ -182,6 +187,16 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
                     logger.warning(f"Error closing database connection: {e}")
                 finally:
                     self._connection = None
+
+    def health_check(self) -> bool:
+        """Check if the symbol storage is accessible and functional."""
+        try:
+            conn = self._get_connection()
+            # Simple query to verify database is accessible
+            conn.execute("SELECT 1").fetchone()
+            return True
+        except Exception:
+            return False
 
     def _execute_with_retry(self, operation_name: str, operation_func, *args, **kwargs):
         """Execute a database operation with retry logic."""
