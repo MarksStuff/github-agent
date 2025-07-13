@@ -217,8 +217,39 @@ class PyrightLSPManager(LSPServerManager):
 
     def cleanup(self) -> None:
         """Clean up any resources used by the manager."""
-        # Pyright doesn't require special cleanup
+        # Remove any temporary configuration files if needed
+        # Currently pyright doesn't require special cleanup
+        self.logger.debug("Cleaning up Pyright LSP manager resources")
         pass
+
+    def restart_required(self) -> bool:
+        """Check if server restart is required due to configuration changes."""
+        # Check if pyrightconfig.json has been modified
+        config_path = self.workspace_path / "pyrightconfig.json"
+        if config_path.exists():
+            try:
+                with open(config_path) as f:
+                    config = json.load(f)
+                    # Check if Python path has changed
+                    if config.get("pythonPath") != self.python_path:
+                        return True
+            except Exception as e:
+                self.logger.warning(f"Could not read pyrightconfig.json: {e}")
+                return True
+
+        return False
+
+    def get_restart_delay(self) -> float:
+        """Get recommended delay before restart in seconds."""
+        return 1.0  # Pyright starts quickly
+
+    def is_healthy(self) -> bool:
+        """Check if the manager configuration is healthy."""
+        try:
+            return self.validate_configuration()
+        except Exception as e:
+            self.logger.error(f"Health check failed: {e}")
+            return False
 
     def validate_configuration(self) -> bool:
         """Validate the current configuration."""

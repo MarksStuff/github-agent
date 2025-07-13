@@ -245,6 +245,90 @@ class TestPyrightLSPManager(unittest.TestCase):
         # Should not raise any exceptions
         manager.cleanup()
 
+    @patch("pyright_lsp_manager.subprocess.run")
+    def test_restart_required_no_config(self, mock_run):
+        """Test restart_required when no config exists."""
+        mock_run.return_value = Mock(stdout="pyright 1.1.0", returncode=0)
+
+        manager = PyrightLSPManager(str(self.workspace_path), self.python_path)
+
+        # No config file should mean no restart required
+        self.assertFalse(manager.restart_required())
+
+    @patch("pyright_lsp_manager.subprocess.run")
+    def test_restart_required_same_python_path(self, mock_run):
+        """Test restart_required when Python path hasn't changed."""
+        mock_run.return_value = Mock(stdout="pyright 1.1.0", returncode=0)
+
+        manager = PyrightLSPManager(str(self.workspace_path), self.python_path)
+
+        # Create config with same Python path
+        config_path = self.workspace_path / "pyrightconfig.json"
+        config = {"pythonPath": self.python_path}
+        with open(config_path, "w") as f:
+            json.dump(config, f)
+
+        self.assertFalse(manager.restart_required())
+
+    @patch("pyright_lsp_manager.subprocess.run")
+    def test_restart_required_different_python_path(self, mock_run):
+        """Test restart_required when Python path has changed."""
+        mock_run.return_value = Mock(stdout="pyright 1.1.0", returncode=0)
+
+        manager = PyrightLSPManager(str(self.workspace_path), self.python_path)
+
+        # Create config with different Python path
+        config_path = self.workspace_path / "pyrightconfig.json"
+        config = {"pythonPath": "/different/python/path"}
+        with open(config_path, "w") as f:
+            json.dump(config, f)
+
+        self.assertTrue(manager.restart_required())
+
+    @patch("pyright_lsp_manager.subprocess.run")
+    def test_restart_required_invalid_config(self, mock_run):
+        """Test restart_required with invalid config file."""
+        mock_run.return_value = Mock(stdout="pyright 1.1.0", returncode=0)
+
+        manager = PyrightLSPManager(str(self.workspace_path), self.python_path)
+
+        # Create invalid config file
+        config_path = self.workspace_path / "pyrightconfig.json"
+        config_path.write_text("invalid json content")
+
+        self.assertTrue(manager.restart_required())
+
+    @patch("pyright_lsp_manager.subprocess.run")
+    def test_get_restart_delay(self, mock_run):
+        """Test get_restart_delay method."""
+        mock_run.return_value = Mock(stdout="pyright 1.1.0", returncode=0)
+
+        manager = PyrightLSPManager(str(self.workspace_path), self.python_path)
+        delay = manager.get_restart_delay()
+
+        self.assertIsInstance(delay, float)
+        self.assertGreater(delay, 0)
+
+    @patch("pyright_lsp_manager.subprocess.run")
+    def test_is_healthy_success(self, mock_run):
+        """Test is_healthy method when healthy."""
+        mock_run.return_value = Mock(stdout="Python 3.8.0", returncode=0)
+
+        manager = PyrightLSPManager(str(self.workspace_path), self.python_path)
+
+        # Mock Python path existence
+        with patch("pathlib.Path.exists", return_value=True):
+            self.assertTrue(manager.is_healthy())
+
+    @patch("pyright_lsp_manager.subprocess.run")
+    def test_is_healthy_failure(self, mock_run):
+        """Test is_healthy method when unhealthy."""
+        mock_run.return_value = Mock(stdout="pyright 1.1.0", returncode=0)
+
+        manager = PyrightLSPManager(str(self.workspace_path), "/invalid/python/path")
+
+        self.assertFalse(manager.is_healthy())
+
 
 class TestPyrightLSPManagerIntegration(unittest.TestCase):
     """Integration tests for PyrightLSPManager."""
