@@ -135,7 +135,8 @@ class TestCodebaseTools(unittest.IsolatedAsyncioTestCase):
         # Create test Python file
         test_py_file = os.path.join(self.test_repo_path, "test.py")
         with open(test_py_file, "w") as f:
-            f.write("""
+            f.write(
+                """
 def hello_world():
     return "Hello, World!"
 
@@ -145,7 +146,8 @@ class TestClass:
 
     def get_value(self) -> int:
         return self.value
-""")
+"""
+            )
 
         # Set up mock repository manager
         self.mock_repo_manager = MockRepositoryManager()
