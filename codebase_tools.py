@@ -14,7 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from constants import DATA_DIR, Language
+from constants import DATA_DIR, Language, SYMBOLS_DB_PATH
 from lsp_client import AbstractLSPClient, LSPClientState
 from lsp_constants import LSPMethod
 from pyright_lsp_manager import PyrightLSPManager
@@ -114,20 +114,20 @@ class CodebaseTools:
     def __init__(
         self,
         repository_manager: AbstractRepositoryManager,
-        symbol_storage: AbstractSymbolStorage | None = None,
-        lsp_client_factory: LSPClientFactory | None = None,
+        symbol_storage: AbstractSymbolStorage,
+        lsp_client_factory: LSPClientFactory,
     ):
         """
         Initialize codebase tools with dependencies.
 
         Args:
             repository_manager: Repository manager for accessing repository configurations
-            symbol_storage: Symbol storage for caching (defaults to SQLite storage)
-            lsp_client_factory: Factory function to create LSP clients (defaults to CodebaseLSPClient)
+            symbol_storage: Symbol storage for caching
+            lsp_client_factory: Factory function to create LSP clients
         """
         self.repository_manager = repository_manager
-        self.symbol_storage = symbol_storage or SQLiteSymbolStorage(DATA_DIR)
-        self.lsp_client_factory = lsp_client_factory or CodebaseLSPClient
+        self.symbol_storage = symbol_storage
+        self.lsp_client_factory = lsp_client_factory
         self.logger = logging.getLogger(__name__)
 
         # Thread safety for LSP client cache
@@ -803,8 +803,9 @@ async def execute_tool(tool_name: str, **kwargs) -> str:
     # In practice, this should be called through a configured CodebaseTools instance
     repo_manager = RepositoryManager()
     repo_manager.load_configuration()
-
-    tools = CodebaseTools(repo_manager)
+    
+    symbol_storage = SQLiteSymbolStorage(SYMBOLS_DB_PATH)
+    tools = CodebaseTools(repo_manager, symbol_storage, CodebaseLSPClient)
     return await tools.execute_tool(tool_name, **kwargs)
 
 
@@ -830,7 +831,8 @@ async def execute_find_definition(
     Returns:
         JSON string containing definition results or error details
     """
-    tools = CodebaseTools(repo_manager)
+    symbol_storage = SQLiteSymbolStorage(SYMBOLS_DB_PATH)
+    tools = CodebaseTools(repo_manager, symbol_storage, CodebaseLSPClient)
     return await tools.find_definition(
         repository_id, symbol, file_path, line, character
     )
@@ -857,7 +859,8 @@ async def execute_find_references(
     Returns:
         JSON string containing reference results or error details
     """
-    tools = CodebaseTools(repo_manager)
+    symbol_storage = SQLiteSymbolStorage(SYMBOLS_DB_PATH)
+    tools = CodebaseTools(repo_manager, symbol_storage, CodebaseLSPClient)
     return await tools.find_references(
         repository_id, symbol, file_path, line, character
     )
@@ -882,5 +885,77 @@ async def execute_get_hover(
     Returns:
         JSON string containing hover information or error details
     """
-    tools = CodebaseTools(repo_manager)
+    symbol_storage = SQLiteSymbolStorage(SYMBOLS_DB_PATH)
+    tools = CodebaseTools(repo_manager, symbol_storage, CodebaseLSPClient)
     return await tools.get_hover(repository_id, file_path, line, character)
+
+
+# Additional backward compatibility functions and constants
+TOOL_HANDLERS = {
+    "codebase_health_check": "execute_codebase_health_check",
+    "search_symbols": "execute_search_symbols", 
+    "find_definition": "execute_find_definition",
+    "find_references": "execute_find_references",
+    "get_hover": "execute_get_hover",
+}
+
+
+def get_tools(repo_name: str, repository_workspace: str) -> list[dict]:
+    """Get codebase tool definitions (backward compatibility)"""
+    repo_manager = RepositoryManager()
+    symbol_storage = SQLiteSymbolStorage(SYMBOLS_DB_PATH)
+    tools = CodebaseTools(repo_manager, symbol_storage, CodebaseLSPClient)
+    return tools.get_tools(repo_name, repository_workspace)
+
+
+async def execute_codebase_health_check(repository_id: str, **kwargs) -> str:
+    """Execute codebase_health_check tool (backward compatibility)"""
+    repo_manager = RepositoryManager()
+    repo_manager.load_configuration()
+    symbol_storage = SQLiteSymbolStorage(SYMBOLS_DB_PATH)
+    tools = CodebaseTools(repo_manager, symbol_storage, CodebaseLSPClient)
+    return await tools.codebase_health_check(repository_id)
+
+
+async def execute_search_symbols(
+    repository_id: str, query: str, symbol_kind: str | None = None, limit: int = 50, **kwargs
+) -> str:
+    """Execute search_symbols tool (backward compatibility)"""
+    repo_manager = RepositoryManager()
+    repo_manager.load_configuration()
+    symbol_storage = SQLiteSymbolStorage(SYMBOLS_DB_PATH)
+    tools = CodebaseTools(repo_manager, symbol_storage, CodebaseLSPClient)
+    return await tools.search_symbols(repository_id, query, symbol_kind, limit)
+
+
+def validate(logger, repositories: dict) -> None:
+    """Validate codebase service prerequisites (backward compatibility)"""
+    repo_manager = RepositoryManager()
+    symbol_storage = SQLiteSymbolStorage(SYMBOLS_DB_PATH)
+    tools = CodebaseTools(repo_manager, symbol_storage, CodebaseLSPClient)
+    tools.validate(logger, repositories)
+
+
+def _validate_symbol_storage(logger):
+    """Validate symbol storage (backward compatibility)"""
+    storage = SQLiteSymbolStorage()
+    if not storage.health_check():
+        raise RuntimeError("Symbol storage health check failed")
+
+
+def _lsp_position_to_user_friendly(line: int, character: int) -> tuple[int, int]:
+    """Convert LSP position to user-friendly position (backward compatibility)"""
+    return (line + 1, character + 1)
+
+
+def _resolve_file_path(file_path: str, workspace_root: str) -> str:
+    """Resolve file path (backward compatibility)"""
+    repo_manager = RepositoryManager()
+    symbol_storage = SQLiteSymbolStorage(SYMBOLS_DB_PATH)
+    tools = CodebaseTools(repo_manager, symbol_storage, CodebaseLSPClient)
+    return tools._resolve_file_path(file_path, workspace_root)
+
+
+def _path_to_uri(file_path: str) -> str:
+    """Convert path to URI (backward compatibility)"""
+    return f"file://{file_path}"

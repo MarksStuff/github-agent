@@ -11,6 +11,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+import shutil
 from typing import cast
 from unittest.mock import patch
 
@@ -252,8 +253,6 @@ class TestRepositoryManager(unittest.TestCase):
 
     def tearDown(self):
         """Clean up test fixtures"""
-        import shutil
-
         shutil.rmtree(self.temp_dir)
 
     def _init_git_repo(self, repo_path):
