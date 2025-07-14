@@ -201,9 +201,14 @@ class TestClass:
         )
 
         # Create CodebaseTools instance
+        def mock_lsp_client_factory(workspace: str, python_path: str):
+            from codebase_tools import CodebaseLSPClient
+            return CodebaseLSPClient(workspace, python_path)
+        
         self.tools = CodebaseTools(
             repository_manager=self.mock_repo_manager,
             symbol_storage=self.mock_symbol_storage,
+            lsp_client_factory=mock_lsp_client_factory,
         )
 
     def tearDown(self):

@@ -177,12 +177,23 @@ class TestCodebaseTools:
     @pytest.mark.asyncio
     async def test_health_check_nonexistent_path(self):
         """Test health check when repository path doesn't exist"""
-        result = await codebase_tools.execute_codebase_health_check(
+        # Create mock dependencies
+        mock_repo_manager = MockRepositoryManager()
+        mock_symbol_storage = MockSymbolStorage()
+        
+        # Create CodebaseTools instance
+        tools_instance = CodebaseTools(
+            repository_manager=mock_repo_manager,
+            symbol_storage=mock_symbol_storage,
+            lsp_client_factory=mock_lsp_client_factory
+        )
+        
+        result = await tools_instance.execute_codebase_health_check(
             "test-repo", "/nonexistent/path"
         )
 
         data = json.loads(result)
-        assert data["repo"] == "test-repo"
+        assert data["repository_id"] == "test-repo"
         assert data["status"] == "unhealthy"
         assert data["workspace"] == "/nonexistent/path"
         assert len(data["errors"]) > 0
@@ -192,8 +203,19 @@ class TestCodebaseTools:
     @pytest.mark.asyncio
     async def test_health_check_file_not_directory(self):
         """Test health check when path points to a file, not directory"""
+        # Create mock dependencies
+        mock_repo_manager = MockRepositoryManager()
+        mock_symbol_storage = MockSymbolStorage()
+        
+        # Create CodebaseTools instance
+        tools_instance = CodebaseTools(
+            repository_manager=mock_repo_manager,
+            symbol_storage=mock_symbol_storage,
+            lsp_client_factory=mock_lsp_client_factory
+        )
+        
         with tempfile.NamedTemporaryFile() as temp_file:
-            result = await codebase_tools.execute_codebase_health_check(
+            result = await tools_instance.execute_codebase_health_check(
                 "test-repo", temp_file.name
             )
 

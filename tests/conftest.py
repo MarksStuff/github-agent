@@ -645,6 +645,18 @@ def mcp_master_factory():
         test_logger = logging.getLogger("test_mcp_master")
         shutdown_coordinator = SimpleShutdownCoordinator(test_logger)
         health_monitor = SimpleHealthMonitor(test_logger)
+        
+        # Create CodebaseTools instance
+        from codebase_tools import CodebaseLSPClient
+        def mock_lsp_client_factory(workspace: str, python_path: str):
+            return CodebaseLSPClient(workspace, python_path)
+        
+        from codebase_tools import CodebaseTools
+        codebase_tools = CodebaseTools(
+            repository_manager=repository_manager,
+            symbol_storage=symbol_storage,
+            lsp_client_factory=mock_lsp_client_factory
+        )
 
         return mcp_master.MCPMaster(
             repository_manager=repository_manager,
@@ -653,6 +665,7 @@ def mcp_master_factory():
             symbol_storage=symbol_storage,
             shutdown_coordinator=shutdown_coordinator,
             health_monitor=health_monitor,
+            codebase_tools=codebase_tools,
         )
 
     return create_mcp_master
