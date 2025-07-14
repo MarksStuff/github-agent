@@ -1029,23 +1029,19 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
 
     def test_manager_shutdown_stops_all_lsp_servers(self):
         """Test that manager shutdown stops all LSP servers"""
-        with patch("codebase_tools.CodebaseLSPClient") as mock_lsp_client_class:
-            # Mock the LSP client
-            mock_client = mock_lsp_client_class.return_value
-            mock_client.start.return_value = True
-            mock_client.shutdown.return_value = None
+        # Use mock client provider for dependency injection
+        from tests.conftest import mock_lsp_client_provider
 
-            manager = RepositoryManager(self.config_file)
-            self.assertTrue(manager.load_configuration())
+        manager = RepositoryManager(self.config_file, lsp_client_provider=mock_lsp_client_provider)
+        self.assertTrue(manager.load_configuration())
 
-            # Start LSP server
-            manager.start_lsp_server("test-python-repo")
+        # Start LSP server
+        manager.start_lsp_server("test-python-repo")
 
-            # Shutdown manager
-            manager.shutdown()
+        # Shutdown manager
+        manager.shutdown()
 
-            # Verify disconnect was called (which contains shutdown logic)
-            # Note: We're mocking at the CodebaseLSPClient level
+        # Test passes if no exceptions are thrown during shutdown
 
 
 if __name__ == "__main__":

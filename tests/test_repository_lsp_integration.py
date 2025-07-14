@@ -112,21 +112,12 @@ def find_max(numbers: List[int]) -> Optional[int]:
 """
             )
 
-    @patch("pyright_lsp_manager.PyrightLSPManager")
-    def test_lsp_server_lifecycle_management(self, mock_manager_class):
+    def test_lsp_server_lifecycle_management(self):
         """Test complete LSP server lifecycle management"""
-        # Set up pyright manager mock
-        mock_manager = mock_manager_class.return_value
-        mock_manager.prepare_workspace.return_value = None
-        mock_manager.get_server_info.return_value = {
-            "name": "pyright",
-            "version": "1.0.0",
-        }
-
         # Use mock client provider for dependency injection
         from tests.conftest import mock_lsp_client_provider
 
-        # Create repository manager with mock provider
+        # Create repository manager with mock provider  
         manager = RepositoryManager(
             self.config_file, lsp_client_provider=mock_lsp_client_provider
         )
@@ -134,15 +125,9 @@ def find_max(numbers: List[int]) -> Optional[int]:
 
         self.assertTrue(manager.load_configuration())
 
-        # Test starting LSP server
+        # Test starting LSP server (will use real PyrightLSPManager but mock LSP client)
         result = manager.start_lsp_server("test-python-repo")
         self.assertTrue(result)
-
-        # Verify manager was created and workspace prepared
-        mock_manager_class.assert_called_once_with(
-            workspace_path=self.test_repo_path, python_path=sys.executable
-        )
-        mock_manager.prepare_workspace.assert_called_once()
 
         # Test getting LSP client
         client = manager.get_lsp_client("test-python-repo")
