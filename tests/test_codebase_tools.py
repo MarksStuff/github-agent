@@ -11,10 +11,114 @@ from pathlib import Path
 
 import pytest
 
-import codebase_tools
-from symbol_storage import Symbol, SymbolKind
+from codebase_tools import CodebaseTools
+from lsp_client import AbstractLSPClient
+from repository_manager import AbstractRepositoryManager
+from symbol_storage import AbstractSymbolStorage, Symbol, SymbolKind
 
 # temp_git_repo fixture now consolidated in conftest.py
+
+
+class MockRepositoryManager(AbstractRepositoryManager):
+    """Mock repository manager for testing"""
+
+    def __init__(self):
+        self._repositories = {}
+
+    @property
+    def repositories(self) -> dict[str, any]:
+        return self._repositories
+
+    def get_repository(self, name: str):
+        return self._repositories.get(name)
+
+    def add_repository(self, name: str, config) -> None:
+        self._repositories[name] = config
+
+    def load_configuration(self) -> bool:
+        return True
+
+
+class MockSymbolStorage(AbstractSymbolStorage):
+    """Mock symbol storage for testing"""
+
+    def __init__(self):
+        self.symbols = {}
+
+    def create_schema(self) -> None:
+        pass
+
+    def insert_symbol(self, symbol: Symbol) -> None:
+        pass
+
+    def insert_symbols(self, symbols: list[Symbol]) -> None:
+        pass
+
+    def update_symbol(self, symbol: Symbol) -> None:
+        pass
+
+    def delete_symbol(self, symbol_id: int) -> None:
+        pass
+
+    def get_symbol_by_id(self, symbol_id: int) -> Symbol | None:
+        return None
+
+    def get_symbols_by_name(self, name: str) -> list[Symbol]:
+        return []
+
+    def get_symbols_by_repo(self, repo_name: str) -> list[Symbol]:
+        return self.symbols.get(repo_name, [])
+
+    def get_symbols_by_kind(self, kind: SymbolKind) -> list[Symbol]:
+        return []
+
+    def search_symbols(self, query: str, limit: int = 50) -> list[Symbol]:
+        return []
+
+    def clear_symbols(self, repo_name: str) -> None:
+        if repo_name in self.symbols:
+            del self.symbols[repo_name]
+
+    def get_all_symbols(self) -> list[Symbol]:
+        all_symbols = []
+        for symbols in self.symbols.values():
+            all_symbols.extend(symbols)
+        return all_symbols
+
+    def delete_symbols_by_repository(self, repo_name: str) -> None:
+        if repo_name in self.symbols:
+            del self.symbols[repo_name]
+
+    def get_symbols_by_file(self, file_path: str) -> list[Symbol]:
+        return []
+
+    def health_check(self) -> bool:
+        return True
+
+    def store_symbols(self, repo_name: str, symbols: list[Symbol]):
+        self.symbols[repo_name] = symbols
+
+    def get_symbols(self, repo_name: str) -> list[Symbol]:
+        return self.symbols.get(repo_name, [])
+
+
+class MockLSPClient(AbstractLSPClient):
+    """Mock LSP client for testing"""
+
+    def __init__(self, workspace: str, python_path: str):
+        self.workspace = workspace
+        self.python_path = python_path
+
+    async def connect(self) -> bool:
+        return True
+
+    async def disconnect(self):
+        pass
+
+
+def mock_lsp_client_factory(workspace: str, python_path: str) -> AbstractLSPClient:
+    """Mock LSP client factory"""
+    return MockLSPClient(workspace, python_path)
 
 
 @pytest.fixture
@@ -34,7 +138,18 @@ class TestCodebaseTools:
         repo_name = "test-repo"
         repo_path = "/test/path"
 
-        tools = codebase_tools.get_tools(repo_name, repo_path)
+        # Create mock dependencies
+        mock_repo_manager = MockRepositoryManager()
+        mock_symbol_storage = MockSymbolStorage()
+
+        # Create CodebaseTools instance
+        tools_instance = CodebaseTools(
+            repository_manager=mock_repo_manager,
+            symbol_storage=mock_symbol_storage,
+            lsp_client_factory=mock_lsp_client_factory,
+        )
+
+        tools = tools_instance.get_tools(repo_name, repo_path)
 
         assert isinstance(tools, list)
         assert len(tools) == 4  # Updated to include new LSP tools
@@ -44,14 +159,17 @@ class TestCodebaseTools:
         assert health_check_tool["name"] == "codebase_health_check"
         assert repo_path in health_check_tool["description"]
         assert health_check_tool["inputSchema"]["type"] == "object"
-        assert health_check_tool["inputSchema"]["required"] == []
+        assert health_check_tool["inputSchema"]["required"] == ["repository_id"]
 
         # Test search symbols tool
         search_symbols_tool = tools[1]
         assert search_symbols_tool["name"] == "search_symbols"
         assert repo_name in search_symbols_tool["description"]
         assert search_symbols_tool["inputSchema"]["type"] == "object"
-        assert search_symbols_tool["inputSchema"]["required"] == ["query"]
+        assert search_symbols_tool["inputSchema"]["required"] == [
+            "repository_id",
+            "query",
+        ]
         assert "query" in search_symbols_tool["inputSchema"]["properties"]
         assert "symbol_kind" in search_symbols_tool["inputSchema"]["properties"]
         assert "limit" in search_symbols_tool["inputSchema"]["properties"]

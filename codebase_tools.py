@@ -132,7 +132,7 @@ class CodebaseTools:
 
         # Thread safety for LSP client cache
         self._lsp_lock = threading.Lock()
-        self._lsp_clients: dict[str, CodebaseLSPClient] = {}
+        self._lsp_clients: dict[str, AbstractLSPClient] = {}
 
     def get_tools(self, repo_name: str, repository_workspace: str) -> list[dict]:
         """Get codebase tool definitions for MCP registration
@@ -696,7 +696,7 @@ class CodebaseTools:
 
             try:
                 # Create new LSP client using the factory
-                client = self.lsp_client_factory(
+                client: AbstractLSPClient = self.lsp_client_factory(
                     repo_config.workspace,
                     repo_config.python_path,
                 )

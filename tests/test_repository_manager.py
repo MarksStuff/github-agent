@@ -885,7 +885,9 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
     def test_stop_lsp_server(self):
         """Test LSP server shutdown"""
         # Mock the LSP client
-        mock_client = mock_lsp_client_class.return_value
+        from unittest.mock import Mock
+
+        mock_client = Mock()
         mock_client.start.return_value = True
         mock_client.shutdown.return_value = None
 
@@ -942,7 +944,9 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
     def test_get_lsp_client(self):
         """Test getting LSP client for a repository"""
         # Mock the LSP client
-        mock_client = mock_lsp_client_class.return_value
+        from unittest.mock import Mock
+
+        mock_client = Mock()
         mock_client.start.return_value = True
 
         manager = RepositoryManager(self.config_file)
@@ -963,7 +967,9 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
     def test_restart_lsp_server(self):
         """Test LSP server restart"""
         # Mock the LSP client
-        mock_client = mock_lsp_client_class.return_value
+        from unittest.mock import Mock
+
+        mock_client = Mock()
         mock_client.start.return_value = True
         mock_client.shutdown.return_value = None
 
@@ -983,7 +989,9 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
     def test_start_all_lsp_servers(self):
         """Test starting all LSP servers"""
         # Mock the LSP client
-        mock_client = mock_lsp_client_class.return_value
+        from unittest.mock import Mock
+
+        mock_client = Mock()
         mock_client.start.return_value = True
 
         manager = RepositoryManager(self.config_file)
@@ -998,7 +1006,9 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
     def test_stop_all_lsp_servers(self):
         """Test stopping all LSP servers"""
         # Mock the LSP client
-        mock_client = mock_lsp_client_class.return_value
+        from unittest.mock import Mock
+
+        mock_client = Mock()
         mock_client.start.return_value = True
         mock_client.shutdown.return_value = None
 
