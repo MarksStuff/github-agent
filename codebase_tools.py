@@ -745,6 +745,33 @@ class CodebaseTools:
 
         return str(resolved_path)
 
+    def validate(self, logger, repositories: dict) -> None:
+        """Validate codebase service prerequisites."""
+        try:
+            logger.info("🔍 Validating codebase service prerequisites...")
+            
+            # Validate symbol storage
+            if not self.symbol_storage:
+                raise RuntimeError("Symbol storage not initialized")
+            
+            # Test symbol storage connection
+            try:
+                # Try to perform a basic operation to verify the storage works
+                self.symbol_storage.health_check()
+                logger.debug("✅ Symbol storage health check passed")
+            except Exception as e:
+                raise RuntimeError(f"Symbol storage health check failed: {e}") from e
+            
+            # Validate repository manager
+            if not self.repository_manager:
+                raise RuntimeError("Repository manager not initialized")
+            
+            logger.info("✅ Codebase service validation completed")
+            
+        except Exception as e:
+            logger.error(f"❌ Codebase service validation failed: {e}")
+            raise
+
     async def shutdown(self) -> None:
         """Shutdown all LSP clients and clean up resources."""
         with self._lsp_lock:
