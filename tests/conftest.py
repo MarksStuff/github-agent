@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 import mcp_master
+from lsp_client import AbstractLSPClient, LSPClientState
 from python_symbol_extractor import AbstractSymbolExtractor, PythonSymbolExtractor
 from repository_indexer import (
     AbstractRepositoryIndexer,
@@ -33,6 +34,58 @@ from symbol_storage import (
 from tests.test_fixtures import MockRepositoryManager
 
 
+class MockLSPClient(AbstractLSPClient):
+    """Mock LSP client for testing."""
+
+    def __init__(self, workspace_root: str = "/test", state: LSPClientState = LSPClientState.INITIALIZED):
+        # Don't call super().__init__ to avoid needing server_manager
+        self.workspace_root = workspace_root
+        self.state = state
+        self.logger = logging.getLogger(__name__)
+
+        # Mock responses that can be set by tests
+        self._definition_response = []
+        self._references_response = []
+        self._hover_response = None
+        self._document_symbols_response = []
+
+    async def get_definition(self, uri: str, line: int, character: int) -> list[dict] | None:
+        """Mock get_definition method."""
+        return self._definition_response
+
+    async def get_references(self, uri: str, line: int, character: int, include_declaration: bool = True) -> list[dict] | None:
+        """Mock get_references method."""
+        return self._references_response
+
+    async def get_hover(self, uri: str, line: int, character: int) -> dict | None:
+        """Mock get_hover method."""
+        return self._hover_response
+
+    async def get_document_symbols(self, uri: str) -> list[dict] | None:
+        """Mock get_document_symbols method."""
+        return self._document_symbols_response
+
+    async def connect(self) -> bool:
+        """Mock connect method."""
+        return True
+
+    async def disconnect(self) -> None:
+        """Mock disconnect method."""
+        pass
+
+    async def stop(self) -> None:
+        """Mock stop method."""
+        pass
+
+    def set_definition_response(self, response: list[dict]):
+        """Set the response for get_definition calls."""
+        self._definition_response = response
+
+    def set_references_response(self, response: list[dict]):
+        """Set the response for get_references calls."""
+        self._references_response = response
+
+
 @pytest.fixture(scope="session")
 def temp_dir():
     """Create a temporary directory for test files."""
@@ -44,6 +97,26 @@ def temp_dir():
 def mock_repository_manager():
     """Create a fresh mock repository manager for each test."""
     return MockRepositoryManager()
+
+
+@pytest.fixture
+def mock_lsp_client():
+    """Create a mock LSP client for testing."""
+    return MockLSPClient()
+
+
+@pytest.fixture
+def mock_repository_manager_with_lsp():
+    """Create a mock repository manager that returns mock LSP clients."""
+    manager = MockRepositoryManager()
+
+    def get_lsp_client(repo_name: str):
+        """Return a mock LSP client for any repository."""
+        return MockLSPClient(workspace_root=f"/test/{repo_name}")
+
+    # Add the method to the mock manager
+    manager.get_lsp_client = get_lsp_client
+    return manager
 
 
 @pytest.fixture

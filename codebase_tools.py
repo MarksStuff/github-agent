@@ -586,8 +586,13 @@ class CodebaseTools:
                 }
             )
 
-    async def _get_lsp_client(self, repository_id: str) -> CodebaseLSPClient | None:
-        """Get or create LSP client for a repository."""
+    async def _get_lsp_client(self, repository_id: str) -> AbstractLSPClient | None:
+        """Get LSP client for a repository from the repository manager."""
+        # Delegate to repository manager's LSP client management
+        if hasattr(self.repository_manager, 'get_lsp_client'):
+            return self.repository_manager.get_lsp_client(repository_id)
+
+        # Fallback: create our own LSP client if repository manager doesn't support it
         with self._lsp_lock:
             # Check if we already have a client
             if repository_id in self._lsp_clients:

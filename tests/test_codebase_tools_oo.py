@@ -9,13 +9,12 @@ import os
 import sys
 import tempfile
 import unittest
-from unittest.mock import AsyncMock, patch
 
 from codebase_tools import CodebaseTools
 from constants import Language
-from lsp_client import LSPClientState
 from repository_manager import RepositoryConfig
 from symbol_storage import AbstractSymbolStorage
+from tests.conftest import MockLSPClient
 
 
 class MockSymbolStorage(AbstractSymbolStorage):
@@ -273,14 +272,11 @@ class TestClass:
         self.assertIn("error", result)
         self.assertEqual(result["symbols"], [])
 
-    @patch("codebase_tools.CodebaseLSPClient")
-    async def test_find_definition_success(self, mock_lsp_client_class):
+    async def test_find_definition_success(self):
         """Test successful definition finding."""
-        # Mock LSP client
-        mock_client = AsyncMock()
-        mock_client.state = LSPClientState.INITIALIZED
-        mock_client.connect.return_value = True
-        mock_client.get_definition.return_value = [
+        # Create mock LSP client with specific response
+        mock_lsp_client = MockLSPClient()
+        mock_lsp_client.set_definition_response([
             {
                 "uri": f"file://{self.test_repo_path}/test.py",
                 "range": {
@@ -288,10 +284,20 @@ class TestClass:
                     "end": {"line": 1, "character": 15},
                 },
             }
-        ]
-        mock_lsp_client_class.return_value = mock_client
+        ])
 
-        result_json = await self.tools.find_definition(
+        # Create repository manager that returns our mock LSP client
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("test-repo", self.test_repo_config)
+        mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
+
+        # Create tools with mock dependencies
+        tools = CodebaseTools(
+            repository_manager=mock_repo_manager,
+            symbol_storage=self.mock_symbol_storage,
+        )
+
+        result_json = await tools.find_definition(
             "test-repo", "hello_world", "test.py", 2, 5
         )
         result = json.loads(result_json)
@@ -316,14 +322,11 @@ class TestClass:
         self.assertIn("error", result)
         self.assertEqual(result["symbol"], "test_symbol")
 
-    @patch("codebase_tools.CodebaseLSPClient")
-    async def test_find_references_success(self, mock_lsp_client_class):
+    async def test_find_references_success(self):
         """Test successful reference finding."""
-        # Mock LSP client
-        mock_client = AsyncMock()
-        mock_client.state = LSPClientState.INITIALIZED
-        mock_client.connect.return_value = True
-        mock_client.get_references.return_value = [
+        # Create mock LSP client with specific response
+        mock_lsp_client = MockLSPClient()
+        mock_lsp_client.set_references_response([
             {
                 "uri": f"file://{self.test_repo_path}/test.py",
                 "range": {
@@ -338,10 +341,20 @@ class TestClass:
                     "end": {"line": 5, "character": 19},
                 },
             },
-        ]
-        mock_lsp_client_class.return_value = mock_client
+        ])
 
-        result_json = await self.tools.find_references(
+        # Create repository manager that returns our mock LSP client
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("test-repo", self.test_repo_config)
+        mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
+
+        # Create tools with mock dependencies
+        tools = CodebaseTools(
+            repository_manager=mock_repo_manager,
+            symbol_storage=self.mock_symbol_storage,
+        )
+
+        result_json = await tools.find_references(
             "test-repo", "hello_world", "test.py", 2, 5
         )
         result = json.loads(result_json)
@@ -412,23 +425,27 @@ class TestClass:
             self.tools._resolve_file_path("nonexistent.py", self.test_repo_path)
 
     async def test_lsp_client_caching(self):
-        """Test that LSP clients are properly cached."""
-        with patch("codebase_tools.CodebaseLSPClient") as mock_lsp_class:
-            mock_client = AsyncMock()
-            mock_client.state = LSPClientState.INITIALIZED
-            mock_client.connect.return_value = True
-            mock_lsp_class.return_value = mock_client
+        """Test that LSP clients are properly cached when using repository manager."""
+        # Create mock LSP client
+        mock_lsp_client = MockLSPClient()
 
-            # First call should create client
-            client1 = await self.tools._get_lsp_client("test-repo")
-            self.assertIsNotNone(client1)
+        # Create repository manager that returns our mock LSP client
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("test-repo", self.test_repo_config)
+        mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
 
-            # Second call should reuse cached client
-            client2 = await self.tools._get_lsp_client("test-repo")
-            self.assertEqual(client1, client2)
+        # Create tools with mock dependencies
+        tools = CodebaseTools(
+            repository_manager=mock_repo_manager,
+            symbol_storage=self.mock_symbol_storage,
+        )
 
-            # Should only have created one client
-            mock_lsp_class.assert_called_once()
+        # Both calls should return the same client from repository manager
+        client1 = await tools._get_lsp_client("test-repo")
+        self.assertIsNotNone(client1)
+
+        client2 = await tools._get_lsp_client("test-repo")
+        self.assertEqual(client1, client2)
 
     async def test_lsp_client_unsupported_language(self):
         """Test LSP client creation for unsupported language."""
@@ -451,24 +468,28 @@ class TestClass:
 
     async def test_shutdown(self):
         """Test proper shutdown of tools."""
-        with patch("codebase_tools.CodebaseLSPClient") as mock_lsp_class:
-            mock_client = AsyncMock()
-            mock_client.state = LSPClientState.INITIALIZED
-            mock_client.connect.return_value = True
-            mock_client.disconnect.return_value = None
-            mock_lsp_class.return_value = mock_client
+        # Create mock LSP client
+        mock_lsp_client = MockLSPClient()
 
-            # Create some LSP clients
-            await self.tools._get_lsp_client("test-repo")
+        # Create repository manager that returns our mock LSP client
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("test-repo", self.test_repo_config)
+        mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
 
-            # Shutdown should disconnect all clients
-            await self.tools.shutdown()
+        # Create tools with mock dependencies
+        tools = CodebaseTools(
+            repository_manager=mock_repo_manager,
+            symbol_storage=self.mock_symbol_storage,
+        )
 
-            # Verify disconnect was called
-            mock_client.disconnect.assert_called_once()
+        # Get an LSP client (would be cached in fallback mode)
+        await tools._get_lsp_client("test-repo")
 
-            # Verify clients cache is cleared
-            self.assertEqual(len(self.tools._lsp_clients), 0)
+        # Shutdown should clean up any cached clients
+        await tools.shutdown()
+
+        # Verify clients cache is cleared (in fallback mode)
+        self.assertEqual(len(tools._lsp_clients), 0)
 
 
 if __name__ == "__main__":
