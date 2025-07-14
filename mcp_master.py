@@ -30,6 +30,7 @@ from dotenv import load_dotenv
 
 # codebase_tools imported locally where needed
 import github_tools
+from codebase_tools import CodebaseTools
 from constants import LOGS_DIR, Language
 from python_symbol_extractor import PythonSymbolExtractor
 from repository_indexer import PythonRepositoryIndexer
@@ -194,7 +195,7 @@ class MCPMaster:
         workers: dict[str, WorkerProcess],
         startup_orchestrator: CodebaseStartupOrchestrator,
         symbol_storage: SQLiteSymbolStorage,
-        codebase_tools: "CodebaseTools",
+        codebase_tools: CodebaseTools,
         shutdown_coordinator: SimpleShutdownCoordinator,
         health_monitor: SimpleHealthMonitor,
     ):

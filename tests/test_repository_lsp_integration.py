@@ -7,6 +7,7 @@ Tests for Repository Manager LSP Integration - Task 4
 import json
 import logging
 import os
+import shutil
 import sys
 import tempfile
 import threading
@@ -68,9 +69,6 @@ class TestRepositoryLSPIntegration(unittest.TestCase):
         self.log_handler.emit = emit_handler
 
     def tearDown(self):
-        """Clean up test fixtures"""
-        import shutil
-
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def _create_test_python_files(self):

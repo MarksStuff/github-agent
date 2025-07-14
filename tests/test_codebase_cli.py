@@ -7,7 +7,7 @@ Tests CLI argument parsing, output formatting, and tool execution.
 
 import argparse
 import json
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -192,8 +192,11 @@ class TestExecuteToolCommand:
     @pytest.mark.asyncio
     async def test_execute_codebase_tool_success(self, mock_symbol_storage):
         """Test successful execution of a codebase tool."""
-        with patch("codebase_tools.execute_tool") as mock_execute:
-            mock_execute.return_value = '{"result": "success", "data": "test"}'
+        with patch("codebase_cli.CodebaseTools") as mock_codebase_tools_class:
+            mock_codebase_tools = mock_codebase_tools_class.return_value
+            mock_codebase_tools.execute_tool = AsyncMock(
+                return_value='{"result": "success", "data": "test"}'
+            )
 
             result = await execute_tool_command(
                 "search_symbols",
@@ -204,12 +207,10 @@ class TestExecuteToolCommand:
             )
 
             assert result == {"result": "success", "data": "test"}
-            mock_execute.assert_called_once_with(
+            mock_codebase_tools.execute_tool.assert_called_once_with(
                 "search_symbols",
-                repo_name="my-repo",
-                repository_workspace="/path/to/repo",
+                repository_id="my-repo",
                 query="test",
-                symbol_storage=mock_symbol_storage,
             )
 
     @pytest.mark.asyncio
@@ -247,8 +248,9 @@ class TestExecuteToolCommand:
     @pytest.mark.asyncio
     async def test_execute_tool_json_error(self, mock_symbol_storage):
         """Test handling of invalid JSON response."""
-        with patch("codebase_tools.execute_tool") as mock_execute:
-            mock_execute.return_value = "invalid json"
+        with patch("codebase_cli.CodebaseTools") as mock_codebase_tools_class:
+            mock_codebase_tools = mock_codebase_tools_class.return_value
+            mock_codebase_tools.execute_tool = AsyncMock(return_value="invalid json")
 
             result = await execute_tool_command(
                 "search_symbols",
@@ -264,8 +266,11 @@ class TestExecuteToolCommand:
     @pytest.mark.asyncio
     async def test_execute_tool_exception(self, mock_symbol_storage):
         """Test handling of tool execution exception."""
-        with patch("codebase_tools.execute_tool") as mock_execute:
-            mock_execute.side_effect = Exception("Tool failed")
+        with patch("codebase_cli.CodebaseTools") as mock_codebase_tools_class:
+            mock_codebase_tools = mock_codebase_tools_class.return_value
+            mock_codebase_tools.execute_tool = AsyncMock(
+                side_effect=Exception("Tool failed")
+            )
 
             result = await execute_tool_command(
                 "search_symbols",
