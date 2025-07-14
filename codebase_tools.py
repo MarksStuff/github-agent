@@ -11,7 +11,7 @@ import os
 import subprocess
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from constants import DATA_DIR, Language
 from lsp_client import AbstractLSPClient, LSPClientState
@@ -21,6 +21,10 @@ from repository_manager import AbstractRepositoryManager, RepositoryManager
 from symbol_storage import AbstractSymbolStorage, SQLiteSymbolStorage
 
 logger = logging.getLogger(__name__)
+
+
+# Type for LSP client factory
+LSPClientFactory = Callable[[str, str], AbstractLSPClient]
 
 
 # LSP Tools Implementation
@@ -110,6 +114,7 @@ class CodebaseTools:
         self,
         repository_manager: AbstractRepositoryManager,
         symbol_storage: AbstractSymbolStorage | None = None,
+        lsp_client_factory: LSPClientFactory | None = None,
     ):
         """
         Initialize codebase tools with dependencies.
@@ -117,9 +122,11 @@ class CodebaseTools:
         Args:
             repository_manager: Repository manager for accessing repository configurations
             symbol_storage: Symbol storage for caching (defaults to SQLite storage)
+            lsp_client_factory: Factory function to create LSP clients (defaults to CodebaseLSPClient)
         """
         self.repository_manager = repository_manager
         self.symbol_storage = symbol_storage or SQLiteSymbolStorage(DATA_DIR)
+        self.lsp_client_factory = lsp_client_factory or CodebaseLSPClient
         self.logger = logging.getLogger(__name__)
 
         # Thread safety for LSP client cache
@@ -687,10 +694,10 @@ class CodebaseTools:
                 return None
 
             try:
-                # Create new LSP client
-                client = CodebaseLSPClient(
-                    workspace_root=repo_config.workspace,
-                    python_path=repo_config.python_path,
+                # Create new LSP client using the factory
+                client = self.lsp_client_factory(
+                    repo_config.workspace,
+                    repo_config.python_path,
                 )
 
                 # Start the client

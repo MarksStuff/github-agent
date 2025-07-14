@@ -107,6 +107,11 @@ def mock_repository_manager():
     return MockRepositoryManager()
 
 
+def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+    """Factory function to create mock LSP clients."""
+    return MockLSPClient(workspace_root=workspace_root)
+
+
 @pytest.fixture
 def mock_lsp_client():
     """Create a mock LSP client for testing."""
