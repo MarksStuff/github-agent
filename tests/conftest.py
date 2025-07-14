@@ -85,6 +85,15 @@ class MockLSPClient(AbstractLSPClient):
         """Mock stop method."""
         pass
 
+    def start(self) -> bool:
+        """Mock start method (synchronous for RepositoryManager compatibility)."""
+        self.state = LSPClientState.INITIALIZED
+        return True
+
+    def shutdown(self) -> None:
+        """Mock shutdown method."""
+        self.state = LSPClientState.DISCONNECTED
+
     def set_definition_response(self, response: list[dict]):
         """Set the response for get_definition calls."""
         self._definition_response = response
@@ -107,8 +116,8 @@ def mock_repository_manager():
     return MockRepositoryManager()
 
 
-def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
-    """Factory function to create mock LSP clients."""
+def mock_lsp_client_provider(workspace_root: str, python_path: str) -> MockLSPClient:
+    """Provider function to create mock LSP clients for dependency injection."""
     return MockLSPClient(workspace_root=workspace_root)
 
 
