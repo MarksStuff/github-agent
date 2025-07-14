@@ -796,7 +796,9 @@ async def execute_find_definition(
         JSON string containing definition results or error details
     """
     tools = CodebaseTools(repo_manager)
-    return await tools.find_definition(repository_id, symbol, file_path, line, character)
+    return await tools.find_definition(
+        repository_id, symbol, file_path, line, character
+    )
 
 
 async def execute_find_references(
@@ -821,7 +823,9 @@ async def execute_find_references(
         JSON string containing reference results or error details
     """
     tools = CodebaseTools(repo_manager)
-    return await tools.find_references(repository_id, symbol, file_path, line, character)
+    return await tools.find_references(
+        repository_id, symbol, file_path, line, character
+    )
 
 
 async def execute_get_hover(
