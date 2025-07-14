@@ -13,7 +13,7 @@ import unittest
 from codebase_tools import CodebaseTools
 from constants import Language
 from repository_manager import RepositoryConfig
-from symbol_storage import AbstractSymbolStorage
+from symbol_storage import AbstractSymbolStorage, Symbol, SymbolKind
 from tests.conftest import MockLSPClient
 
 
@@ -23,25 +23,44 @@ class MockSymbolStorage(AbstractSymbolStorage):
     def __init__(self):
         self.symbols = []
 
-    async def search_symbols(
+    def search_symbols(
         self,
-        repository_id: str,
         query: str,
+        repository_id: str | None = None,
         symbol_kind: str | None = None,
         limit: int = 50,
-    ) -> list[dict]:
+    ) -> list[Symbol]:
         """Mock symbol search."""
-        # Return mock symbols matching query
-        matching_symbols = [
-            s for s in self.symbols if query.lower() in s.get("name", "").lower()
+        # Create mock symbols for testing
+        mock_symbols = [
+            Symbol(
+                name="hello_world",
+                kind=SymbolKind.FUNCTION,
+                file_path="test.py",
+                line_number=1,
+                column_number=1,
+                repository_id="test-repo",
+                docstring="Test function",
+            ),
+            Symbol(
+                name="TestClass",
+                kind=SymbolKind.CLASS,
+                file_path="test.py",
+                line_number=10,
+                column_number=1,
+                repository_id="test-repo",
+                docstring="Test class",
+            ),
         ]
 
-        if symbol_kind:
-            matching_symbols = [
-                s for s in matching_symbols if s.get("kind") == symbol_kind
-            ]
+        # Filter by query
+        results = [s for s in mock_symbols if query.lower() in s.name.lower()]
 
-        return matching_symbols[:limit]
+        # Filter by symbol kind if specified
+        if symbol_kind:
+            results = [s for s in results if s.kind.value == symbol_kind]
+
+        return results[:limit]
 
     def add_mock_symbol(self, symbol: dict):
         """Add a mock symbol for testing."""
@@ -276,15 +295,17 @@ class TestClass:
         """Test successful definition finding."""
         # Create mock LSP client with specific response
         mock_lsp_client = MockLSPClient()
-        mock_lsp_client.set_definition_response([
-            {
-                "uri": f"file://{self.test_repo_path}/test.py",
-                "range": {
-                    "start": {"line": 1, "character": 4},
-                    "end": {"line": 1, "character": 15},
-                },
-            }
-        ])
+        mock_lsp_client.set_definition_response(
+            [
+                {
+                    "uri": f"file://{self.test_repo_path}/test.py",
+                    "range": {
+                        "start": {"line": 1, "character": 4},
+                        "end": {"line": 1, "character": 15},
+                    },
+                }
+            ]
+        )
 
         # Create repository manager that returns our mock LSP client
         mock_repo_manager = MockRepositoryManager()
@@ -326,22 +347,24 @@ class TestClass:
         """Test successful reference finding."""
         # Create mock LSP client with specific response
         mock_lsp_client = MockLSPClient()
-        mock_lsp_client.set_references_response([
-            {
-                "uri": f"file://{self.test_repo_path}/test.py",
-                "range": {
-                    "start": {"line": 1, "character": 4},
-                    "end": {"line": 1, "character": 15},
+        mock_lsp_client.set_references_response(
+            [
+                {
+                    "uri": f"file://{self.test_repo_path}/test.py",
+                    "range": {
+                        "start": {"line": 1, "character": 4},
+                        "end": {"line": 1, "character": 15},
+                    },
                 },
-            },
-            {
-                "uri": f"file://{self.test_repo_path}/another.py",
-                "range": {
-                    "start": {"line": 5, "character": 8},
-                    "end": {"line": 5, "character": 19},
+                {
+                    "uri": f"file://{self.test_repo_path}/another.py",
+                    "range": {
+                        "start": {"line": 5, "character": 8},
+                        "end": {"line": 5, "character": 19},
+                    },
                 },
-            },
-        ])
+            ]
+        )
 
         # Create repository manager that returns our mock LSP client
         mock_repo_manager = MockRepositoryManager()
@@ -405,14 +428,14 @@ class TestClass:
     def test_resolve_file_path_relative(self):
         """Test resolving relative file path."""
         resolved = self.tools._resolve_file_path("test.py", self.test_repo_path)
-        expected = os.path.join(self.test_repo_path, "test.py")
+        expected = os.path.realpath(os.path.join(self.test_repo_path, "test.py"))
         self.assertEqual(resolved, expected)
 
     def test_resolve_file_path_absolute(self):
         """Test resolving absolute file path."""
         test_file = os.path.join(self.test_repo_path, "test.py")
         resolved = self.tools._resolve_file_path(test_file, self.test_repo_path)
-        self.assertEqual(resolved, test_file)
+        self.assertEqual(resolved, os.path.realpath(test_file))
 
     def test_resolve_file_path_outside_workspace(self):
         """Test resolving file path outside workspace raises error."""

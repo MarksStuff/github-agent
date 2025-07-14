@@ -274,6 +274,7 @@ class CodebaseTools:
             "search_symbols": self.search_symbols,
             "find_definition": self.find_definition,
             "find_references": self.find_references,
+            "get_hover": self.get_hover,
         }
 
         if tool_name not in handlers:
@@ -286,7 +287,8 @@ class CodebaseTools:
 
         handler = handlers[tool_name]
         try:
-            return await handler(**kwargs)
+            # Type ignore because we know these are bound methods that accept **kwargs
+            return await handler(**kwargs)  # type: ignore
         except Exception as e:
             self.logger.exception(f"Error executing tool {tool_name}")
             return json.dumps(
@@ -393,7 +395,7 @@ class CodebaseTools:
                 )
 
             # Search symbols using symbol storage
-            symbols = await self.symbol_storage.search_symbols(
+            symbols = self.symbol_storage.search_symbols(
                 repository_id=repository_id,
                 query=query,
                 symbol_kind=symbol_kind,
@@ -406,7 +408,7 @@ class CodebaseTools:
                     "query": query,
                     "symbol_kind": symbol_kind,
                     "limit": limit,
-                    "symbols": symbols,
+                    "symbols": [symbol.to_dict() for symbol in symbols],
                     "count": len(symbols),
                 }
             )
@@ -474,11 +476,11 @@ class CodebaseTools:
             results = []
             for defn in definitions:
                 if "uri" in defn and "range" in defn:
-                    file_path = Path(defn["uri"].replace("file://", ""))
+                    file_path = str(Path(defn["uri"].replace("file://", "")))
                     start_pos = defn["range"]["start"]
                     results.append(
                         {
-                            "file": str(file_path),
+                            "file": file_path,
                             "line": start_pos["line"] + 1,  # Convert to 1-based
                             "column": start_pos["character"] + 1,
                         }
@@ -555,11 +557,11 @@ class CodebaseTools:
             results = []
             for ref in references:
                 if "uri" in ref and "range" in ref:
-                    file_path = Path(ref["uri"].replace("file://", ""))
+                    file_path = str(Path(ref["uri"].replace("file://", "")))
                     start_pos = ref["range"]["start"]
                     results.append(
                         {
-                            "file": str(file_path),
+                            "file": file_path,
                             "line": start_pos["line"] + 1,  # Convert to 1-based
                             "column": start_pos["character"] + 1,
                         }
@@ -586,10 +588,79 @@ class CodebaseTools:
                 }
             )
 
+    async def get_hover(
+        self, repository_id: str, file_path: str, line: int, character: int
+    ) -> str:
+        """Get hover information for a symbol at a specific position.
+
+        Args:
+            repository_id: The repository identifier
+            file_path: Path to the file relative to repository root
+            line: Line number (0-based)
+            character: Character position (0-based)
+
+        Returns:
+            JSON string containing hover information or error details
+        """
+        try:
+            self.logger.debug(
+                f"Getting hover info for {repository_id}:{file_path}:{line}:{character}"
+            )
+
+            # Get LSP client
+            client = await self._get_lsp_client(repository_id)
+            if not client:
+                return json.dumps(
+                    {
+                        "error": f"LSP client not available for repository {repository_id}",
+                        "file_path": file_path,
+                        "line": line,
+                        "character": character,
+                    }
+                )
+
+            # Get hover information
+            hover_info = await client.get_hover(file_path, line, character)
+
+            if not hover_info:
+                return json.dumps(
+                    {
+                        "message": "No hover information available",
+                        "file_path": file_path,
+                        "line": line,
+                        "character": character,
+                    }
+                )
+
+            return json.dumps(
+                {
+                    "hover_info": hover_info,
+                    "file_path": file_path,
+                    "line": line,
+                    "character": character,
+                    "repository_id": repository_id,
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(
+                f"Error getting hover info for {repository_id}:{file_path}:{line}:{character}: {e}",
+                exc_info=True,
+            )
+            return json.dumps(
+                {
+                    "error": f"Hover request failed: {e!s}",
+                    "file_path": file_path,
+                    "line": line,
+                    "character": character,
+                    "repository_id": repository_id,
+                }
+            )
+
     async def _get_lsp_client(self, repository_id: str) -> AbstractLSPClient | None:
         """Get LSP client for a repository from the repository manager."""
         # Delegate to repository manager's LSP client management
-        if hasattr(self.repository_manager, 'get_lsp_client'):
+        if hasattr(self.repository_manager, "get_lsp_client"):
             return self.repository_manager.get_lsp_client(repository_id)
 
         # Fallback: create our own LSP client if repository manager doesn't support it
@@ -700,3 +771,77 @@ async def execute_tool(tool_name: str, **kwargs) -> str:
 
     tools = CodebaseTools(repo_manager)
     return await tools.execute_tool(tool_name, **kwargs)
+
+
+# Standalone functions for backward compatibility and ease of use
+async def execute_find_definition(
+    repository_id: str,
+    symbol: str,
+    file_path: str,
+    line: int,
+    character: int,
+    repo_manager: AbstractRepositoryManager,
+) -> str:
+    """Execute find_definition tool.
+
+    Args:
+        repository_id: The repository identifier
+        symbol: Symbol name to find definition for
+        file_path: Path to the file relative to repository root
+        line: Line number (0-based)
+        character: Character position (0-based)
+        repo_manager: Repository manager instance
+
+    Returns:
+        JSON string containing definition results or error details
+    """
+    tools = CodebaseTools(repo_manager)
+    return await tools.find_definition(repository_id, symbol, file_path, line, character)
+
+
+async def execute_find_references(
+    repository_id: str,
+    symbol: str,
+    file_path: str,
+    line: int,
+    character: int,
+    repo_manager: AbstractRepositoryManager,
+) -> str:
+    """Execute find_references tool.
+
+    Args:
+        repository_id: The repository identifier
+        symbol: Symbol name to find references for
+        file_path: Path to the file relative to repository root
+        line: Line number (0-based)
+        character: Character position (0-based)
+        repo_manager: Repository manager instance
+
+    Returns:
+        JSON string containing reference results or error details
+    """
+    tools = CodebaseTools(repo_manager)
+    return await tools.find_references(repository_id, symbol, file_path, line, character)
+
+
+async def execute_get_hover(
+    repository_id: str,
+    file_path: str,
+    line: int,
+    character: int,
+    repo_manager: AbstractRepositoryManager,
+) -> str:
+    """Execute get_hover tool.
+
+    Args:
+        repository_id: The repository identifier
+        file_path: Path to the file relative to repository root
+        line: Line number (0-based)
+        character: Character position (0-based)
+        repo_manager: Repository manager instance
+
+    Returns:
+        JSON string containing hover information or error details
+    """
+    tools = CodebaseTools(repo_manager)
+    return await tools.get_hover(repository_id, file_path, line, character)
