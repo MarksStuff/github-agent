@@ -758,9 +758,9 @@ async def main() -> None:
 
                 # Create codebase tools
                 from codebase_tools import CodebaseTools
+
                 codebase_tools = CodebaseTools(
-                    repository_manager=repository_manager,
-                    symbol_storage=symbol_storage
+                    repository_manager=repository_manager, symbol_storage=symbol_storage
                 )
 
                 # Create shutdown and health monitoring components
@@ -819,9 +819,9 @@ async def main() -> None:
 
         # Create codebase tools
         from codebase_tools import CodebaseTools
+
         codebase_tools = CodebaseTools(
-            repository_manager=repository_manager,
-            symbol_storage=symbol_storage
+            repository_manager=repository_manager, symbol_storage=symbol_storage
         )
 
         # Create shutdown and health monitoring components
