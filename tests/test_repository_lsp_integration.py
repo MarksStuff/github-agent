@@ -79,7 +79,8 @@ class TestRepositoryLSPIntegration(unittest.TestCase):
         # Main module
         main_py = os.path.join(self.test_repo_path, "main.py")
         with open(main_py, "w") as f:
-            f.write("""
+            f.write(
+                """
 def main():
     print("Hello, World!")
     return 42
@@ -93,12 +94,14 @@ class TestClass:
 
 if __name__ == "__main__":
     main()
-""")
+"""
+            )
 
         # Utils module
         utils_py = os.path.join(self.test_repo_path, "utils.py")
         with open(utils_py, "w") as f:
-            f.write("""
+            f.write(
+                """
 from typing import List, Optional
 
 def calculate_sum(numbers: List[int]) -> int:
@@ -106,7 +109,8 @@ def calculate_sum(numbers: List[int]) -> int:
 
 def find_max(numbers: List[int]) -> Optional[int]:
     return max(numbers) if numbers else None
-""")
+"""
+            )
 
     @patch("codebase_tools.CodebaseLSPClient")
     @patch("pyright_lsp_manager.PyrightLSPManager")

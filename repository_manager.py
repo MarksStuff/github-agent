@@ -848,6 +848,7 @@ class RepositoryManager(AbstractRepositoryManager):
                 client = self._lsp_clients[repo_name]
                 # Use asyncio to run the async stop method
                 import asyncio
+
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
