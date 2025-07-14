@@ -12,17 +12,16 @@ from unittest.mock import patch
 import pytest
 
 from codebase_cli import OutputFormatter, execute_cli, execute_tool_command
-from codebase_tools import CodebaseTools
 from repository_manager import AbstractRepositoryManager
 
 
 class MockCodebaseTools:
     """Mock CodebaseTools for testing."""
-    
+
     def __init__(self, execute_tool_result: str = '{"result": "success"}'):
         self.execute_tool_result = execute_tool_result
         self.execute_tool_calls = []
-    
+
     async def execute_tool(self, tool_name: str, **kwargs) -> str:
         """Mock execute_tool method."""
         self.execute_tool_calls.append({"tool_name": tool_name, "kwargs": kwargs})
@@ -209,7 +208,7 @@ class TestExecuteToolCommand:
     async def test_execute_codebase_tool_success(self, mock_symbol_storage):
         """Test successful execution of a codebase tool."""
         mock_codebase_tools = MockCodebaseTools('{"result": "success", "data": "test"}')
-        
+
         result = await execute_tool_command(
             "search_symbols",
             {"query": "test"},
@@ -262,7 +261,7 @@ class TestExecuteToolCommand:
     async def test_execute_tool_json_error(self, mock_symbol_storage):
         """Test handling of invalid JSON response."""
         mock_codebase_tools = MockCodebaseTools("invalid json")
-        
+
         result = await execute_tool_command(
             "search_symbols",
             {"query": "test"},
@@ -279,7 +278,7 @@ class TestExecuteToolCommand:
     async def test_execute_tool_exception(self, mock_symbol_storage):
         """Test handling of tool execution exception."""
         mock_codebase_tools = MockCodebaseTools(Exception("Tool failed"))
-        
+
         result = await execute_tool_command(
             "search_symbols",
             {"query": "test"},

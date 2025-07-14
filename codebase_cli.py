@@ -180,7 +180,7 @@ async def execute_tool_command(
                 codebase_tools = CodebaseTools(
                     repo_manager, symbol_storage, CodebaseLSPClient
                 )
-            
+
             result = await codebase_tools.execute_tool(
                 tool_name,
                 repository_id=repo_name,
