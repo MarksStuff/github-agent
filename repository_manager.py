@@ -18,7 +18,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from git import InvalidGitRepositoryError, Repo
 
@@ -416,7 +416,11 @@ class RepositoryConfig:
 class RepositoryManager(AbstractRepositoryManager):
     """Manages multiple repository configurations for the MCP server"""
 
-    def __init__(self, config_path: str | None = None, lsp_client_provider: LSPClientProvider | None = None):
+    def __init__(
+        self,
+        config_path: str | None = None,
+        lsp_client_provider: LSPClientProvider | None = None,
+    ):
         """
         Initialize repository manager
 
@@ -448,7 +452,9 @@ class RepositoryManager(AbstractRepositoryManager):
         self._repositories: dict[str, RepositoryConfig] = {}
 
         # LSP client provider for dependency injection
-        self.lsp_client_provider = lsp_client_provider or self._default_lsp_client_provider
+        self.lsp_client_provider = (
+            lsp_client_provider or self._default_lsp_client_provider
+        )
 
         # LSP server management
         self._lsp_clients: dict[str, AbstractLSPClient] = {}
@@ -459,10 +465,13 @@ class RepositoryManager(AbstractRepositoryManager):
         self._last_modified: float | None = None
         self._reload_callbacks: list[Callable[[], None]] = []
 
-    def _default_lsp_client_provider(self, workspace_root: str, python_path: str) -> AbstractLSPClient:
+    def _default_lsp_client_provider(
+        self, workspace_root: str, python_path: str
+    ) -> AbstractLSPClient:
         """Default LSP client provider that creates CodebaseLSPClient instances."""
         # Import here to avoid circular imports
         from codebase_tools import CodebaseLSPClient
+
         return CodebaseLSPClient(workspace_root=workspace_root, python_path=python_path)
 
     @classmethod

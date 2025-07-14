@@ -854,7 +854,9 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
         # Use mock client provider for dependency injection
         from tests.conftest import mock_lsp_client_provider
 
-        manager = RepositoryManager(self.config_file, lsp_client_provider=mock_lsp_client_provider)
+        manager = RepositoryManager(
+            self.config_file, lsp_client_provider=mock_lsp_client_provider
+        )
         self.assertTrue(manager.load_configuration())
 
         # Start LSP server
@@ -863,14 +865,18 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
 
     def test_start_lsp_server_failure(self):
         """Test LSP server startup failure"""
+
         # Create failing mock client provider
         def failing_client_provider(workspace_root: str, python_path: str):
             from tests.conftest import MockLSPClient
+
             mock_client = MockLSPClient(workspace_root=workspace_root)
             mock_client.start = lambda: False
             return mock_client
 
-        manager = RepositoryManager(self.config_file, lsp_client_provider=failing_client_provider)
+        manager = RepositoryManager(
+            self.config_file, lsp_client_provider=failing_client_provider
+        )
         self.assertTrue(manager.load_configuration())
 
         # Start LSP server

@@ -127,7 +127,9 @@ def find_max(numbers: List[int]) -> Optional[int]:
         from tests.conftest import mock_lsp_client_provider
 
         # Create repository manager with mock provider
-        manager = RepositoryManager(self.config_file, lsp_client_provider=mock_lsp_client_provider)
+        manager = RepositoryManager(
+            self.config_file, lsp_client_provider=mock_lsp_client_provider
+        )
         manager.logger.addHandler(self.log_handler)
 
         self.assertTrue(manager.load_configuration())
@@ -171,7 +173,9 @@ def find_max(numbers: List[int]) -> Optional[int]:
             mock_client.state = LSPClientState.ERROR
             return mock_client
 
-        manager = RepositoryManager(self.config_file, lsp_client_provider=unhealthy_client_provider)
+        manager = RepositoryManager(
+            self.config_file, lsp_client_provider=unhealthy_client_provider
+        )
         self.assertTrue(manager.load_configuration())
 
         # Start LSP server
@@ -203,7 +207,9 @@ def find_max(numbers: List[int]) -> Optional[int]:
         # Use mock client provider for dependency injection
         from tests.conftest import mock_lsp_client_provider
 
-        manager = RepositoryManager(self.config_file, lsp_client_provider=mock_lsp_client_provider)
+        manager = RepositoryManager(
+            self.config_file, lsp_client_provider=mock_lsp_client_provider
+        )
         self.assertTrue(manager.load_configuration())
 
         # Define concurrent operations
@@ -241,7 +247,9 @@ def find_max(numbers: List[int]) -> Optional[int]:
         # Use mock client provider for dependency injection
         from tests.conftest import mock_lsp_client_provider
 
-        manager = RepositoryManager(self.config_file, lsp_client_provider=mock_lsp_client_provider)
+        manager = RepositoryManager(
+            self.config_file, lsp_client_provider=mock_lsp_client_provider
+        )
         self.assertTrue(manager.load_configuration())
 
         # Get repository info before starting LSP
@@ -290,7 +298,9 @@ def find_max(numbers: List[int]) -> Optional[int]:
         # Use mock client provider for dependency injection
         from tests.conftest import mock_lsp_client_provider
 
-        manager = RepositoryManager(multi_config_file, lsp_client_provider=mock_lsp_client_provider)
+        manager = RepositoryManager(
+            multi_config_file, lsp_client_provider=mock_lsp_client_provider
+        )
         self.assertTrue(manager.load_configuration())
 
         # Start all LSP servers
@@ -333,7 +343,9 @@ def find_max(numbers: List[int]) -> Optional[int]:
         # Use mock client provider for dependency injection
         from tests.conftest import mock_lsp_client_provider
 
-        manager = RepositoryManager(self.config_file, lsp_client_provider=mock_lsp_client_provider)
+        manager = RepositoryManager(
+            self.config_file, lsp_client_provider=mock_lsp_client_provider
+        )
         manager.logger.addHandler(self.log_handler)
         self.assertTrue(manager.load_configuration())
 
