@@ -10,8 +10,9 @@ import logging
 import os
 import subprocess
 import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from constants import DATA_DIR, Language
 from lsp_client import AbstractLSPClient, LSPClientState
