@@ -757,14 +757,12 @@ async def main() -> None:
                 )
 
                 # Create codebase tools
-                from codebase_tools import CodebaseTools
+                from codebase_tools import CodebaseLSPClient, CodebaseTools
 
-                from codebase_tools import CodebaseLSPClient
-                
                 codebase_tools = CodebaseTools(
-                    repository_manager=repository_manager, 
+                    repository_manager=repository_manager,
                     symbol_storage=symbol_storage,
-                    lsp_client_factory=CodebaseLSPClient
+                    lsp_client_factory=CodebaseLSPClient,
                 )
 
                 # Create shutdown and health monitoring components
@@ -822,12 +820,12 @@ async def main() -> None:
         )
 
         # Create codebase tools
-        from codebase_tools import CodebaseTools, CodebaseLSPClient
+        from codebase_tools import CodebaseLSPClient, CodebaseTools
 
         codebase_tools = CodebaseTools(
-            repository_manager=repository_manager, 
+            repository_manager=repository_manager,
             symbol_storage=symbol_storage,
-            lsp_client_factory=CodebaseLSPClient
+            lsp_client_factory=CodebaseLSPClient,
         )
 
         # Create shutdown and health monitoring components

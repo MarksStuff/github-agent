@@ -14,7 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from constants import DATA_DIR, Language, SYMBOLS_DB_PATH
+from constants import SYMBOLS_DB_PATH, Language
 from lsp_client import AbstractLSPClient, LSPClientState
 from lsp_constants import LSPMethod
 from pyright_lsp_manager import PyrightLSPManager
@@ -803,7 +803,7 @@ async def execute_tool(tool_name: str, **kwargs) -> str:
     # In practice, this should be called through a configured CodebaseTools instance
     repo_manager = RepositoryManager()
     repo_manager.load_configuration()
-    
+
     symbol_storage = SQLiteSymbolStorage(SYMBOLS_DB_PATH)
     tools = CodebaseTools(repo_manager, symbol_storage, CodebaseLSPClient)
     return await tools.execute_tool(tool_name, **kwargs)
@@ -893,7 +893,7 @@ async def execute_get_hover(
 # Additional backward compatibility functions and constants
 TOOL_HANDLERS = {
     "codebase_health_check": "execute_codebase_health_check",
-    "search_symbols": "execute_search_symbols", 
+    "search_symbols": "execute_search_symbols",
     "find_definition": "execute_find_definition",
     "find_references": "execute_find_references",
     "get_hover": "execute_get_hover",
@@ -918,7 +918,11 @@ async def execute_codebase_health_check(repository_id: str, **kwargs) -> str:
 
 
 async def execute_search_symbols(
-    repository_id: str, query: str, symbol_kind: str | None = None, limit: int = 50, **kwargs
+    repository_id: str,
+    query: str,
+    symbol_kind: str | None = None,
+    limit: int = 50,
+    **kwargs,
 ) -> str:
     """Execute search_symbols tool (backward compatibility)"""
     repo_manager = RepositoryManager()

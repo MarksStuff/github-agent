@@ -30,8 +30,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 import github_tools
-from codebase_tools import CodebaseTools, CodebaseLSPClient
-from constants import DATA_DIR, LOGS_DIR, Language, SYMBOLS_DB_PATH
+from codebase_tools import CodebaseLSPClient, CodebaseTools
+from constants import DATA_DIR, LOGS_DIR, SYMBOLS_DB_PATH, Language
 from github_tools import (
     GitHubAPIContext,
     execute_find_pr_for_branch,
@@ -177,16 +177,17 @@ class MCPWorker:
             # Initialize CodebaseTools instance for this worker
             # Use the same temporary repository manager created in _setup_repository_manager
             github_temp_repo_manager = github_tools.repo_manager
-            
+
             # Create CodebaseTools with default dependencies for now
             # We'll replace symbol_storage later if Python-specific storage is available
             from symbol_storage import SQLiteSymbolStorage
+
             default_symbol_storage = SQLiteSymbolStorage(SYMBOLS_DB_PATH)
-            
+
             self.codebase_tools_instance = CodebaseTools(
                 repository_manager=github_temp_repo_manager,
                 symbol_storage=default_symbol_storage,
-                lsp_client_factory=CodebaseLSPClient
+                lsp_client_factory=CodebaseLSPClient,
             )
             self.logger.debug("CodebaseTools instance created successfully")
         except Exception as e:
@@ -444,10 +445,12 @@ class MCPWorker:
                         all_tools.extend(
                             module.get_tools(self.repo_name, self.repo_path)
                         )
-                    
+
                     # Add codebase tools from the instance
                     all_tools.extend(
-                        self.codebase_tools_instance.get_tools(self.repo_name, self.repo_path)
+                        self.codebase_tools_instance.get_tools(
+                            self.repo_name, self.repo_path
+                        )
                     )
 
                     response = {
@@ -598,11 +601,11 @@ class MCPWorker:
                         # Check if this is a codebase tool
                         codebase_tool_handlers = {
                             "codebase_health_check",
-                            "find_definition", 
+                            "find_definition",
                             "find_references",
-                            "get_hover"
+                            "get_hover",
                         }
-                        
+
                         if tool_name in codebase_tool_handlers:
                             # Use the CodebaseTools instance
                             result = await self.codebase_tools_instance.execute_tool(

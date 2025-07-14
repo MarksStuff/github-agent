@@ -907,7 +907,9 @@ class RepositoryManager(AbstractRepositoryManager):
         # Verify cleanup is complete
         with self._lsp_lock:
             if repo_name in self._lsp_clients or repo_name in self._lsp_managers:
-                self.logger.warning(f"LSP cleanup incomplete for repository '{repo_name}'")
+                self.logger.warning(
+                    f"LSP cleanup incomplete for repository '{repo_name}'"
+                )
                 return False
 
         return self.start_lsp_server(repo_name)

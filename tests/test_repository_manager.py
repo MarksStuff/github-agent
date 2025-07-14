@@ -7,11 +7,11 @@ Tests for Repository Manager - Phase 1 Multi-Repository Support
 import json
 import logging
 import os
+import shutil
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-import shutil
 from typing import cast
 from unittest.mock import patch
 
