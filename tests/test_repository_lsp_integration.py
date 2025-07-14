@@ -11,7 +11,6 @@ import sys
 import tempfile
 import threading
 import unittest
-from unittest.mock import patch
 
 from lsp_client import LSPClientState
 from repository_manager import RepositoryManager
@@ -117,7 +116,7 @@ def find_max(numbers: List[int]) -> Optional[int]:
         # Use mock client provider for dependency injection
         from tests.conftest import mock_lsp_client_provider
 
-        # Create repository manager with mock provider  
+        # Create repository manager with mock provider
         manager = RepositoryManager(
             self.config_file, lsp_client_provider=mock_lsp_client_provider
         )
