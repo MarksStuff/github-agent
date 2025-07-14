@@ -149,6 +149,7 @@ async def execute_tool_command(
     repo_name: str,
     repo_workspace: str,
     symbol_storage: AbstractSymbolStorage,
+    codebase_tools: CodebaseTools | None = None,
 ) -> dict[str, Any]:
     """Execute a tool command and return the results."""
     try:
@@ -163,21 +164,23 @@ async def execute_tool_command(
 
         # Route to appropriate tool module
         if tool_name in codebase_tool_handlers:
-            # Create CodebaseTools instance
-            repo_manager = RepositoryManager()
-            repo_config = RepositoryConfig.create_repository_config(
-                name=repo_name,
-                workspace=repo_workspace,
-                description=f"Test repository for {repo_name}",
-                language=Language.PYTHON,
-                port=8080,
-                python_path="/usr/bin/python3",
-            )
-            repo_manager.add_repository(repo_name, repo_config)
-
-            codebase_tools = CodebaseTools(
-                repo_manager, symbol_storage, CodebaseLSPClient
-            )
+            # Use injected codebase_tools or create default instance
+            if codebase_tools is None:
+                # Create default CodebaseTools instance
+                repo_manager = RepositoryManager()
+                repo_config = RepositoryConfig.create_repository_config(
+                    name=repo_name,
+                    workspace=repo_workspace,
+                    description=f"Test repository for {repo_name}",
+                    language=Language.PYTHON,
+                    port=8080,
+                    python_path="/usr/bin/python3",
+                )
+                repo_manager.add_repository(repo_name, repo_config)
+                codebase_tools = CodebaseTools(
+                    repo_manager, symbol_storage, CodebaseLSPClient
+                )
+            
             result = await codebase_tools.execute_tool(
                 tool_name,
                 repository_id=repo_name,

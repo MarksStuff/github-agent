@@ -48,7 +48,7 @@
 - Handle Python imports, classes, functions, and variables correctly
 - Abstract LSP interface allows easy switching between pyright/pylsp
 
-### US005 - Symbol Type Information
+### US006 - Symbol Type Information
 **As a developer** I want to retrieve type information and signatures for Python symbols so that I understand how to use them correctly.
 
 **Acceptance Criteria:**
@@ -57,7 +57,7 @@
 - Class hierarchy information (base classes, methods)
 - Variable type inference from context
 
-### US006 - Error Handling and Resilience
+### US007 - Error Handling and Resilience
 **As a developer** I want the system to gracefully handle LSP server failures so that temporary issues don't break my workflow.
 
 **Acceptance Criteria:**
@@ -68,7 +68,7 @@
 
 ## Phase 3: Multi-Repository Support
 
-### US007 - Multiple Python Repositories
+### US008 - Multiple Python Repositories
 **As an administrator** I want to configure multiple Python repositories so that I can search across all my projects simultaneously.
 
 **Acceptance Criteria:**
@@ -77,7 +77,7 @@
 - Cross-repository symbol search
 - Repository-specific queries when needed
 
-### US008 - Cross-Repository Symbol Search
+### US009 - Cross-Repository Symbol Search
 **As a developer** I want to search for symbols across all configured repositories so that I can find code regardless of which project it's in.
 
 **Acceptance Criteria:**
