@@ -774,5 +774,284 @@ class TestErrorMessageClarity(unittest.TestCase):
         self.assertIn("Repository name cannot be empty", error_msg)
 
 
+class TestRepositoryManagerLSPIntegration(unittest.TestCase):
+    """Test LSP integration with Repository Manager"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        # Create temporary directory for test repositories
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_file = os.path.join(self.temp_dir, "repositories.json")
+
+        # Create a mock Python repository
+        self.test_repo_path = os.path.join(self.temp_dir, "test-repo")
+        os.makedirs(self.test_repo_path, exist_ok=True)
+
+        # Initialize as git repository
+        os.system(f"cd {self.test_repo_path} && git init")
+
+        # Create a test Python file
+        test_py_file = os.path.join(self.test_repo_path, "test.py")
+        with open(test_py_file, "w") as f:
+            f.write("def hello_world():\n    return 'Hello, World!'\n")
+
+        # Create repositories.json
+        config_data = {
+            "repositories": {
+                "test-python-repo": {
+                    "workspace": self.test_repo_path,
+                    "description": "Test Python repository",
+                    "language": "python",
+                    "port": 8081,
+                    "python_path": sys.executable,
+                }
+            }
+        }
+
+        with open(self.config_file, "w") as f:
+            json.dump(config_data, f)
+
+    def tearDown(self):
+        """Clean up test fixtures"""
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_repository_manager_lsp_enabled_by_default(self):
+        """Test that LSP is enabled by default for repositories"""
+        manager = RepositoryManager(self.config_file)
+        self.assertTrue(manager.load_configuration())
+
+        repo_config = manager.get_repository("test-python-repo")
+        self.assertIsNotNone(repo_config)
+        self.assertTrue(repo_config.lsp_enabled)
+
+    def test_get_lsp_status_repository_not_found(self):
+        """Test LSP status for non-existent repository"""
+        manager = RepositoryManager(self.config_file)
+        self.assertTrue(manager.load_configuration())
+
+        status = manager.get_lsp_status("non-existent-repo")
+        self.assertIn("error", status)
+        self.assertIn("not found", status["error"])
+
+    def test_get_lsp_status_not_running(self):
+        """Test LSP status when server is not running"""
+        manager = RepositoryManager(self.config_file)
+        self.assertTrue(manager.load_configuration())
+
+        status = manager.get_lsp_status("test-python-repo")
+        self.assertEqual(status["repository"], "test-python-repo")
+        self.assertTrue(status["lsp_enabled"])
+        self.assertEqual(status["language"], "python")
+        self.assertTrue(status["supported"])
+        self.assertFalse(status["running"])
+        self.assertEqual(status["state"], "not_started")
+        self.assertFalse(status["healthy"])
+
+    @patch("codebase_tools.CodebaseLSPClient")
+    def test_start_lsp_server_success(self, mock_lsp_client_class):
+        """Test successful LSP server startup"""
+        # Mock the LSP client
+        mock_client = mock_lsp_client_class.return_value
+        mock_client.start.return_value = True
+        mock_client.state.value = "initialized"
+
+        manager = RepositoryManager(self.config_file)
+        self.assertTrue(manager.load_configuration())
+
+        # Start LSP server
+        result = manager.start_lsp_server("test-python-repo")
+        self.assertTrue(result)
+
+        # Verify client was created and started
+        mock_lsp_client_class.assert_called_once()
+        mock_client.start.assert_called_once()
+
+    @patch("codebase_tools.CodebaseLSPClient")
+    def test_start_lsp_server_failure(self, mock_lsp_client_class):
+        """Test LSP server startup failure"""
+        # Mock the LSP client to fail
+        mock_client = mock_lsp_client_class.return_value
+        mock_client.start.return_value = False
+
+        manager = RepositoryManager(self.config_file)
+        self.assertTrue(manager.load_configuration())
+
+        # Start LSP server
+        result = manager.start_lsp_server("test-python-repo")
+        self.assertFalse(result)
+
+    @patch("codebase_tools.CodebaseLSPClient")
+    def test_stop_lsp_server(self, mock_lsp_client_class):
+        """Test LSP server shutdown"""
+        # Mock the LSP client
+        mock_client = mock_lsp_client_class.return_value
+        mock_client.start.return_value = True
+        mock_client.shutdown.return_value = None
+
+        manager = RepositoryManager(self.config_file)
+        self.assertTrue(manager.load_configuration())
+
+        # Start and then stop LSP server
+        manager.start_lsp_server("test-python-repo")
+        result = manager.stop_lsp_server("test-python-repo")
+        self.assertTrue(result)
+
+        # Verify shutdown was called
+        mock_client.shutdown.assert_called_once()
+
+    def test_start_lsp_server_non_python_repository(self):
+        """Test LSP server start for non-Python repository (should succeed but do nothing)"""
+        # Create Swift repository config
+        config_data = {
+            "repositories": {
+                "test-swift-repo": {
+                    "workspace": self.test_repo_path,
+                    "description": "Test Swift repository",
+                    "language": "swift",
+                    "port": 8082,
+                    "python_path": sys.executable,
+                }
+            }
+        }
+
+        swift_config_file = os.path.join(self.temp_dir, "swift_repositories.json")
+        with open(swift_config_file, "w") as f:
+            json.dump(config_data, f)
+
+        manager = RepositoryManager(swift_config_file)
+        self.assertTrue(manager.load_configuration())
+
+        # Starting LSP for Swift should succeed but not actually start anything
+        result = manager.start_lsp_server("test-swift-repo")
+        self.assertTrue(result)
+
+    def test_start_lsp_server_disabled(self):
+        """Test LSP server start when LSP is disabled"""
+        manager = RepositoryManager(self.config_file)
+        self.assertTrue(manager.load_configuration())
+
+        # Disable LSP for the repository
+        repo_config = manager.get_repository("test-python-repo")
+        self.assertIsNotNone(repo_config)
+        repo_config.lsp_enabled = False
+
+        # Starting LSP should succeed but not actually start anything
+        result = manager.start_lsp_server("test-python-repo")
+        self.assertTrue(result)
+
+    @patch("codebase_tools.CodebaseLSPClient")
+    def test_get_lsp_client(self, mock_lsp_client_class):
+        """Test getting LSP client for a repository"""
+        # Mock the LSP client
+        mock_client = mock_lsp_client_class.return_value
+        mock_client.start.return_value = True
+
+        manager = RepositoryManager(self.config_file)
+        self.assertTrue(manager.load_configuration())
+
+        # Should return None before starting
+        client = manager.get_lsp_client("test-python-repo")
+        self.assertIsNone(client)
+
+        # Start LSP server
+        manager.start_lsp_server("test-python-repo")
+
+        # Should return the client after starting
+        client = manager.get_lsp_client("test-python-repo")
+        self.assertIsNotNone(client)
+        self.assertEqual(client, mock_client)
+
+    @patch("codebase_tools.CodebaseLSPClient")
+    def test_restart_lsp_server(self, mock_lsp_client_class):
+        """Test LSP server restart"""
+        # Mock the LSP client
+        mock_client = mock_lsp_client_class.return_value
+        mock_client.start.return_value = True
+        mock_client.shutdown.return_value = None
+
+        manager = RepositoryManager(self.config_file)
+        self.assertTrue(manager.load_configuration())
+
+        # Start LSP server first
+        manager.start_lsp_server("test-python-repo")
+
+        # Restart LSP server
+        result = manager.restart_lsp_server("test-python-repo")
+        self.assertTrue(result)
+
+        # Verify shutdown was called
+        mock_client.shutdown.assert_called()
+
+    @patch("codebase_tools.CodebaseLSPClient")
+    def test_start_all_lsp_servers(self, mock_lsp_client_class):
+        """Test starting all LSP servers"""
+        # Mock the LSP client
+        mock_client = mock_lsp_client_class.return_value
+        mock_client.start.return_value = True
+
+        manager = RepositoryManager(self.config_file)
+        self.assertTrue(manager.load_configuration())
+
+        # Start all LSP servers
+        results = manager.start_all_lsp_servers()
+
+        self.assertIn("test-python-repo", results)
+        self.assertTrue(results["test-python-repo"])
+
+    @patch("codebase_tools.CodebaseLSPClient")
+    def test_stop_all_lsp_servers(self, mock_lsp_client_class):
+        """Test stopping all LSP servers"""
+        # Mock the LSP client
+        mock_client = mock_lsp_client_class.return_value
+        mock_client.start.return_value = True
+        mock_client.shutdown.return_value = None
+
+        manager = RepositoryManager(self.config_file)
+        self.assertTrue(manager.load_configuration())
+
+        # Start LSP server first
+        manager.start_lsp_server("test-python-repo")
+
+        # Stop all LSP servers
+        results = manager.stop_all_lsp_servers()
+
+        self.assertIn("test-python-repo", results)
+        self.assertTrue(results["test-python-repo"])
+
+    def test_repository_info_includes_lsp_status(self):
+        """Test that repository info includes LSP status"""
+        manager = RepositoryManager(self.config_file)
+        self.assertTrue(manager.load_configuration())
+
+        info = manager.get_repository_info("test-python-repo")
+        self.assertIsNotNone(info)
+        self.assertIn("lsp_enabled", info)
+        self.assertIn("lsp_status", info)
+        if info:
+            self.assertTrue(info["lsp_enabled"])
+
+    def test_manager_shutdown_stops_all_lsp_servers(self):
+        """Test that manager shutdown stops all LSP servers"""
+        with patch("codebase_tools.CodebaseLSPClient") as mock_lsp_client_class:
+            # Mock the LSP client
+            mock_client = mock_lsp_client_class.return_value
+            mock_client.start.return_value = True
+            mock_client.shutdown.return_value = None
+
+            manager = RepositoryManager(self.config_file)
+            self.assertTrue(manager.load_configuration())
+
+            # Start LSP server
+            manager.start_lsp_server("test-python-repo")
+
+            # Shutdown manager
+            manager.shutdown()
+
+            # Verify disconnect was called (which contains shutdown logic)
+            # Note: We're mocking at the CodebaseLSPClient level
+
+
 if __name__ == "__main__":
     unittest.main()

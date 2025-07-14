@@ -250,6 +250,11 @@ deploy_file "symbol_storage.py"
 deploy_file "python_symbol_extractor.py"
 deploy_file "repository_indexer.py"
 deploy_file "startup_orchestrator.py"
+deploy_file "lsp_client.py"
+deploy_file "lsp_constants.py"
+deploy_file "lsp_jsonrpc.py"
+deploy_file "lsp_server_manager.py"
+deploy_file "pyright_lsp_manager.py"
 
 # Update dependencies if requirements changed
 echo "Updating Python dependencies..."
