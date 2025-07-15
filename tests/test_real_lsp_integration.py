@@ -13,7 +13,6 @@ import os
 import sys
 import tempfile
 import unittest
-from typing import Optional
 
 from repository_manager import RepositoryManager
 from tests.conftest import find_free_port
@@ -22,7 +21,7 @@ from tests.conftest import find_free_port
 class TestRealLSPServerIntegration(unittest.TestCase):
     """
     Real LSP server integration tests using dynamic port allocation.
-    
+
     These tests can be skipped in CI environments or when LSP servers
     are not available by setting the SKIP_REAL_LSP_TESTS environment variable.
     """
@@ -47,24 +46,26 @@ class TestRealLSPServerIntegration(unittest.TestCase):
         # Create a test Python file with realistic content
         test_py_file = os.path.join(self.test_repo_path, "test.py")
         with open(test_py_file, "w") as f:
-            f.write("""
+            f.write(
+                """
 def hello_world() -> str:
     '''Return a greeting message.'''
     return 'Hello, World!'
 
 class TestClass:
     '''A simple test class.'''
-    
+
     def __init__(self, name: str):
         self.name = name
-    
+
     def greet(self) -> str:
         '''Return a personalized greeting.'''
         return f'Hello, {self.name}!'
 
 if __name__ == "__main__":
     print(hello_world())
-""")
+"""
+            )
 
         # Find multiple free ports for potential multiple repositories
         self.test_port = find_free_port()
@@ -106,7 +107,7 @@ if __name__ == "__main__":
 
         # Test that we can start an LSP server
         result = self.manager.start_lsp_server("test-python-repo")
-        
+
         # This might fail if pyright is not installed, which is okay for this test
         if result:
             # If successful, test that we can get the client
@@ -122,7 +123,7 @@ if __name__ == "__main__":
     def test_port_conflict_handling(self):
         """Test behavior when configured port is already in use"""
         import socket
-        
+
         # Bind to the test port to simulate a conflict
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -136,7 +137,7 @@ if __name__ == "__main__":
             # The LSP server startup might fail due to port conflict,
             # but it should not crash the application
             result = self.manager.start_lsp_server("test-python-repo")
-            
+
             # We don't assert the result because port conflict handling
             # behavior may vary, but the test should not crash
 
@@ -148,10 +149,10 @@ if __name__ == "__main__":
         # Create a second repository config
         second_repo_path = os.path.join(self.temp_dir, "test-repo-2")
         os.makedirs(second_repo_path, exist_ok=True)
-        
+
         # Initialize as git repository
         os.system(f"cd {second_repo_path} && git init")
-        
+
         # Create another test Python file
         test_py_file = os.path.join(second_repo_path, "module.py")
         with open(test_py_file, "w") as f:
@@ -173,7 +174,7 @@ if __name__ == "__main__":
                     "language": "python",
                     "port": self.backup_port,
                     "python_path": sys.executable,
-                }
+                },
             }
         }
 
@@ -185,7 +186,7 @@ if __name__ == "__main__":
 
         # Test starting all LSP servers
         results = self.manager.start_all_lsp_servers()
-        
+
         # Verify results structure (even if LSP servers fail to start)
         self.assertIn("test-python-repo", results)
         self.assertIn("test-python-repo-2", results)
@@ -203,5 +204,7 @@ if __name__ == "__main__":
         sys.argv.remove("--real-lsp")
         unittest.main()
     else:
-        print("To run real LSP integration tests, use: python -m pytest tests/test_real_lsp_integration.py")
+        print(
+            "To run real LSP integration tests, use: python -m pytest tests/test_real_lsp_integration.py"
+        )
         print("Or: python tests/test_real_lsp_integration.py --real-lsp")

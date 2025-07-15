@@ -796,6 +796,7 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
 
         # Find a free port dynamically to avoid conflicts
         from tests.conftest import find_free_port
+
         self.test_port = find_free_port()
 
         # Create repositories.json

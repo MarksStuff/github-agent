@@ -39,14 +39,14 @@ from tests.test_fixtures import MockRepositoryManager
 def find_free_port(start_port: int = 8081, max_attempts: int = 100) -> int:
     """
     Find a free port starting from start_port.
-    
+
     Args:
         start_port: Port to start searching from
         max_attempts: Maximum number of ports to try
-        
+
     Returns:
         Free port number
-        
+
     Raises:
         RuntimeError: If no free port found within max_attempts
     """
@@ -57,8 +57,10 @@ def find_free_port(start_port: int = 8081, max_attempts: int = 100) -> int:
                 return port
             except OSError:
                 continue
-    
-    raise RuntimeError(f"No free port found in range {start_port}-{start_port + max_attempts}")
+
+    raise RuntimeError(
+        f"No free port found in range {start_port}-{start_port + max_attempts}"
+    )
 
 
 class MockLSPClient(AbstractLSPClient):
@@ -323,14 +325,14 @@ def assert_clean_shutdown(shutdown_result, exit_code_manager, expected_exit_code
 
     if expected_exit_code:
         actual_exit_code = exit_code_manager.determine_exit_code("test")
-        assert actual_exit_code == expected_exit_code, (
-            f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
-        )
+        assert (
+            actual_exit_code == expected_exit_code
+        ), f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
 
     summary = exit_code_manager.get_exit_summary()
-    assert summary["total_problems"] == 0, (
-        f"Expected clean shutdown but found problems: {summary}"
-    )
+    assert (
+        summary["total_problems"] == 0
+    ), f"Expected clean shutdown but found problems: {summary}"
 
 
 def assert_shutdown_with_issues(
@@ -341,15 +343,15 @@ def assert_shutdown_with_issues(
     if shutdown_result is False:
         # Failed shutdown should have critical issues
         summary = exit_code_manager.get_exit_summary()
-        assert summary["total_problems"] > 0, (
-            "Failed shutdown should have reported problems"
-        )
+        assert (
+            summary["total_problems"] > 0
+        ), "Failed shutdown should have reported problems"
 
     if expected_problems:
         summary = exit_code_manager.get_exit_summary()
-        assert summary["total_problems"] >= expected_problems, (
-            f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
-        )
+        assert (
+            summary["total_problems"] >= expected_problems
+        ), f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
 
 
 # Add to pytest namespace for easy import
