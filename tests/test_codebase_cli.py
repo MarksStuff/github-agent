@@ -18,9 +18,9 @@ from repository_manager import AbstractRepositoryManager
 class MockCodebaseTools:
     """Mock CodebaseTools for testing."""
 
-    def __init__(self, execute_tool_result: str = '{"result": "success"}'):
+    def __init__(self, execute_tool_result: str | Exception = '{"result": "success"}'):
         self.execute_tool_result = execute_tool_result
-        self.execute_tool_calls = []
+        self.execute_tool_calls: list[dict] = []
 
     async def execute_tool(self, tool_name: str, **kwargs) -> str:
         """Mock execute_tool method."""
@@ -215,7 +215,7 @@ class TestExecuteToolCommand:
             "my-repo",
             "/path/to/repo",
             mock_symbol_storage,
-            codebase_tools=mock_codebase_tools,
+            codebase_tools=mock_codebase_tools,  # type: ignore[arg-type]
         )
 
         assert result == {"result": "success", "data": "test"}
@@ -268,7 +268,7 @@ class TestExecuteToolCommand:
             "my-repo",
             "/path/to/repo",
             mock_symbol_storage,
-            codebase_tools=mock_codebase_tools,
+            codebase_tools=mock_codebase_tools,  # type: ignore[arg-type]
         )
 
         assert "error" in result
@@ -285,7 +285,7 @@ class TestExecuteToolCommand:
             "my-repo",
             "/path/to/repo",
             mock_symbol_storage,
-            codebase_tools=mock_codebase_tools,
+            codebase_tools=mock_codebase_tools,  # type: ignore[arg-type]
         )
 
         assert "error" in result

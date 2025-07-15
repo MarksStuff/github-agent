@@ -66,3 +66,8 @@ class MockRepositoryManager(AbstractRepositoryManager):
     def set_fail_on_access(self, fail: bool):
         """Set whether to fail when accessing repositories."""
         self._fail_on_access = fail
+
+    def get_lsp_client(self, repo_name: str) -> Any | None:
+        """Get LSP client for repository (mock implementation)."""
+        # Return None for mock implementation
+        return None

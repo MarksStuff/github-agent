@@ -8,6 +8,7 @@ import json
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -26,7 +27,7 @@ class MockRepositoryManager(AbstractRepositoryManager):
         self._repositories = {}
 
     @property
-    def repositories(self) -> dict[str, any]:
+    def repositories(self) -> dict[str, Any]:
         return self._repositories
 
     def get_repository(self, name: str):
@@ -72,7 +73,13 @@ class MockSymbolStorage(AbstractSymbolStorage):
     def get_symbols_by_kind(self, kind: SymbolKind) -> list[Symbol]:
         return []
 
-    def search_symbols(self, query: str, limit: int = 50) -> list[Symbol]:
+    def search_symbols(
+        self,
+        query: str,
+        repository_id: str | None = None,
+        symbol_kind: str | None = None,
+        limit: int = 50,
+    ) -> list[Symbol]:
         return []
 
     def clear_symbols(self, repo_name: str) -> None:
@@ -89,7 +96,7 @@ class MockSymbolStorage(AbstractSymbolStorage):
         if repo_name in self.symbols:
             del self.symbols[repo_name]
 
-    def get_symbols_by_file(self, file_path: str) -> list[Symbol]:
+    def get_symbols_by_file(self, file_path: str, repository_id: str) -> list[Symbol]:
         return []
 
     def health_check(self) -> bool:
@@ -109,11 +116,29 @@ class MockLSPClient(AbstractLSPClient):
         self.workspace = workspace
         self.python_path = python_path
 
-    async def connect(self) -> bool:
+    async def start(self) -> bool:
         return True
 
-    async def disconnect(self):
+    async def stop(self) -> None:
         pass
+
+    async def get_definition(
+        self, uri: str, line: int, character: int
+    ) -> list[dict] | None:
+        return []
+
+    async def get_references(
+        self, uri: str, line: int, character: int, include_declaration: bool = True
+    ) -> list[dict] | None:
+        return []
+
+    async def get_hover(
+        self, uri: str, line: int, character: int
+    ) -> dict | None:
+        return None
+
+    async def get_document_symbols(self, uri: str) -> list[dict] | None:
+        return []
 
 
 def mock_lsp_client_factory(workspace: str, python_path: str) -> AbstractLSPClient:

@@ -131,15 +131,7 @@ def mock_lsp_client():
 @pytest.fixture
 def mock_repository_manager_with_lsp():
     """Create a mock repository manager that returns mock LSP clients."""
-    manager = MockRepositoryManager()
-
-    def get_lsp_client(repo_name: str):
-        """Return a mock LSP client for any repository."""
-        return MockLSPClient(workspace_root=f"/test/{repo_name}")
-
-    # Add the method to the mock manager
-    manager.get_lsp_client = get_lsp_client
-    return manager
+    return MockRepositoryManager()
 
 
 @pytest.fixture
