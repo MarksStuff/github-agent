@@ -4,6 +4,7 @@ Pytest configuration and shared fixtures for shutdown system tests.
 
 import logging
 import os
+import socket
 import subprocess
 import tempfile
 import threading
@@ -33,6 +34,31 @@ from symbol_storage import (
     SymbolKind,
 )
 from tests.test_fixtures import MockRepositoryManager
+
+
+def find_free_port(start_port: int = 8081, max_attempts: int = 100) -> int:
+    """
+    Find a free port starting from start_port.
+    
+    Args:
+        start_port: Port to start searching from
+        max_attempts: Maximum number of ports to try
+        
+    Returns:
+        Free port number
+        
+    Raises:
+        RuntimeError: If no free port found within max_attempts
+    """
+    for port in range(start_port, start_port + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            try:
+                sock.bind(("localhost", port))
+                return port
+            except OSError:
+                continue
+    
+    raise RuntimeError(f"No free port found in range {start_port}-{start_port + max_attempts}")
 
 
 class MockLSPClient(AbstractLSPClient):

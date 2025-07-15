@@ -794,6 +794,10 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
         with open(test_py_file, "w") as f:
             f.write("def hello_world():\n    return 'Hello, World!'\n")
 
+        # Find a free port dynamically to avoid conflicts
+        from tests.conftest import find_free_port
+        self.test_port = find_free_port()
+
         # Create repositories.json
         config_data = {
             "repositories": {
@@ -801,7 +805,7 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
                     "workspace": self.test_repo_path,
                     "description": "Test Python repository",
                     "language": "python",
-                    "port": 8081,
+                    "port": self.test_port,
                     "python_path": sys.executable,
                 }
             }
@@ -994,13 +998,12 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
 
     def test_start_all_lsp_servers(self):
         """Test starting all LSP servers"""
-        # Mock the LSP client
-        from unittest.mock import Mock
+        # Use mock client provider for dependency injection
+        from tests.conftest import mock_lsp_client_provider
 
-        mock_client = Mock()
-        mock_client.start.return_value = True
-
-        manager = RepositoryManager(self.config_file)
+        manager = RepositoryManager(
+            self.config_file, lsp_client_provider=mock_lsp_client_provider
+        )
         self.assertTrue(manager.load_configuration())
 
         # Start all LSP servers
@@ -1011,14 +1014,12 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
 
     def test_stop_all_lsp_servers(self):
         """Test stopping all LSP servers"""
-        # Mock the LSP client
-        from unittest.mock import Mock
+        # Use mock client provider for dependency injection
+        from tests.conftest import mock_lsp_client_provider
 
-        mock_client = Mock()
-        mock_client.start.return_value = True
-        mock_client.shutdown.return_value = None
-
-        manager = RepositoryManager(self.config_file)
+        manager = RepositoryManager(
+            self.config_file, lsp_client_provider=mock_lsp_client_provider
+        )
         self.assertTrue(manager.load_configuration())
 
         # Start LSP server first
