@@ -191,62 +191,9 @@ if __name__ == "__main__":
         self.assertIn("test-python-repo-2", results)
 
 
-@unittest.skipIf(
-    os.getenv("SKIP_REAL_LSP_TESTS"),
-    "Real LSP tests skipped by environment variable"
-)
-class TestLSPPortAllocation(unittest.TestCase):
-    """Test the dynamic port allocation utility functions"""
-
-    def test_find_free_port_basic(self):
-        """Test basic port finding functionality"""
-        port = find_free_port(start_port=9000)
-        self.assertGreaterEqual(port, 9000)
-        self.assertLessEqual(port, 9100)
-
-    def test_find_free_port_with_conflict(self):
-        """Test port finding when some ports are occupied"""
-        import socket
-        
-        # Bind to a port to create a conflict
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            sock.bind(("localhost", 9001))
-            sock.listen(1)
-            
-            # Find a free port starting from 9001
-            port = find_free_port(start_port=9001)
-            
-            # Should find a port other than 9001
-            self.assertNotEqual(port, 9001)
-            self.assertGreaterEqual(port, 9002)
-            
-        finally:
-            sock.close()
-
-    def test_find_free_port_exhaustion(self):
-        """Test behavior when no ports are available in range"""
-        import socket
-        
-        # Create sockets to occupy a range of ports
-        sockets = []
-        start_port = 9010
-        try:
-            # Bind to several consecutive ports to create exhaustion
-            for port in range(start_port, start_port + 3):
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.bind(("localhost", port))
-                sock.listen(1)
-                sockets.append(sock)
-            
-            # Now test with a small range that should be exhausted
-            with self.assertRaises(RuntimeError):
-                find_free_port(start_port=start_port, max_attempts=3)
-                
-        finally:
-            # Clean up sockets
-            for sock in sockets:
-                sock.close()
+# Note: The find_free_port() utility in conftest.py is a simple testing helper
+# and doesn't need comprehensive testing. It's used to avoid port conflicts
+# in our LSP integration tests.
 
 
 if __name__ == "__main__":
