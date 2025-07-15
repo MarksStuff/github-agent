@@ -13,10 +13,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import pytest
 from codebase_tools import CodebaseTools
+from tests.conftest import MockLSPClient, MockSymbolStorage
 from tests.test_fixtures import MockRepositoryManager
-from tests.conftest import MockSymbolStorage, MockLSPClient
 
 
 class TestLSPToolsIntegration(unittest.TestCase):
@@ -71,12 +70,16 @@ if __name__ == "__main__":
         """Create a CodebaseTools instance with mocks."""
         repo_manager = MockRepositoryManager()
         symbol_storage = MockSymbolStorage()
-        def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+
+        def mock_lsp_client_factory(
+            workspace_root: str, python_path: str
+        ) -> MockLSPClient:
             return MockLSPClient(workspace_root=workspace_root)
+
         return CodebaseTools(
             repository_manager=repo_manager,
             symbol_storage=symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
 
     def test_tool_registration(self):
@@ -155,7 +158,9 @@ if __name__ == "__main__":
 
         # Test round-trip conversion
         user_pos = {"line": 10, "column": 5}
-        lsp_pos = codebase_tools._user_friendly_to_lsp_position(user_pos["line"], user_pos["column"])
+        lsp_pos = codebase_tools._user_friendly_to_lsp_position(
+            user_pos["line"], user_pos["column"]
+        )
         back_to_user = codebase_tools._lsp_position_to_user_friendly(
             lsp_pos["line"], lsp_pos["character"]
         )

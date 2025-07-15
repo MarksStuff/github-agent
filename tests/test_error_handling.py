@@ -377,35 +377,35 @@ class TestIntegrationErrorHandling(unittest.TestCase):
         """Test error handling in search operations."""
         import asyncio
         import json
+
         from codebase_tools import CodebaseTools
+        from tests.conftest import MockLSPClient
         from tests.test_fixtures import MockRepositoryManager
-        from tests.conftest import MockSymbolStorage, MockLSPClient
 
         # Create CodebaseTools instance with mocks
         repo_manager = MockRepositoryManager()
         symbol_storage = SQLiteSymbolStorage(self.db_path)
-        def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+
+        def mock_lsp_client_factory(
+            workspace_root: str, python_path: str
+        ) -> MockLSPClient:
             return MockLSPClient(workspace_root=workspace_root)
-        
+
         codebase_tools = CodebaseTools(
             repository_manager=repo_manager,
             symbol_storage=symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
 
         # Test empty query
-        result = asyncio.run(
-            codebase_tools.search_symbols("test_repo", "")
-        )
+        result = asyncio.run(codebase_tools.search_symbols("test_repo", ""))
         result_dict = json.loads(result)
         self.assertIn("error", result_dict)
         self.assertIn("test_repo", result_dict["error"])
 
         # Test invalid limit (note: search_symbols doesn't do limit validation)
         result = asyncio.run(
-            codebase_tools.search_symbols(
-                "test_repo", "test", limit=150
-            )
+            codebase_tools.search_symbols("test_repo", "test", limit=150)
         )
         result_dict = json.loads(result)
         # The limit gets capped at 100 but no error is raised

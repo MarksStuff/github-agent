@@ -17,11 +17,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-import codebase_tools
 import github_tools
 from constants import Language
-from tests.conftest import MockLSPClient, MockSymbolStorage
-from tests.test_fixtures import MockRepositoryManager
 
 
 class TestGitHubValidation(unittest.TestCase):
@@ -128,12 +125,13 @@ def test_codebase_validate_empty_repos(codebase_tools_factory):
     """Test codebase validation with empty repositories."""
     # Create CodebaseTools instance with no repositories
     codebase_tools = codebase_tools_factory()
-    
+
     # Should return error when trying to check non-existent repository
     result = asyncio.run(codebase_tools.codebase_health_check("nonexistent"))
     result_data = json.loads(result)
     assert result_data["status"] == "error"
     assert "not found" in result_data["error"]
+
 
 def test_codebase_validate_with_valid_repo(codebase_tools_factory):
     """Test codebase validation with a valid repository."""
@@ -141,7 +139,7 @@ def test_codebase_validate_with_valid_repo(codebase_tools_factory):
         # Create a git repository
         git_dir = os.path.join(temp_dir, ".git")
         os.makedirs(git_dir)
-        
+
         # Mock repository config
         mock_repo_config = Mock()
         mock_repo_config.workspace = temp_dir
@@ -150,12 +148,13 @@ def test_codebase_validate_with_valid_repo(codebase_tools_factory):
 
         # Create CodebaseTools instance with valid repository
         codebase_tools = codebase_tools_factory(repositories=repositories)
-        
+
         # Should pass health check for valid repository
         result = asyncio.run(codebase_tools.codebase_health_check("test_repo"))
         result_data = json.loads(result)
         assert result_data["status"] == "healthy"
         assert result_data["repository_id"] == "test_repo"
+
 
 def test_codebase_validate_workspace_not_accessible(codebase_tools_factory):
     """Test codebase validation with inaccessible workspace."""
@@ -167,12 +166,13 @@ def test_codebase_validate_workspace_not_accessible(codebase_tools_factory):
 
     # Create CodebaseTools instance with invalid repository
     codebase_tools = codebase_tools_factory(repositories=repositories)
-    
+
     # Should return error for non-existent workspace
     result = asyncio.run(codebase_tools.codebase_health_check("test_repo"))
     result_data = json.loads(result)
     assert result_data["status"] == "error"
     assert "does not exist" in result_data["message"]
+
 
 def test_codebase_validate_not_git_repo(codebase_tools_factory):
     """Test codebase validation when directory is not a git repository."""
@@ -185,34 +185,37 @@ def test_codebase_validate_not_git_repo(codebase_tools_factory):
 
         # Create CodebaseTools instance with non-git repository
         codebase_tools = codebase_tools_factory(repositories=repositories)
-        
+
         # Should return warning for non-git repository
         result = asyncio.run(codebase_tools.codebase_health_check("test_repo"))
         result_data = json.loads(result)
         assert result_data["status"] == "warning"
         assert "not a Git repository" in result_data["message"]
 
+
 def test_validate_symbol_storage_success_with_mock(codebase_tools_factory):
     """Test symbol storage health check succeeds when health_check returns True."""
     # Create CodebaseTools instance with mock symbol storage
     codebase_tools = codebase_tools_factory()
-    
+
     # Set mock to return True for health_check
     codebase_tools.symbol_storage.set_health_check_result(True)
-    
+
     # Health check should succeed
     assert codebase_tools.symbol_storage.health_check()
+
 
 def test_validate_symbol_storage_failure_with_mock(codebase_tools_factory):
     """Test symbol storage health check fails when health_check returns False."""
     # Create CodebaseTools instance with mock symbol storage
     codebase_tools = codebase_tools_factory()
-    
+
     # Set mock to return False for health_check
     codebase_tools.symbol_storage.set_health_check_result(False)
-    
+
     # Health check should fail
     assert not codebase_tools.symbol_storage.health_check()
+
 
 def test_validate_symbol_storage_success_with_real_storage(codebase_tools_factory):
     """Test symbol storage health check succeeds with real SQLiteSymbolStorage."""
@@ -221,10 +224,10 @@ def test_validate_symbol_storage_success_with_real_storage(codebase_tools_factor
     try:
         # Create CodebaseTools instance with real SQLiteSymbolStorage (in-memory)
         codebase_tools = codebase_tools_factory(use_real_symbol_storage=True)
-        
+
         # Health check should succeed
         assert codebase_tools.symbol_storage.health_check()
-        
+
     except RuntimeError as e:
         # If it fails, make sure it's not due to import issues
         assert "not available" not in str(e)
@@ -241,7 +244,7 @@ def test_validation_integration_success(codebase_tools_factory):
     """Test successful validation of both GitHub and codebase services."""
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
-    
+
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create a mock git repository
         git_dir = os.path.join(temp_dir, ".git")
@@ -266,16 +269,17 @@ def test_validation_integration_success(codebase_tools_factory):
 
             # Test codebase validation - create instance and run health check
             codebase_tools = codebase_tools_factory(repositories=repositories)
-            
+
             result = asyncio.run(codebase_tools.codebase_health_check("test_repo"))
             result_data = json.loads(result)
             assert result_data["status"] == "healthy"
+
 
 def test_validation_order_independence(codebase_tools_factory):
     """Test that validation order doesn't matter."""
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
-    
+
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create a mock git repository
         git_dir = os.path.join(temp_dir, ".git")
@@ -297,11 +301,11 @@ def test_validation_order_independence(codebase_tools_factory):
 
             # Test different order
             codebase_tools = codebase_tools_factory(repositories=repositories)
-            
+
             result = asyncio.run(codebase_tools.codebase_health_check("test_repo"))
             result_data = json.loads(result)
             assert result_data["status"] == "healthy"
-            
+
             github_tools.validate(logger, repositories)
 
 

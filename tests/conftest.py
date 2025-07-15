@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 
+import codebase_tools
 import mcp_master
 from lsp_client import AbstractLSPClient, LSPClientState
 from python_symbol_extractor import AbstractSymbolExtractor, PythonSymbolExtractor
@@ -32,7 +33,6 @@ from symbol_storage import (
     SymbolKind,
 )
 from tests.test_fixtures import MockRepositoryManager
-import codebase_tools
 
 
 class MockLSPClient(AbstractLSPClient):
@@ -299,14 +299,14 @@ def assert_clean_shutdown(shutdown_result, exit_code_manager, expected_exit_code
 
     if expected_exit_code:
         actual_exit_code = exit_code_manager.determine_exit_code("test")
-        assert actual_exit_code == expected_exit_code, (
-            f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
-        )
+        assert (
+            actual_exit_code == expected_exit_code
+        ), f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
 
     summary = exit_code_manager.get_exit_summary()
-    assert summary["total_problems"] == 0, (
-        f"Expected clean shutdown but found problems: {summary}"
-    )
+    assert (
+        summary["total_problems"] == 0
+    ), f"Expected clean shutdown but found problems: {summary}"
 
 
 def assert_shutdown_with_issues(
@@ -317,15 +317,15 @@ def assert_shutdown_with_issues(
     if shutdown_result is False:
         # Failed shutdown should have critical issues
         summary = exit_code_manager.get_exit_summary()
-        assert summary["total_problems"] > 0, (
-            "Failed shutdown should have reported problems"
-        )
+        assert (
+            summary["total_problems"] > 0
+        ), "Failed shutdown should have reported problems"
 
     if expected_problems:
         summary = exit_code_manager.get_exit_summary()
-        assert summary["total_problems"] >= expected_problems, (
-            f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
-        )
+        assert (
+            summary["total_problems"] >= expected_problems
+        ), f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
 
 
 # Add to pytest namespace for easy import
@@ -646,17 +646,19 @@ def mcp_master_factory():
         test_logger = logging.getLogger("test_mcp_master")
         shutdown_coordinator = SimpleShutdownCoordinator(test_logger)
         health_monitor = SimpleHealthMonitor(test_logger)
-        
+
         # Create CodebaseTools instance
         from codebase_tools import CodebaseLSPClient
+
         def mock_lsp_client_factory(workspace: str, python_path: str):
             return CodebaseLSPClient(workspace, python_path)
-        
+
         from codebase_tools import CodebaseTools
+
         codebase_tools = CodebaseTools(
             repository_manager=repository_manager,
             symbol_storage=symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
 
         return mcp_master.MCPMaster(
@@ -676,14 +678,16 @@ def mcp_master_factory():
 @pytest.fixture
 def repository_manager_factory():
     """Factory for creating repository manager instances."""
+
     def _create(mock=True):
         if mock:
             return MockRepositoryManager()
         else:
             # Use real RepositoryManager for testing
             from repository_manager import RepositoryManager
+
             return RepositoryManager()
-    
+
     return _create
 
 
@@ -691,19 +695,20 @@ def repository_manager_factory():
 def symbol_storage_factory():
     """Factory for creating symbol storage instances with automatic cleanup."""
     created_objects = []
-    
+
     def _create(mock=True):
         if mock:
             return MockSymbolStorage()
         else:
             # Use real SQLiteSymbolStorage with in-memory database
             from symbol_storage import SQLiteSymbolStorage
+
             storage = SQLiteSymbolStorage(db_path=":memory:")
             created_objects.append(storage)
             return storage
-    
+
     yield _create
-    
+
     # Cleanup all created real objects
     for obj in created_objects:
         obj.close()
@@ -712,45 +717,63 @@ def symbol_storage_factory():
 @pytest.fixture
 def lsp_client_factory_factory():
     """Factory for creating LSP client factory functions."""
+
     def _create(mock=True):
         if mock:
-            def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+
+            def mock_lsp_client_factory(
+                workspace_root: str, python_path: str
+            ) -> MockLSPClient:
                 return MockLSPClient(workspace_root=workspace_root)
+
             return mock_lsp_client_factory
         else:
             # Use real LSP client factory for testing
             from lsp_client import CodebaseLSPClient
-            def real_lsp_client_factory(workspace_root: str, python_path: str) -> CodebaseLSPClient:
-                return CodebaseLSPClient(workspace_root=workspace_root, python_path=python_path)
+
+            def real_lsp_client_factory(
+                workspace_root: str, python_path: str
+            ) -> CodebaseLSPClient:
+                return CodebaseLSPClient(
+                    workspace_root=workspace_root, python_path=python_path
+                )
+
             return real_lsp_client_factory
-    
+
     return _create
 
 
 @pytest.fixture
-def codebase_tools_factory(repository_manager_factory, symbol_storage_factory, lsp_client_factory_factory):
+def codebase_tools_factory(
+    repository_manager_factory, symbol_storage_factory, lsp_client_factory_factory
+):
     """Factory for creating CodebaseTools instances with automatic cleanup."""
+
     def _create(
         repositories: dict = {},
         use_real_repository_manager: bool = False,
         use_real_symbol_storage: bool = False,
-        use_real_lsp_client_factory: bool = False
+        use_real_lsp_client_factory: bool = False,
     ) -> codebase_tools.CodebaseTools:
         # Create repository manager
-        repository_manager = repository_manager_factory(mock=not use_real_repository_manager)
+        repository_manager = repository_manager_factory(
+            mock=not use_real_repository_manager
+        )
         for name, config in repositories.items():
             repository_manager.add_repository(name, config)
-        
+
         # Create symbol storage
         symbol_storage = symbol_storage_factory(mock=not use_real_symbol_storage)
-        
+
         # Create LSP client factory
-        lsp_client_factory = lsp_client_factory_factory(mock=not use_real_lsp_client_factory)
-        
+        lsp_client_factory = lsp_client_factory_factory(
+            mock=not use_real_lsp_client_factory
+        )
+
         return codebase_tools.CodebaseTools(
             repository_manager=repository_manager,
             symbol_storage=symbol_storage,
-            lsp_client_factory=lsp_client_factory
+            lsp_client_factory=lsp_client_factory,
         )
-    
+
     return _create

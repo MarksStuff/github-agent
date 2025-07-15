@@ -180,10 +180,11 @@ class TestCodebaseTools:
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        
+
         # Add a repository with nonexistent path
-        from repository_manager import RepositoryConfig
         from constants import Language
+        from repository_manager import RepositoryConfig
+
         test_config = RepositoryConfig(
             name="test-repo",
             workspace="/nonexistent/path",
@@ -195,14 +196,14 @@ class TestCodebaseTools:
             github_repo="test",
         )
         mock_repo_manager.add_repository("test-repo", test_config)
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         # The new method only takes repository_id, path comes from repository manager
         result = await codebase_tools.codebase_health_check("test-repo")
 
@@ -219,10 +220,11 @@ class TestCodebaseTools:
             # Create mock dependencies
             mock_repo_manager = MockRepositoryManager()
             mock_symbol_storage = MockSymbolStorage()
-            
+
             # Add a repository with the temp file as workspace
-            from repository_manager import RepositoryConfig
             from constants import Language
+            from repository_manager import RepositoryConfig
+
             test_config = RepositoryConfig(
                 name="test-repo",
                 workspace=temp_file.name,  # Point to file, not directory
@@ -234,14 +236,14 @@ class TestCodebaseTools:
                 github_repo="test",
             )
             mock_repo_manager.add_repository("test-repo", test_config)
-            
+
             # Create CodebaseTools instance
             codebase_tools = CodebaseTools(
                 repository_manager=mock_repo_manager,
                 symbol_storage=mock_symbol_storage,
-                lsp_client_factory=mock_lsp_client_factory
+                lsp_client_factory=mock_lsp_client_factory,
             )
-            
+
             result = await codebase_tools.codebase_health_check("test-repo")
 
             data = json.loads(result)
@@ -254,17 +256,18 @@ class TestCodebaseTools:
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         # Add repository to mock manager
-        from repository_manager import RepositoryConfig
         from constants import Language
+        from repository_manager import RepositoryConfig
+
         repo_config = RepositoryConfig(
             name="test-repo",
             workspace=temp_dir_not_git,
@@ -276,7 +279,7 @@ class TestCodebaseTools:
             github_repo="test-repo",
         )
         mock_repo_manager.add_repository("test-repo", repo_config)
-        
+
         result = await codebase_tools.codebase_health_check("test-repo")
 
         data = json.loads(result)
@@ -291,17 +294,18 @@ class TestCodebaseTools:
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         # Add repository to mock manager
-        from repository_manager import RepositoryConfig
         from constants import Language
+        from repository_manager import RepositoryConfig
+
         repo_config = RepositoryConfig(
             name="test-repo",
             workspace=temp_git_repo,
@@ -313,7 +317,7 @@ class TestCodebaseTools:
             github_repo="test-repo",
         )
         mock_repo_manager.add_repository("test-repo", repo_config)
-        
+
         result = await codebase_tools.codebase_health_check("test-repo")
 
         data = json.loads(result)
@@ -330,24 +334,25 @@ class TestCodebaseTools:
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         # Add a remote to the test repo
         subprocess.run(
             ["git", "remote", "add", "origin", "https://github.com/test/repo.git"],
             cwd=temp_git_repo,
             capture_output=True,
         )
-        
+
         # Add repository to mock manager
-        from repository_manager import RepositoryConfig
         from constants import Language
+        from repository_manager import RepositoryConfig
+
         repo_config = RepositoryConfig(
             name="test-repo",
             workspace=temp_git_repo,
@@ -359,7 +364,7 @@ class TestCodebaseTools:
             github_repo="test-repo",
         )
         mock_repo_manager.add_repository("test-repo", repo_config)
-        
+
         result = await codebase_tools.codebase_health_check("test-repo")
 
         data = json.loads(result)
@@ -373,14 +378,14 @@ class TestCodebaseTools:
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         # Test with non-existent repository to trigger an exception
         result = await codebase_tools.codebase_health_check("nonexistent-repo")
 
@@ -395,17 +400,18 @@ class TestCodebaseTools:
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         # Add repository to mock manager
-        from repository_manager import RepositoryConfig
         from constants import Language
+        from repository_manager import RepositoryConfig
+
         repo_config = RepositoryConfig(
             name="test-repo",
             workspace=temp_git_repo,
@@ -417,12 +423,12 @@ class TestCodebaseTools:
             github_repo="test-repo",
         )
         mock_repo_manager.add_repository("test-repo", repo_config)
-        
+
         result = await codebase_tools.execute_tool(
             "codebase_health_check",
             repository_id="test-repo",
         )
-        
+
         data = json.loads(result)
         assert data["repository_id"] == "test-repo"
         assert "status" in data
@@ -433,14 +439,14 @@ class TestCodebaseTools:
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         result = await codebase_tools.execute_tool("invalid_tool", repo_name="test")
 
         data = json.loads(result)
@@ -456,14 +462,14 @@ class TestCodebaseTools:
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         # This will cause an exception due to missing required argument
         result = await codebase_tools.execute_tool("codebase_health_check")
 
@@ -477,14 +483,14 @@ class TestCodebaseTools:
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         tools = codebase_tools.get_tools("test-repo", "/test/path")
 
         for tool in tools:
@@ -513,14 +519,14 @@ class TestCodebaseTools:
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         # Verify all tools have handlers
         tools = codebase_tools.get_tools("test", "/test")
         for tool in tools:
@@ -529,7 +535,13 @@ class TestCodebaseTools:
             assert hasattr(codebase_tools, tool_name)
 
         # Verify all expected tool methods exist and are callable
-        expected_tools = ["codebase_health_check", "search_symbols", "find_definition", "find_references", "get_hover"]
+        expected_tools = [
+            "codebase_health_check",
+            "search_symbols",
+            "find_definition",
+            "find_references",
+            "get_hover",
+        ]
         for tool_name in expected_tools:
             assert hasattr(codebase_tools, tool_name)
             assert callable(getattr(codebase_tools, tool_name))
@@ -544,17 +556,18 @@ class TestCodebaseTools:
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         # Add repository to mock manager
-        from repository_manager import RepositoryConfig
         from constants import Language
+        from repository_manager import RepositoryConfig
+
         repo_config = RepositoryConfig(
             name="test-repo",
             workspace=temp_git_repo,
@@ -582,17 +595,18 @@ class TestCodebaseTools:
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         # Add repository to mock manager
-        from repository_manager import RepositoryConfig
         from constants import Language
+        from repository_manager import RepositoryConfig
+
         repo_config = RepositoryConfig(
             name="test-repo",
             workspace=temp_git_repo,
@@ -604,7 +618,7 @@ class TestCodebaseTools:
             github_repo="test-repo",
         )
         mock_repo_manager.add_repository("test-repo", repo_config)
-        
+
         result = await codebase_tools.codebase_health_check("test-repo")
 
         data = json.loads(result)
@@ -639,17 +653,18 @@ class TestCodebaseTools:
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         # Add repository to mock manager
-        from repository_manager import RepositoryConfig
         from constants import Language
+        from repository_manager import RepositoryConfig
+
         repo_config = RepositoryConfig(
             name="",
             workspace=temp_git_repo,
@@ -661,7 +676,7 @@ class TestCodebaseTools:
             github_repo="test-repo",
         )
         mock_repo_manager.add_repository("", repo_config)
-        
+
         # Test with empty string repo name
         result = await codebase_tools.codebase_health_check("")
         data = json.loads(result)
@@ -681,7 +696,7 @@ class TestCodebaseTools:
             github_repo="test-repo",
         )
         mock_repo_manager.add_repository(long_name, long_repo_config)
-        
+
         result = await codebase_tools.codebase_health_check(long_name)
         data = json.loads(result)
         assert data["repository_id"] == long_name
@@ -691,17 +706,18 @@ class TestCodebaseTools:
         """Test basic search symbols functionality"""
         # Create mock dependencies
         mock_repo_manager = MockRepositoryManager()
-        
+
         # Create CodebaseTools instance
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory
+            lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         # Add repository to mock manager
-        from repository_manager import RepositoryConfig
         from constants import Language
+        from repository_manager import RepositoryConfig
+
         repo_config = RepositoryConfig(
             name="test-repo",
             workspace="/test/path",
@@ -713,7 +729,7 @@ class TestCodebaseTools:
             github_repo="test-repo",
         )
         mock_repo_manager.add_repository("test-repo", repo_config)
-        
+
         # Setup mock storage with test symbols
         mock_symbol_storage.insert_symbol(
             Symbol(
@@ -759,9 +775,9 @@ class TestCodebaseTools:
     @pytest.mark.asyncio
     async def test_search_symbols_with_kind_filter(self, codebase_tools_factory):
         """Test search symbols with symbol kind filtering"""
-        from repository_manager import RepositoryConfig
         from constants import Language
-        
+        from repository_manager import RepositoryConfig
+
         # Create repository config
         repo_config = RepositoryConfig(
             name="test-repo",
@@ -773,12 +789,11 @@ class TestCodebaseTools:
             github_owner="test-owner",
             github_repo="test-repo",
         )
-        
+
         codebase_tools = codebase_tools_factory(
-            repositories={"test-repo": repo_config},
-            use_real_symbol_storage=False
+            repositories={"test-repo": repo_config}, use_real_symbol_storage=False
         )
-        
+
         # Setup symbol storage with mixed symbols
         codebase_tools.symbol_storage.insert_symbol(
             Symbol(
@@ -830,9 +845,9 @@ class TestCodebaseTools:
     @pytest.mark.asyncio
     async def test_search_symbols_with_limit(self, codebase_tools_factory):
         """Test search symbols with result limit"""
-        from repository_manager import RepositoryConfig
         from constants import Language
-        
+        from repository_manager import RepositoryConfig
+
         # Create repository config
         repo_config = RepositoryConfig(
             name="test-repo",
@@ -844,12 +859,11 @@ class TestCodebaseTools:
             github_owner="test-owner",
             github_repo="test-repo",
         )
-        
+
         codebase_tools = codebase_tools_factory(
-            repositories={"test-repo": repo_config},
-            use_real_symbol_storage=False
+            repositories={"test-repo": repo_config}, use_real_symbol_storage=False
         )
-        
+
         # Setup symbol storage with multiple symbols
         for i in range(10):
             codebase_tools.symbol_storage.insert_symbol(
@@ -879,9 +893,7 @@ class TestCodebaseTools:
     async def test_search_symbols_no_results(self, codebase_tools_factory):
         """Test search symbols when no results are found"""
         codebase_tools = codebase_tools_factory(use_real_symbol_storage=False)
-        result = await codebase_tools.search_symbols(
-            "test-repo", "nonexistent"
-        )
+        result = await codebase_tools.search_symbols("test-repo", "nonexistent")
 
         data = json.loads(result)
         assert data["query"] == "nonexistent"
@@ -893,18 +905,14 @@ class TestCodebaseTools:
         """Test search symbols with invalid limit values"""
         # Test limit too low
         codebase_tools = codebase_tools_factory(use_real_symbol_storage=False)
-        result = await codebase_tools.search_symbols(
-            "test-repo", "test", limit=0
-        )
+        result = await codebase_tools.search_symbols("test-repo", "test", limit=0)
 
         data = json.loads(result)
         assert "error" in data
         assert "Limit must be between 1 and 100" in data["error"]
 
         # Test limit too high
-        result = await codebase_tools.search_symbols(
-            "test-repo", "test", limit=101
-        )
+        result = await codebase_tools.search_symbols("test-repo", "test", limit=101)
 
         data = json.loads(result)
         assert "error" in data
@@ -914,7 +922,7 @@ class TestCodebaseTools:
     async def test_search_symbols_default_parameters(self, codebase_tools_factory):
         """Test search symbols with default parameters"""
         codebase_tools = codebase_tools_factory(use_real_symbol_storage=False)
-        
+
         codebase_tools.symbol_storage.insert_symbol(
             Symbol(
                 "test_function",
@@ -927,9 +935,7 @@ class TestCodebaseTools:
             )
         )
 
-        result = await codebase_tools.search_symbols(
-            "test-repo", "test"
-        )
+        result = await codebase_tools.search_symbols("test-repo", "test")
 
         data = json.loads(result)
         assert data["symbol_kind"] is None
@@ -946,9 +952,7 @@ class TestCodebaseTools:
 
         codebase_tools.symbol_storage.search_symbols = error_search
 
-        result = await codebase_tools.search_symbols(
-            "test-repo", "test"
-        )
+        result = await codebase_tools.search_symbols("test-repo", "test")
 
         # Should handle exception gracefully and return error response
         data = json.loads(result)
@@ -962,7 +966,7 @@ class TestCodebaseTools:
     async def test_execute_tool_search_symbols(self, codebase_tools_factory):
         """Test execute_tool with search_symbols"""
         codebase_tools = codebase_tools_factory(use_real_symbol_storage=False)
-        
+
         codebase_tools.symbol_storage.insert_symbol(
             Symbol(
                 "test_function",
@@ -990,7 +994,7 @@ class TestCodebaseTools:
     async def test_search_symbols_json_structure(self, codebase_tools_factory):
         """Test that search symbols output follows expected JSON structure"""
         codebase_tools = codebase_tools_factory(use_real_symbol_storage=False)
-        
+
         codebase_tools.symbol_storage.insert_symbol(
             Symbol(
                 "test_function",

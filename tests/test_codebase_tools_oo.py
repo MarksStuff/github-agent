@@ -203,8 +203,9 @@ class TestClass:
         # Create CodebaseTools instance
         def mock_lsp_client_factory(workspace: str, python_path: str):
             from codebase_tools import CodebaseLSPClient
+
             return CodebaseLSPClient(workspace, python_path)
-        
+
         self.tools = CodebaseTools(
             repository_manager=self.mock_repo_manager,
             symbol_storage=self.mock_symbol_storage,
@@ -318,9 +319,11 @@ class TestClass:
         mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
 
         # Create tools with mock dependencies
-        def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+        def mock_lsp_client_factory(
+            workspace_root: str, python_path: str
+        ) -> MockLSPClient:
             return mock_lsp_client
-        
+
         tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=self.mock_symbol_storage,
@@ -381,9 +384,11 @@ class TestClass:
         mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
 
         # Create tools with mock dependencies
-        def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+        def mock_lsp_client_factory(
+            workspace_root: str, python_path: str
+        ) -> MockLSPClient:
             return mock_lsp_client
-        
+
         tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=self.mock_symbol_storage,
@@ -471,9 +476,11 @@ class TestClass:
         mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
 
         # Create tools with mock dependencies
-        def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+        def mock_lsp_client_factory(
+            workspace_root: str, python_path: str
+        ) -> MockLSPClient:
             return mock_lsp_client
-        
+
         tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=self.mock_symbol_storage,
@@ -517,9 +524,11 @@ class TestClass:
         mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
 
         # Create tools with mock dependencies
-        def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+        def mock_lsp_client_factory(
+            workspace_root: str, python_path: str
+        ) -> MockLSPClient:
             return mock_lsp_client
-        
+
         tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=self.mock_symbol_storage,

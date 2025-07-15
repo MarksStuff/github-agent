@@ -27,7 +27,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import codebase_tools
 import github_tools
 import mcp_master
 from constants import Language
@@ -234,20 +233,23 @@ class TestMCPIntegration:
 
         # Test codebase tools loading
         from codebase_tools import CodebaseTools
+        from tests.conftest import MockLSPClient, MockSymbolStorage
         from tests.test_fixtures import MockRepositoryManager
-        from tests.conftest import MockSymbolStorage, MockLSPClient
-        
+
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
-        def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+
+        def mock_lsp_client_factory(
+            workspace_root: str, python_path: str
+        ) -> MockLSPClient:
             return MockLSPClient(workspace_root=workspace_root)
-        
+
         codebase_tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=mock_symbol_storage,
             lsp_client_factory=mock_lsp_client_factory,
         )
-        
+
         codebase_tool_list = codebase_tools.get_tools(repo_name, repo_path)
         assert isinstance(codebase_tool_list, list)
         assert len(codebase_tool_list) > 0
@@ -277,6 +279,7 @@ class TestMCPIntegration:
         # Execute health check directly (simulating MCP tool call)
         # Add the repository to the mock manager first
         from repository_manager import RepositoryConfig
+
         repo_config = RepositoryConfig(
             name=repo_name,
             workspace=repo_path,
@@ -288,7 +291,7 @@ class TestMCPIntegration:
             github_repo="integration-test",
         )
         mock_repo_manager.add_repository(repo_name, repo_config)
-        
+
         health_result = await codebase_tools.codebase_health_check(repo_name)
 
         # Parse and validate health check results
