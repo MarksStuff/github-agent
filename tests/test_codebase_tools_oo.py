@@ -13,7 +13,7 @@ from typing import Any
 
 from codebase_tools import CodebaseTools
 from constants import Language
-from repository_manager import RepositoryConfig
+from repository_manager import AbstractRepositoryManager, RepositoryConfig
 from symbol_storage import AbstractSymbolStorage, Symbol, SymbolKind
 from tests.conftest import MockLSPClient
 
@@ -86,13 +86,14 @@ class MockSymbolStorage(AbstractSymbolStorage):
         if 0 <= symbol_id < len(self.symbols):
             # Convert dict back to Symbol for interface compliance
             from symbol_storage import Symbol
+
             symbol_dict = self.symbols[symbol_id]
             return Symbol(
                 name=symbol_dict.get("name", ""),
                 kind=symbol_dict.get("kind", ""),
                 file_path=symbol_dict.get("file", ""),
-                line=symbol_dict.get("line", 0),
-                character=symbol_dict.get("character", 0),
+                line_number=symbol_dict.get("line", 0),
+                column_number=symbol_dict.get("character", 0),
                 repository_id=symbol_dict.get("repository_id", ""),
             )
         return None
@@ -110,16 +111,23 @@ class MockSymbolStorage(AbstractSymbolStorage):
     def get_symbols_by_file(self, file_path: str, repository_id: str) -> list[Symbol]:
         """Mock get symbols by file."""
         from symbol_storage import Symbol
-        matching_symbols = [s for s in self.symbols 
-                          if s.get("file") == file_path and s.get("repository_id") == repository_id]
-        return [Symbol(
-            name=s.get("name", ""),
-            kind=s.get("kind", ""),
-            file_path=s.get("file", ""),
-            line=s.get("line", 0),
-            character=s.get("character", 0),
-            repository_id=s.get("repository_id", ""),
-        ) for s in matching_symbols]
+
+        matching_symbols = [
+            s
+            for s in self.symbols
+            if s.get("file") == file_path and s.get("repository_id") == repository_id
+        ]
+        return [
+            Symbol(
+                name=s.get("name", ""),
+                kind=s.get("kind", ""),
+                file_path=s.get("file", ""),
+                line_number=s.get("line", 0),
+                column_number=s.get("character", 0),
+                repository_id=s.get("repository_id", ""),
+            )
+            for s in matching_symbols
+        ]
 
     def delete_symbols_by_repository(self, repository_id: str) -> None:
         """Mock delete symbols by repository."""
@@ -132,23 +140,37 @@ class MockSymbolStorage(AbstractSymbolStorage):
         return True
 
 
-class MockRepositoryManager:
+class MockRepositoryManager(AbstractRepositoryManager):
     """Mock repository manager for testing."""
 
     def __init__(self):
-        self.repositories = {}
+        self._repositories_dict = {}
+        self._lsp_client = None
+
+    @property
+    def repositories(self) -> dict[str, RepositoryConfig]:
+        """Get all repositories."""
+        return self._repositories_dict
 
     def get_repository(self, repo_name: str) -> RepositoryConfig | None:
         """Get repository by name."""
-        return self.repositories.get(repo_name)
+        return self._repositories_dict.get(repo_name)
 
     def add_repository(self, name: str, config: RepositoryConfig):
         """Add repository for testing."""
-        self.repositories[name] = config
+        self._repositories_dict[name] = config
 
     def get_lsp_client(self, repo_name: str) -> Any | None:
         """Get LSP client for repository (mock implementation)."""
-        return None
+        return self._lsp_client
+
+    def set_lsp_client(self, client: Any) -> None:
+        """Set the LSP client to return for all repositories."""
+        self._lsp_client = client
+
+    def load_configuration(self) -> bool:
+        """Mock load configuration."""
+        return True
 
 
 class TestCodebaseTools(unittest.IsolatedAsyncioTestCase):
@@ -223,7 +245,7 @@ class TestClass:
             return CodebaseLSPClient(workspace, python_path)
 
         self.tools = CodebaseTools(
-            repository_manager=self.mock_repo_manager,  # type: ignore[arg-type]
+            repository_manager=self.mock_repo_manager,
             symbol_storage=self.mock_symbol_storage,
             lsp_client_factory=mock_lsp_client_factory,
         )
@@ -333,7 +355,7 @@ class TestClass:
         # Create repository manager that returns our mock LSP client
         mock_repo_manager = MockRepositoryManager()
         mock_repo_manager.add_repository("test-repo", self.test_repo_config)
-        mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
+        mock_repo_manager.set_lsp_client(mock_lsp_client)
 
         # Create tools with mock dependencies
         def mock_lsp_client_factory(
@@ -398,7 +420,7 @@ class TestClass:
         # Create repository manager that returns our mock LSP client
         mock_repo_manager = MockRepositoryManager()
         mock_repo_manager.add_repository("test-repo", self.test_repo_config)
-        mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
+        mock_repo_manager.set_lsp_client(mock_lsp_client)
 
         # Create tools with mock dependencies
         def mock_lsp_client_factory(
@@ -490,7 +512,7 @@ class TestClass:
         # Create repository manager that returns our mock LSP client
         mock_repo_manager = MockRepositoryManager()
         mock_repo_manager.add_repository("test-repo", self.test_repo_config)
-        mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
+        mock_repo_manager.set_lsp_client(mock_lsp_client)
 
         # Create tools with mock dependencies
         def mock_lsp_client_factory(
@@ -538,7 +560,7 @@ class TestClass:
         # Create repository manager that returns our mock LSP client
         mock_repo_manager = MockRepositoryManager()
         mock_repo_manager.add_repository("test-repo", self.test_repo_config)
-        mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
+        mock_repo_manager.set_lsp_client(mock_lsp_client)
 
         # Create tools with mock dependencies
         def mock_lsp_client_factory(

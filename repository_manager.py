@@ -8,6 +8,7 @@ for the GitHub MCP server's URL-based routing system.
 """
 
 import abc
+import asyncio
 import json
 import logging
 import os
@@ -829,7 +830,7 @@ class RepositoryManager(AbstractRepositoryManager):
                 self._lsp_clients[repo_name] = lsp_client
 
                 # Start the server
-                if lsp_client.start():
+                if asyncio.run(lsp_client.start()):
                     self.logger.info(
                         f"✅ Started LSP server for repository '{repo_name}'"
                     )
@@ -866,7 +867,6 @@ class RepositoryManager(AbstractRepositoryManager):
             try:
                 client = self._lsp_clients[repo_name]
                 # Use asyncio to run the async stop method
-                import asyncio
 
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)

@@ -53,6 +53,7 @@ class MockLSPClient(AbstractLSPClient):
         self._references_response: list[dict] = []
         self._hover_response = None
         self._document_symbols_response: list[dict] = []
+        self._start_result = True  # Default to successful start
 
     async def get_definition(
         self, uri: str, line: int, character: int
@@ -88,8 +89,9 @@ class MockLSPClient(AbstractLSPClient):
 
     async def start(self) -> bool:
         """Mock start method."""
-        self.state = LSPClientState.INITIALIZED
-        return True
+        if self._start_result:
+            self.state = LSPClientState.INITIALIZED
+        return self._start_result
 
     def shutdown(self) -> None:
         """Mock shutdown method."""
@@ -102,6 +104,10 @@ class MockLSPClient(AbstractLSPClient):
     def set_references_response(self, response: list[dict]):
         """Set the response for get_references calls."""
         self._references_response = response
+
+    def set_start_result(self, result: bool):
+        """Set the result for start method calls."""
+        self._start_result = result
 
 
 @pytest.fixture(scope="session")
@@ -291,14 +297,14 @@ def assert_clean_shutdown(shutdown_result, exit_code_manager, expected_exit_code
 
     if expected_exit_code:
         actual_exit_code = exit_code_manager.determine_exit_code("test")
-        assert (
-            actual_exit_code == expected_exit_code
-        ), f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
+        assert actual_exit_code == expected_exit_code, (
+            f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
+        )
 
     summary = exit_code_manager.get_exit_summary()
-    assert (
-        summary["total_problems"] == 0
-    ), f"Expected clean shutdown but found problems: {summary}"
+    assert summary["total_problems"] == 0, (
+        f"Expected clean shutdown but found problems: {summary}"
+    )
 
 
 def assert_shutdown_with_issues(
@@ -309,15 +315,15 @@ def assert_shutdown_with_issues(
     if shutdown_result is False:
         # Failed shutdown should have critical issues
         summary = exit_code_manager.get_exit_summary()
-        assert (
-            summary["total_problems"] > 0
-        ), "Failed shutdown should have reported problems"
+        assert summary["total_problems"] > 0, (
+            "Failed shutdown should have reported problems"
+        )
 
     if expected_problems:
         summary = exit_code_manager.get_exit_summary()
-        assert (
-            summary["total_problems"] >= expected_problems
-        ), f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
+        assert summary["total_problems"] >= expected_problems, (
+            f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
+        )
 
 
 # Add to pytest namespace for easy import

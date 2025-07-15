@@ -871,9 +871,7 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
             from tests.conftest import MockLSPClient
 
             mock_client = MockLSPClient(workspace_root=workspace_root)
-            async def failing_start():
-                return False
-            mock_client.start = failing_start
+            mock_client.set_start_result(False)  # Configure to fail start
             return mock_client
 
         manager = RepositoryManager(
