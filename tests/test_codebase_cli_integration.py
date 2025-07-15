@@ -72,10 +72,12 @@ class TestCodebaseCLIIntegration:
             in_memory_symbol_storage,
         )
 
-        # Should return results (limit validation may have changed)
+        # Should return error for limit validation (limit > 100)
         assert "symbols" in result
-        assert "count" in result
-        assert result["limit"] == 150  # Current implementation may allow higher limits
+        assert "error" in result
+        assert "Limit must be between 1 and 100" in result["error"]
+        assert result["repository_id"] == "test-repo"
+        assert result["query"] == "test"
 
     @pytest.mark.asyncio
     async def test_health_check_integration(self, in_memory_symbol_storage):

@@ -104,9 +104,10 @@ if __name__ == "__main__":
             tool for tool in tools if tool["name"] == "find_references"
         )
         self.assertIn("symbol", find_refs_tool["inputSchema"]["properties"])
-        self.assertIn(
-            "include_declaration", find_refs_tool["inputSchema"]["properties"]
-        )
+        self.assertIn("file_path", find_refs_tool["inputSchema"]["properties"])
+        self.assertIn("line", find_refs_tool["inputSchema"]["properties"])
+        self.assertIn("column", find_refs_tool["inputSchema"]["properties"])
+        self.assertIn("repository_id", find_refs_tool["inputSchema"]["properties"])
 
     def test_tool_handlers_exist(self):
         """Test that tool handlers are properly registered."""

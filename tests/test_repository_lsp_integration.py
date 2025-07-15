@@ -61,7 +61,8 @@ class TestRepositoryLSPIntegration(unittest.TestCase):
 
         # Set up logging to capture log messages
         self.log_messages: list[str] = []
-        self.log_handler = logging.Handler()
+        self.log_handler = logging.StreamHandler()
+        self.log_handler.setLevel(logging.DEBUG)
 
         def emit_handler(record):
             self.log_messages.append(record.getMessage())
@@ -329,6 +330,7 @@ def find_max(numbers: List[int]) -> Optional[int]:
             self.config_file, lsp_client_provider=mock_lsp_client_provider
         )
         manager.logger.addHandler(self.log_handler)
+        manager.logger.setLevel(logging.DEBUG)
         self.assertTrue(manager.load_configuration())
 
         # Start LSP server
@@ -342,7 +344,12 @@ def find_max(numbers: List[int]) -> Optional[int]:
 
         # Check that appropriate log messages were generated
         log_messages = [msg for msg in self.log_messages if "shutdown" in msg.lower()]
-        self.assertTrue(len(log_messages) > 0)
+        
+        # The shutdown method should log "Shutting down repository manager..." 
+        # and "Repository manager shutdown complete"
+        expected_messages = ["shutting down repository manager", "repository manager shutdown complete"]
+        found_messages = [msg for msg in expected_messages if any(msg in log_msg.lower() for log_msg in self.log_messages)]
+        self.assertTrue(len(found_messages) > 0, f"Expected shutdown messages not found. All messages: {self.log_messages}")
 
 
 if __name__ == "__main__":

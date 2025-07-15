@@ -239,18 +239,20 @@ class TestSearchSymbolsMCPIntegration:
         assert "error" in data
         assert "Tool execution failed" in data["error"]
 
-        # Test with invalid parameters (limit is capped but not validated)
+        # Test with invalid parameters (limit validation)
         result = await codebase_tools.execute_tool(
             "search_symbols",
             repository_id="test-repo",
             query="test",
-            limit=0,  # Low limit (not validated, just capped)
+            limit=0,  # Invalid limit (< 1)
         )
 
         data = json.loads(result)
-        # The function doesn't validate limit, it just caps it
-        assert "repository_id" in data
-        assert data["limit"] == 0
+        # The function validates limit and returns error for limit < 1
+        assert "error" in data
+        assert "Limit must be between 1 and 100" in data["error"]
+        assert data["repository_id"] == "test-repo"
+        assert data["query"] == "test"
 
     def test_search_symbols_tool_handler_registration(self, codebase_tools_factory):
         """Test that search_symbols is properly registered in TOOL_HANDLERS"""

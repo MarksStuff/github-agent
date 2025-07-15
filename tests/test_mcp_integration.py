@@ -306,7 +306,9 @@ class TestMCPIntegration:
         ]  # Should not be unhealthy/error
 
         # Verify response structure matches new format
-        assert "message" in health_data
+        assert "checks" in health_data
+        assert "warnings" in health_data
+        assert "errors" in health_data
         assert "current_commit" in health_data
         assert "lsp_status" in health_data
 
@@ -325,7 +327,7 @@ class TestMCPIntegration:
         # Verify tool execution succeeded
         tool_data = json.loads(tool_result)
         assert "error" not in tool_data
-        assert tool_data["repository_id"] == repo_name
+        assert tool_data["repo"] == repo_name
 
         # Test error handling for invalid tools
         error_result = await codebase_tools.execute_tool("nonexistent_tool")
