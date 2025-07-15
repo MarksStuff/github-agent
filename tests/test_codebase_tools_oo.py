@@ -9,6 +9,7 @@ import os
 import sys
 import tempfile
 import unittest
+from typing import Any
 
 from codebase_tools import CodebaseTools
 from constants import Language
@@ -71,53 +72,64 @@ class MockSymbolStorage(AbstractSymbolStorage):
         """Mock create schema."""
         pass
 
-    def insert_symbol(self, symbol: dict) -> int:
+    def insert_symbol(self, symbol: Symbol) -> None:
         """Mock insert symbol."""
-        self.symbols.append(symbol)
-        return len(self.symbols) - 1
+        self.symbols.append(symbol.to_dict())
 
-    def insert_symbols(self, symbols: list[dict]) -> list[int]:
+    def insert_symbols(self, symbols: list[Symbol]) -> None:
         """Mock insert symbols."""
-        ids = []
         for symbol in symbols:
-            ids.append(self.insert_symbol(symbol))
-        return ids
+            self.insert_symbol(symbol)
 
-    def get_symbol_by_id(self, symbol_id: int) -> dict | None:
+    def get_symbol_by_id(self, symbol_id: int) -> Symbol | None:
         """Mock get symbol by ID."""
         if 0 <= symbol_id < len(self.symbols):
-            return self.symbols[symbol_id]
+            # Convert dict back to Symbol for interface compliance
+            from symbol_storage import Symbol
+            symbol_dict = self.symbols[symbol_id]
+            return Symbol(
+                name=symbol_dict.get("name", ""),
+                kind=symbol_dict.get("kind", ""),
+                file_path=symbol_dict.get("file", ""),
+                line=symbol_dict.get("line", 0),
+                character=symbol_dict.get("character", 0),
+                repository_id=symbol_dict.get("repository_id", ""),
+            )
         return None
 
-    def update_symbol(self, symbol_id: int, symbol: dict) -> bool:
+    def update_symbol(self, symbol: Symbol) -> None:
         """Mock update symbol."""
-        if 0 <= symbol_id < len(self.symbols):
-            self.symbols[symbol_id] = symbol
-            return True
-        return False
+        # For mock purposes, we'll just append it
+        self.symbols.append(symbol.to_dict())
 
-    def delete_symbol(self, symbol_id: int) -> bool:
+    def delete_symbol(self, symbol_id: int) -> None:
         """Mock delete symbol."""
         if 0 <= symbol_id < len(self.symbols):
             del self.symbols[symbol_id]
-            return True
-        return False
 
-    def get_symbols_by_file(self, repository_id: str, file_path: str) -> list[dict]:
+    def get_symbols_by_file(self, file_path: str, repository_id: str) -> list[Symbol]:
         """Mock get symbols by file."""
-        return [s for s in self.symbols if s.get("file") == file_path]
+        from symbol_storage import Symbol
+        matching_symbols = [s for s in self.symbols 
+                          if s.get("file") == file_path and s.get("repository_id") == repository_id]
+        return [Symbol(
+            name=s.get("name", ""),
+            kind=s.get("kind", ""),
+            file_path=s.get("file", ""),
+            line=s.get("line", 0),
+            character=s.get("character", 0),
+            repository_id=s.get("repository_id", ""),
+        ) for s in matching_symbols]
 
-    def delete_symbols_by_repository(self, repository_id: str) -> int:
+    def delete_symbols_by_repository(self, repository_id: str) -> None:
         """Mock delete symbols by repository."""
-        original_count = len(self.symbols)
         self.symbols = [
             s for s in self.symbols if s.get("repository_id") != repository_id
         ]
-        return original_count - len(self.symbols)
 
-    def health_check(self) -> dict:
+    def health_check(self) -> bool:
         """Mock health check."""
-        return {"status": "healthy", "symbol_count": len(self.symbols)}
+        return True
 
 
 class MockRepositoryManager:
@@ -133,6 +145,10 @@ class MockRepositoryManager:
     def add_repository(self, name: str, config: RepositoryConfig):
         """Add repository for testing."""
         self.repositories[name] = config
+
+    def get_lsp_client(self, repo_name: str) -> Any | None:
+        """Get LSP client for repository (mock implementation)."""
+        return None
 
 
 class TestCodebaseTools(unittest.IsolatedAsyncioTestCase):
@@ -207,7 +223,7 @@ class TestClass:
             return CodebaseLSPClient(workspace, python_path)
 
         self.tools = CodebaseTools(
-            repository_manager=self.mock_repo_manager,
+            repository_manager=self.mock_repo_manager,  # type: ignore[arg-type]
             symbol_storage=self.mock_symbol_storage,
             lsp_client_factory=mock_lsp_client_factory,
         )

@@ -67,7 +67,7 @@ class TestRepositoryLSPIntegration(unittest.TestCase):
         def emit_handler(record):
             self.log_messages.append(record.getMessage())
 
-        self.log_handler.emit = emit_handler
+        self.log_handler.emit = emit_handler  # type: ignore[method-assign]
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
@@ -238,6 +238,7 @@ def find_max(numbers: List[int]) -> Optional[int]:
         # Get repository info before starting LSP
         info = manager.get_repository_info("test-python-repo")
         self.assertIsNotNone(info)
+        assert info is not None  # For mypy
         self.assertIn("lsp_enabled", info)
         self.assertIn("lsp_status", info)
         self.assertTrue(info["lsp_enabled"])
@@ -249,6 +250,7 @@ def find_max(numbers: List[int]) -> Optional[int]:
         # Get repository info after starting LSP
         info_after = manager.get_repository_info("test-python-repo")
         self.assertIsNotNone(info_after)
+        assert info_after is not None  # For mypy
         self.assertTrue(info_after["lsp_status"]["running"])
         self.assertTrue(info_after["lsp_status"]["healthy"])
 

@@ -823,6 +823,7 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
 
         repo_config = manager.get_repository("test-python-repo")
         self.assertIsNotNone(repo_config)
+        assert repo_config is not None  # For mypy
         self.assertTrue(repo_config.lsp_enabled)
 
     def test_get_lsp_status_repository_not_found(self):
@@ -870,7 +871,9 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
             from tests.conftest import MockLSPClient
 
             mock_client = MockLSPClient(workspace_root=workspace_root)
-            mock_client.start = lambda: False
+            async def failing_start():
+                return False
+            mock_client.start = failing_start
             return mock_client
 
         manager = RepositoryManager(
@@ -935,6 +938,7 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
         # Disable LSP for the repository
         repo_config = manager.get_repository("test-python-repo")
         self.assertIsNotNone(repo_config)
+        assert repo_config is not None  # For mypy
         repo_config.lsp_enabled = False
 
         # Starting LSP should succeed but not actually start anything
@@ -1035,6 +1039,7 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
 
         info = manager.get_repository_info("test-python-repo")
         self.assertIsNotNone(info)
+        assert info is not None  # For mypy
         self.assertIn("lsp_enabled", info)
         self.assertIn("lsp_status", info)
         if info:
