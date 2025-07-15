@@ -49,10 +49,10 @@ class MockLSPClient(AbstractLSPClient):
         self.logger = logging.getLogger(__name__)
 
         # Mock responses that can be set by tests
-        self._definition_response = []
-        self._references_response = []
+        self._definition_response: list[dict] = []
+        self._references_response: list[dict] = []
         self._hover_response = None
-        self._document_symbols_response = []
+        self._document_symbols_response: list[dict] = []
 
     async def get_definition(
         self, uri: str, line: int, character: int
@@ -86,8 +86,8 @@ class MockLSPClient(AbstractLSPClient):
         """Mock stop method."""
         pass
 
-    def start(self) -> bool:
-        """Mock start method (synchronous for RepositoryManager compatibility)."""
+    async def start(self) -> bool:
+        """Mock start method."""
         self.state = LSPClientState.INITIALIZED
         return True
 
@@ -729,7 +729,7 @@ def lsp_client_factory_factory():
             return mock_lsp_client_factory
         else:
             # Use real LSP client factory for testing
-            from lsp_client import CodebaseLSPClient
+            from codebase_tools import CodebaseLSPClient
 
             def real_lsp_client_factory(
                 workspace_root: str, python_path: str

@@ -177,6 +177,8 @@ class MCPWorker:
             # Initialize CodebaseTools instance for this worker
             # Use the same temporary repository manager created in _setup_repository_manager
             github_temp_repo_manager = github_tools.repo_manager
+            if github_temp_repo_manager is None:
+                raise RuntimeError("Repository manager not initialized")
 
             # Create CodebaseTools with default dependencies for now
             # We'll replace symbol_storage later if Python-specific storage is available
@@ -209,12 +211,13 @@ class MCPWorker:
             try:
                 self._initialize_symbol_storage()
                 # Update CodebaseTools instance with symbol storage
-                self.codebase_tools_instance.symbol_storage = self.symbol_storage
+                if self.symbol_storage is not None:
+                    self.codebase_tools_instance.symbol_storage = self.symbol_storage
                 self.logger.debug("Symbol storage initialized successfully")
             except Exception as e:
                 self.logger.error(f"Failed to initialize symbol storage: {e}")
                 # Don't raise - continue without symbol storage
-                self.symbol_storage = None
+                self.symbol_storage = None  # type: ignore[assignment]
 
         self.logger.debug("Creating FastAPI app...")
         try:
