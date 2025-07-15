@@ -141,7 +141,7 @@ class TestCodebaseCLIIntegration:
 
         # Should return error status
         assert result["status"] == "error"
-        assert "error" in result or "errors" in result
+        assert "message" in result
 
     # Note: Complex integration tests removed to focus on unit testing with dependency injection.
     # The execute_tool_command function is thoroughly tested above and provides the core functionality.

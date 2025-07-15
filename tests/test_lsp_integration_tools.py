@@ -13,7 +13,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import codebase_tools
+import pytest
+from codebase_tools import CodebaseTools
+from tests.test_fixtures import MockRepositoryManager
+from tests.conftest import MockSymbolStorage, MockLSPClient
 
 
 class TestLSPToolsIntegration(unittest.TestCase):
@@ -64,10 +67,21 @@ if __name__ == "__main__":
         """Clean up test fixtures."""
         self.temp_dir.cleanup()
 
+    def _create_codebase_tools(self):
+        """Create a CodebaseTools instance with mocks."""
+        repo_manager = MockRepositoryManager()
+        symbol_storage = MockSymbolStorage()
+        def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+            return MockLSPClient(workspace_root=workspace_root)
+        return CodebaseTools(
+            repository_manager=repo_manager,
+            symbol_storage=symbol_storage,
+            lsp_client_factory=mock_lsp_client_factory
+        )
+
     def test_tool_registration(self):
         """Test that LSP tools are properly registered."""
-        import pytest
-        pytest.skip("API changed in refactoring")
+        codebase_tools = self._create_codebase_tools()
         tools = codebase_tools.get_tools("test-repo", str(self.workspace))
 
         tool_names = [tool["name"] for tool in tools]
@@ -93,21 +107,19 @@ if __name__ == "__main__":
 
     def test_tool_handlers_exist(self):
         """Test that tool handlers are properly registered."""
-        import pytest
-        pytest.skip("API changed in refactoring")
+        codebase_tools = self._create_codebase_tools()
         self.assertIn("find_definition", codebase_tools.TOOL_HANDLERS)
         self.assertIn("find_references", codebase_tools.TOOL_HANDLERS)
 
     def test_execute_tool_dispatcher(self):
         """Test that tools can be executed through the dispatcher."""
-        import pytest
-        pytest.skip("API changed in refactoring")
         # This test doesn't actually execute LSP (would require pyright to be available)
         # but verifies that the tool dispatcher can route to our new tools
 
         import asyncio
 
         async def run_test():
+            codebase_tools = self._create_codebase_tools()
             # Test unknown tool
             result_json = await codebase_tools.execute_tool("unknown_tool")
             result = json.loads(result_json)
@@ -123,35 +135,28 @@ if __name__ == "__main__":
 
     def test_file_path_validation(self):
         """Test file path validation in tool execution."""
-        import pytest
-        pytest.skip("API changed in refactoring")
         # This test checks that file validation works correctly
         # without requiring a full LSP server
 
-        from codebase_tools import _resolve_file_path
+        codebase_tools = self._create_codebase_tools()
 
         # Test valid file path
-        resolved = _resolve_file_path("example.py", str(self.workspace))
+        resolved = codebase_tools._resolve_file_path("example.py", str(self.workspace))
         # Use resolved paths for comparison to handle symlinks
         self.assertEqual(Path(resolved).resolve(), self.test_file.resolve())
 
         # Test path outside workspace
         with self.assertRaises(ValueError):
-            _resolve_file_path("../outside.py", str(self.workspace))
+            codebase_tools._resolve_file_path("../outside.py", str(self.workspace))
 
     def test_coordinate_conversion(self):
         """Test coordinate conversion utilities."""
-        import pytest
-        pytest.skip("API changed in refactoring")
-        from codebase_tools import (
-            _lsp_position_to_user_friendly,
-            _user_friendly_to_lsp_position,
-        )
+        codebase_tools = self._create_codebase_tools()
 
         # Test round-trip conversion
         user_pos = {"line": 10, "column": 5}
-        lsp_pos = _user_friendly_to_lsp_position(user_pos["line"], user_pos["column"])
-        back_to_user = _lsp_position_to_user_friendly(
+        lsp_pos = codebase_tools._user_friendly_to_lsp_position(user_pos["line"], user_pos["column"])
+        back_to_user = codebase_tools._lsp_position_to_user_friendly(
             lsp_pos["line"], lsp_pos["character"]
         )
 
@@ -160,14 +165,12 @@ if __name__ == "__main__":
 
     def test_uri_conversion(self):
         """Test URI conversion utilities."""
-        import pytest
-        pytest.skip("API changed in refactoring")
-        from codebase_tools import _path_to_uri, _uri_to_path
+        codebase_tools = self._create_codebase_tools()
 
         # Test round-trip conversion
         original_path = str(self.test_file)
-        uri = _path_to_uri(original_path)
-        back_to_path = _uri_to_path(uri)
+        uri = codebase_tools._path_to_uri(original_path)
+        back_to_path = codebase_tools._uri_to_path(uri)
 
         self.assertTrue(uri.startswith("file://"))
         self.assertEqual(original_path, back_to_path)

@@ -318,9 +318,13 @@ class TestClass:
         mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
 
         # Create tools with mock dependencies
+        def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+            return mock_lsp_client
+        
         tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=self.mock_symbol_storage,
+            lsp_client_factory=mock_lsp_client_factory,
         )
 
         result_json = await tools.find_definition(
@@ -377,9 +381,13 @@ class TestClass:
         mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
 
         # Create tools with mock dependencies
+        def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+            return mock_lsp_client
+        
         tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=self.mock_symbol_storage,
+            lsp_client_factory=mock_lsp_client_factory,
         )
 
         result_json = await tools.find_references(
@@ -463,9 +471,13 @@ class TestClass:
         mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
 
         # Create tools with mock dependencies
+        def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+            return mock_lsp_client
+        
         tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=self.mock_symbol_storage,
+            lsp_client_factory=mock_lsp_client_factory,
         )
 
         # Both calls should return the same client from repository manager
@@ -505,9 +517,13 @@ class TestClass:
         mock_repo_manager.get_lsp_client = lambda repo_id: mock_lsp_client
 
         # Create tools with mock dependencies
+        def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+            return mock_lsp_client
+        
         tools = CodebaseTools(
             repository_manager=mock_repo_manager,
             symbol_storage=self.mock_symbol_storage,
+            lsp_client_factory=mock_lsp_client_factory,
         )
 
         # Get an LSP client (would be cached in fallback mode)

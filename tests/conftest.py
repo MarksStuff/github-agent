@@ -32,6 +32,7 @@ from symbol_storage import (
     SymbolKind,
 )
 from tests.test_fixtures import MockRepositoryManager
+import codebase_tools
 
 
 class MockLSPClient(AbstractLSPClient):
@@ -669,3 +670,87 @@ def mcp_master_factory():
         )
 
     return create_mcp_master
+
+
+# Factory fixtures for dependency injection with automatic cleanup
+@pytest.fixture
+def repository_manager_factory():
+    """Factory for creating repository manager instances."""
+    def _create(mock=True):
+        if mock:
+            return MockRepositoryManager()
+        else:
+            # Use real RepositoryManager for testing
+            from repository_manager import RepositoryManager
+            return RepositoryManager()
+    
+    return _create
+
+
+@pytest.fixture
+def symbol_storage_factory():
+    """Factory for creating symbol storage instances with automatic cleanup."""
+    created_objects = []
+    
+    def _create(mock=True):
+        if mock:
+            return MockSymbolStorage()
+        else:
+            # Use real SQLiteSymbolStorage with in-memory database
+            from symbol_storage import SQLiteSymbolStorage
+            storage = SQLiteSymbolStorage(db_path=":memory:")
+            created_objects.append(storage)
+            return storage
+    
+    yield _create
+    
+    # Cleanup all created real objects
+    for obj in created_objects:
+        obj.close()
+
+
+@pytest.fixture
+def lsp_client_factory_factory():
+    """Factory for creating LSP client factory functions."""
+    def _create(mock=True):
+        if mock:
+            def mock_lsp_client_factory(workspace_root: str, python_path: str) -> MockLSPClient:
+                return MockLSPClient(workspace_root=workspace_root)
+            return mock_lsp_client_factory
+        else:
+            # Use real LSP client factory for testing
+            from lsp_client import CodebaseLSPClient
+            def real_lsp_client_factory(workspace_root: str, python_path: str) -> CodebaseLSPClient:
+                return CodebaseLSPClient(workspace_root=workspace_root, python_path=python_path)
+            return real_lsp_client_factory
+    
+    return _create
+
+
+@pytest.fixture
+def codebase_tools_factory(repository_manager_factory, symbol_storage_factory, lsp_client_factory_factory):
+    """Factory for creating CodebaseTools instances with automatic cleanup."""
+    def _create(
+        repositories: dict = {},
+        use_real_repository_manager: bool = False,
+        use_real_symbol_storage: bool = False,
+        use_real_lsp_client_factory: bool = False
+    ) -> codebase_tools.CodebaseTools:
+        # Create repository manager
+        repository_manager = repository_manager_factory(mock=not use_real_repository_manager)
+        for name, config in repositories.items():
+            repository_manager.add_repository(name, config)
+        
+        # Create symbol storage
+        symbol_storage = symbol_storage_factory(mock=not use_real_symbol_storage)
+        
+        # Create LSP client factory
+        lsp_client_factory = lsp_client_factory_factory(mock=not use_real_lsp_client_factory)
+        
+        return codebase_tools.CodebaseTools(
+            repository_manager=repository_manager,
+            symbol_storage=symbol_storage,
+            lsp_client_factory=lsp_client_factory
+        )
+    
+    return _create
