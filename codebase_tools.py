@@ -332,7 +332,7 @@ class CodebaseTools:
         checks = {}
         warnings = []
         errors = []
-        
+
         try:
             repo_config = self.repository_manager.get_repository(repository_id)
             if not repo_config:
@@ -358,7 +358,9 @@ class CodebaseTools:
                         "status": "error",
                         "checks": {"path_exists": False},
                         "warnings": [],
-                        "errors": [f"Repository path does not exist: {repository_workspace}"],
+                        "errors": [
+                            f"Repository path does not exist: {repository_workspace}"
+                        ],
                     }
                 )
 
@@ -372,7 +374,9 @@ class CodebaseTools:
                         "status": "error",
                         "checks": {"path_exists": True, "path_readable": False},
                         "warnings": [],
-                        "errors": [f"Repository path is not readable: {repository_workspace}"],
+                        "errors": [
+                            f"Repository path is not readable: {repository_workspace}"
+                        ],
                     }
                 )
 
@@ -386,8 +390,14 @@ class CodebaseTools:
                         "repo": repository_id,
                         "workspace": repository_workspace,
                         "status": "warning",
-                        "checks": {"path_exists": True, "path_readable": True, "is_git_repo": False},
-                        "warnings": [f"Directory exists but is not a Git repository: {repository_workspace}"],
+                        "checks": {
+                            "path_exists": True,
+                            "path_readable": True,
+                            "is_git_repo": False,
+                        },
+                        "warnings": [
+                            f"Directory exists but is not a Git repository: {repository_workspace}"
+                        ],
                         "errors": [],
                     }
                 )
@@ -447,7 +457,9 @@ class CodebaseTools:
             return json.dumps(
                 {
                     "repo": repository_id,
-                    "workspace": repository_workspace if 'repository_workspace' in locals() else None,
+                    "workspace": repository_workspace
+                    if "repository_workspace" in locals()
+                    else None,
                     "status": "error",
                     "checks": checks,
                     "warnings": warnings,

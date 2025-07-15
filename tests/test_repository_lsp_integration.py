@@ -344,12 +344,22 @@ def find_max(numbers: List[int]) -> Optional[int]:
 
         # Check that appropriate log messages were generated
         log_messages = [msg for msg in self.log_messages if "shutdown" in msg.lower()]
-        
-        # The shutdown method should log "Shutting down repository manager..." 
+
+        # The shutdown method should log "Shutting down repository manager..."
         # and "Repository manager shutdown complete"
-        expected_messages = ["shutting down repository manager", "repository manager shutdown complete"]
-        found_messages = [msg for msg in expected_messages if any(msg in log_msg.lower() for log_msg in self.log_messages)]
-        self.assertTrue(len(found_messages) > 0, f"Expected shutdown messages not found. All messages: {self.log_messages}")
+        expected_messages = [
+            "shutting down repository manager",
+            "repository manager shutdown complete",
+        ]
+        found_messages = [
+            msg
+            for msg in expected_messages
+            if any(msg in log_msg.lower() for log_msg in self.log_messages)
+        ]
+        self.assertTrue(
+            len(found_messages) > 0,
+            f"Expected shutdown messages not found. All messages: {self.log_messages}",
+        )
 
 
 if __name__ == "__main__":

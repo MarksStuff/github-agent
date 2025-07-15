@@ -946,7 +946,9 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
         # Use mock client provider for dependency injection
         from tests.conftest import mock_lsp_client_provider
 
-        manager = RepositoryManager(self.config_file, lsp_client_provider=mock_lsp_client_provider)
+        manager = RepositoryManager(
+            self.config_file, lsp_client_provider=mock_lsp_client_provider
+        )
         self.assertTrue(manager.load_configuration())
 
         # Should return None before starting
@@ -960,15 +962,17 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
         client = manager.get_lsp_client("test-python-repo")
         self.assertIsNotNone(client)
         # Check that we got a mock client (it should have the expected interface)
-        self.assertTrue(hasattr(client, 'start'))
-        self.assertTrue(hasattr(client, 'shutdown'))
+        self.assertTrue(hasattr(client, "start"))
+        self.assertTrue(hasattr(client, "shutdown"))
 
     def test_restart_lsp_server(self):
         """Test LSP server restart"""
         # Use mock client provider for dependency injection
         from tests.conftest import mock_lsp_client_provider
 
-        manager = RepositoryManager(self.config_file, lsp_client_provider=mock_lsp_client_provider)
+        manager = RepositoryManager(
+            self.config_file, lsp_client_provider=mock_lsp_client_provider
+        )
         self.assertTrue(manager.load_configuration())
 
         # Start LSP server first

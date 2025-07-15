@@ -283,7 +283,9 @@ class TestCodebaseTools:
         result = await codebase_tools.codebase_health_check("test-repo")
 
         data = json.loads(result)
-        assert data["status"] == "warning"  # Not being a git repo is a warning, not an error
+        assert (
+            data["status"] == "warning"
+        )  # Not being a git repo is a warning, not an error
         assert data["repo"] == "test-repo"
         assert data["workspace"] == temp_dir_not_git
         assert "warnings" in data
@@ -666,7 +668,7 @@ class TestCodebaseTools:
         # Test with empty string repo name (should fail at config validation level)
         from constants import Language
         from repository_manager import RepositoryConfig
-        
+
         # RepositoryConfig now validates that name cannot be empty
         try:
             repo_config = RepositoryConfig(
@@ -683,7 +685,7 @@ class TestCodebaseTools:
             assert False, "Expected ValueError for empty repository name"
         except ValueError as e:
             assert "Repository name cannot be empty" in str(e)
-            
+
         # Test with non-existent repository instead
         result = await codebase_tools.codebase_health_check("empty-repo")
         data = json.loads(result)
@@ -900,9 +902,9 @@ class TestCodebaseTools:
     @pytest.mark.asyncio
     async def test_search_symbols_no_results(self, codebase_tools_factory):
         """Test search symbols when no results are found"""
-        from repository_manager import RepositoryConfig
         from constants import Language
-        
+        from repository_manager import RepositoryConfig
+
         # Create repository config
         repo_config = RepositoryConfig(
             name="test-repo",
@@ -914,10 +916,9 @@ class TestCodebaseTools:
             github_owner="test-owner",
             github_repo="test-repo",
         )
-        
+
         codebase_tools = codebase_tools_factory(
-            repositories={"test-repo": repo_config},
-            use_real_symbol_storage=False
+            repositories={"test-repo": repo_config}, use_real_symbol_storage=False
         )
         result = await codebase_tools.search_symbols("test-repo", "nonexistent")
 
@@ -929,9 +930,9 @@ class TestCodebaseTools:
     @pytest.mark.asyncio
     async def test_search_symbols_invalid_limit(self, codebase_tools_factory):
         """Test search symbols with invalid limit values"""
-        from repository_manager import RepositoryConfig
         from constants import Language
-        
+        from repository_manager import RepositoryConfig
+
         # Create repository config
         repo_config = RepositoryConfig(
             name="test-repo",
@@ -943,11 +944,10 @@ class TestCodebaseTools:
             github_owner="test-owner",
             github_repo="test-repo",
         )
-        
+
         # Test limit too low
         codebase_tools = codebase_tools_factory(
-            repositories={"test-repo": repo_config},
-            use_real_symbol_storage=False
+            repositories={"test-repo": repo_config}, use_real_symbol_storage=False
         )
         result = await codebase_tools.search_symbols("test-repo", "test", limit=0)
 
@@ -965,9 +965,9 @@ class TestCodebaseTools:
     @pytest.mark.asyncio
     async def test_search_symbols_default_parameters(self, codebase_tools_factory):
         """Test search symbols with default parameters"""
-        from repository_manager import RepositoryConfig
         from constants import Language
-        
+        from repository_manager import RepositoryConfig
+
         # Create repository config
         repo_config = RepositoryConfig(
             name="test-repo",
@@ -979,10 +979,9 @@ class TestCodebaseTools:
             github_owner="test-owner",
             github_repo="test-repo",
         )
-        
+
         codebase_tools = codebase_tools_factory(
-            repositories={"test-repo": repo_config},
-            use_real_symbol_storage=False
+            repositories={"test-repo": repo_config}, use_real_symbol_storage=False
         )
 
         codebase_tools.symbol_storage.insert_symbol(
@@ -1006,9 +1005,9 @@ class TestCodebaseTools:
     @pytest.mark.asyncio
     async def test_search_symbols_exception_handling(self, codebase_tools_factory):
         """Test search symbols exception handling"""
-        from repository_manager import RepositoryConfig
         from constants import Language
-        
+        from repository_manager import RepositoryConfig
+
         # Create repository config
         repo_config = RepositoryConfig(
             name="test-repo",
@@ -1020,10 +1019,9 @@ class TestCodebaseTools:
             github_owner="test-owner",
             github_repo="test-repo",
         )
-        
+
         codebase_tools = codebase_tools_factory(
-            repositories={"test-repo": repo_config},
-            use_real_symbol_storage=False
+            repositories={"test-repo": repo_config}, use_real_symbol_storage=False
         )
 
         # Mock a storage error by making the search_symbols method raise an exception
@@ -1045,9 +1043,9 @@ class TestCodebaseTools:
     @pytest.mark.asyncio
     async def test_execute_tool_search_symbols(self, codebase_tools_factory):
         """Test execute_tool with search_symbols"""
-        from repository_manager import RepositoryConfig
         from constants import Language
-        
+        from repository_manager import RepositoryConfig
+
         # Create repository config
         repo_config = RepositoryConfig(
             name="test-repo",
@@ -1059,12 +1057,11 @@ class TestCodebaseTools:
             github_owner="test-owner",
             github_repo="test-repo",
         )
-        
+
         codebase_tools = codebase_tools_factory(
-            repositories={"test-repo": repo_config},
-            use_real_symbol_storage=False
+            repositories={"test-repo": repo_config}, use_real_symbol_storage=False
         )
-        
+
         codebase_tools.symbol_storage.insert_symbol(
             Symbol(
                 "test_function",
@@ -1091,9 +1088,9 @@ class TestCodebaseTools:
     @pytest.mark.asyncio
     async def test_search_symbols_json_structure(self, codebase_tools_factory):
         """Test that search symbols output follows expected JSON structure"""
-        from repository_manager import RepositoryConfig
         from constants import Language
-        
+        from repository_manager import RepositoryConfig
+
         # Create repository config
         repo_config = RepositoryConfig(
             name="test-repo",
@@ -1105,12 +1102,11 @@ class TestCodebaseTools:
             github_owner="test-owner",
             github_repo="test-repo",
         )
-        
+
         codebase_tools = codebase_tools_factory(
-            repositories={"test-repo": repo_config},
-            use_real_symbol_storage=False
+            repositories={"test-repo": repo_config}, use_real_symbol_storage=False
         )
-        
+
         codebase_tools.symbol_storage.insert_symbol(
             Symbol(
                 "test_function",
