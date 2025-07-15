@@ -298,8 +298,8 @@ class TestMCPIntegration:
         health_data = json.loads(health_result)
 
         # Verify health check structure and content
-        assert health_data["repository_id"] == repo_name
-        assert health_data["repository_path"] == repo_path
+        assert health_data["repo"] == repo_name
+        assert health_data["workspace"] == repo_path
         assert health_data["status"] in [
             "healthy",
             "warning",

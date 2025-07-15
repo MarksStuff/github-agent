@@ -117,13 +117,13 @@ class TestCodebaseCLIIntegration:
 
             # Verify results
             assert "status" in result
-            assert "repository_id" in result
-            assert result["repository_id"] == "test-repo"
-            assert result["repository_path"] == str(repo_path)
+            assert "repo" in result
+            assert result["repo"] == "test-repo"
+            assert result["workspace"] == str(repo_path)
 
-            # Should be healthy (new format doesn't have detailed checks)
+            # Should be healthy (new format has detailed checks)
             assert "lsp_status" in result
-            assert "message" in result
+            assert "checks" in result
 
             # Should be healthy
             assert result["status"] in ["healthy", "warning"]  # warnings are OK
@@ -141,7 +141,8 @@ class TestCodebaseCLIIntegration:
 
         # Should return error status
         assert result["status"] == "error"
-        assert "message" in result
+        assert "errors" in result
+        assert len(result["errors"]) > 0
 
     # Note: Complex integration tests removed to focus on unit testing with dependency injection.
     # The execute_tool_command function is thoroughly tested above and provides the core functionality.

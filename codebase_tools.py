@@ -111,6 +111,15 @@ class CodebaseLSPClient(AbstractLSPClient):
 class CodebaseTools:
     """Object-oriented codebase tools with dependency injection."""
 
+    # Class-level mapping of tool names to method names
+    TOOL_HANDLERS = {
+        "codebase_health_check": "codebase_health_check",
+        "search_symbols": "search_symbols",
+        "find_definition": "find_definition",
+        "find_references": "find_references",
+        "get_hover": "get_hover",
+    }
+
     def __init__(
         self,
         repository_manager: AbstractRepositoryManager,
@@ -133,6 +142,28 @@ class CodebaseTools:
         # Thread safety for LSP client cache
         self._lsp_lock = threading.Lock()
         self._lsp_clients: dict[str, AbstractLSPClient] = {}
+
+    def _user_friendly_to_lsp_position(self, line: int, column: int) -> dict:
+        """Convert user-friendly (1-based) coordinates to LSP (0-based) coordinates."""
+        return {
+            "line": line - 1,
+            "character": column - 1,
+        }
+
+    def _lsp_position_to_user_friendly(self, line: int, character: int) -> dict:
+        """Convert LSP (0-based) coordinates to user-friendly (1-based) coordinates."""
+        return {
+            "line": line + 1,
+            "column": character + 1,
+        }
+
+    def _path_to_uri(self, path: str) -> str:
+        """Convert file path to URI."""
+        return Path(path).as_uri()
+
+    def _uri_to_path(self, uri: str) -> str:
+        """Convert URI to file path."""
+        return str(Path(uri.replace("file://", "")))
 
     def get_tools(self, repo_name: str, repository_workspace: str) -> list[dict]:
         """Get codebase tool definitions for MCP registration
@@ -277,23 +308,16 @@ class CodebaseTools:
         Returns:
             Tool execution result as JSON string
         """
-        handlers = {
-            "codebase_health_check": self.codebase_health_check,
-            "search_symbols": self.search_symbols,
-            "find_definition": self.find_definition,
-            "find_references": self.find_references,
-            "get_hover": self.get_hover,
-        }
-
-        if tool_name not in handlers:
+        if tool_name not in self.TOOL_HANDLERS:
             return json.dumps(
                 {
                     "error": f"Unknown tool: {tool_name}",
-                    "available_tools": list(handlers.keys()),
+                    "available_tools": list(self.TOOL_HANDLERS.keys()),
                 }
             )
 
-        handler = handlers[tool_name]
+        method_name = self.TOOL_HANDLERS[tool_name]
+        handler = getattr(self, method_name)
         try:
             # Type ignore because we know these are bound methods that accept **kwargs
             return await handler(**kwargs)  # type: ignore
@@ -305,13 +329,21 @@ class CodebaseTools:
 
     async def codebase_health_check(self, repository_id: str) -> str:
         """Perform a basic health check of the repository."""
+        checks = {}
+        warnings = []
+        errors = []
+        
         try:
             repo_config = self.repository_manager.get_repository(repository_id)
             if not repo_config:
                 return json.dumps(
                     {
-                        "error": f"Repository '{repository_id}' not found",
+                        "repo": repository_id,
+                        "workspace": None,
                         "status": "error",
+                        "checks": {},
+                        "warnings": [],
+                        "errors": [f"Repository '{repository_id}' not found"],
                     }
                 )
 
@@ -321,33 +353,48 @@ class CodebaseTools:
             if not os.path.exists(repository_workspace):
                 return json.dumps(
                     {
+                        "repo": repository_id,
+                        "workspace": repository_workspace,
                         "status": "error",
-                        "message": f"Repository path does not exist: {repository_workspace}",
-                        "repository_id": repository_id,
+                        "checks": {"path_exists": False},
+                        "warnings": [],
+                        "errors": [f"Repository path does not exist: {repository_workspace}"],
                     }
                 )
+
+            checks["path_exists"] = True
 
             if not os.access(repository_workspace, os.R_OK):
                 return json.dumps(
                     {
+                        "repo": repository_id,
+                        "workspace": repository_workspace,
                         "status": "error",
-                        "message": f"Repository path is not readable: {repository_workspace}",
-                        "repository_id": repository_id,
+                        "checks": {"path_exists": True, "path_readable": False},
+                        "warnings": [],
+                        "errors": [f"Repository path is not readable: {repository_workspace}"],
                     }
                 )
+
+            checks["path_readable"] = True
 
             # Check if it's a git repository
             git_dir = os.path.join(repository_workspace, ".git")
             if not os.path.exists(git_dir):
                 return json.dumps(
                     {
+                        "repo": repository_id,
+                        "workspace": repository_workspace,
                         "status": "warning",
-                        "message": f"Directory exists but is not a Git repository: {repository_workspace}",
-                        "repository_id": repository_id,
+                        "checks": {"path_exists": True, "path_readable": True, "is_git_repo": False},
+                        "warnings": [f"Directory exists but is not a Git repository: {repository_workspace}"],
+                        "errors": [],
                     }
                 )
 
-            # Get basic git info
+            checks["is_git_repo"] = True
+
+            # Get basic git info and check git responsiveness
             try:
                 result = subprocess.run(
                     ["git", "rev-parse", "HEAD"],
@@ -358,20 +405,38 @@ class CodebaseTools:
                     timeout=10,
                 )
                 current_commit = result.stdout.strip()
-            except Exception:
+                checks["git_responsive"] = True
+                checks["current_commit"] = current_commit
+            except subprocess.TimeoutExpired:
+                checks["git_responsive"] = False
+                warnings.append("Git command timed out")
+                current_commit = "unknown"
+            except Exception as e:
+                checks["git_responsive"] = False
+                warnings.append(f"Git command failed: {e}")
                 current_commit = "unknown"
 
             # Check LSP status if applicable
             lsp_status = None
             if hasattr(self.repository_manager, "get_lsp_status"):
                 lsp_status = self.repository_manager.get_lsp_status(repository_id)
+                checks["lsp_status"] = lsp_status
+
+            # Determine overall status
+            overall_status = "healthy"
+            if errors:
+                overall_status = "error"
+            elif warnings:
+                overall_status = "warning"
 
             return json.dumps(
                 {
-                    "status": "healthy",
-                    "message": "Repository is accessible and appears to be a valid Git repository",
-                    "repository_id": repository_id,
-                    "repository_path": repository_workspace,
+                    "repo": repository_id,
+                    "workspace": repository_workspace,
+                    "status": overall_status,
+                    "checks": checks,
+                    "warnings": warnings,
+                    "errors": errors,
                     "current_commit": current_commit,
                     "lsp_status": lsp_status,
                 }
@@ -381,9 +446,12 @@ class CodebaseTools:
             self.logger.exception(f"Error in codebase health check for {repository_id}")
             return json.dumps(
                 {
+                    "repo": repository_id,
+                    "workspace": repository_workspace if 'repository_workspace' in locals() else None,
                     "status": "error",
-                    "message": f"Health check failed: {e!s}",
-                    "repository_id": repository_id,
+                    "checks": checks,
+                    "warnings": warnings,
+                    "errors": [f"Health check failed: {e!s}"],
                 }
             )
 
@@ -396,6 +464,17 @@ class CodebaseTools:
     ) -> str:
         """Search for symbols in the repository."""
         try:
+            # Validate limit parameter
+            if limit < 1 or limit > 100:
+                return json.dumps(
+                    {
+                        "error": "Limit must be between 1 and 100",
+                        "repository_id": repository_id,
+                        "query": query,
+                        "symbols": [],
+                    }
+                )
+
             repo_config = self.repository_manager.get_repository(repository_id)
             if not repo_config:
                 return json.dumps(
@@ -407,7 +486,7 @@ class CodebaseTools:
                 repository_id=repository_id,
                 query=query,
                 symbol_kind=symbol_kind,
-                limit=min(limit, 100),  # Cap at 100
+                limit=limit,
             )
 
             return json.dumps(

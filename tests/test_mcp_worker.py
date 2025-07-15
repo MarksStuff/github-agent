@@ -288,7 +288,7 @@ class TestMCPWorker:
             assert (
                 '"status":' in result_text
             )  # Accept any status (healthy, warning, etc.)
-            assert '"repository_id": "test-repo"' in result_text
+            assert '"repo": "test-repo"' in result_text
 
             # This is now an integration test - the actual health check runs
 
