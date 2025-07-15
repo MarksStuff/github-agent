@@ -299,14 +299,14 @@ def assert_clean_shutdown(shutdown_result, exit_code_manager, expected_exit_code
 
     if expected_exit_code:
         actual_exit_code = exit_code_manager.determine_exit_code("test")
-        assert (
-            actual_exit_code == expected_exit_code
-        ), f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
+        assert actual_exit_code == expected_exit_code, (
+            f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
+        )
 
     summary = exit_code_manager.get_exit_summary()
-    assert (
-        summary["total_problems"] == 0
-    ), f"Expected clean shutdown but found problems: {summary}"
+    assert summary["total_problems"] == 0, (
+        f"Expected clean shutdown but found problems: {summary}"
+    )
 
 
 def assert_shutdown_with_issues(
@@ -317,15 +317,15 @@ def assert_shutdown_with_issues(
     if shutdown_result is False:
         # Failed shutdown should have critical issues
         summary = exit_code_manager.get_exit_summary()
-        assert (
-            summary["total_problems"] > 0
-        ), "Failed shutdown should have reported problems"
+        assert summary["total_problems"] > 0, (
+            "Failed shutdown should have reported problems"
+        )
 
     if expected_problems:
         summary = exit_code_manager.get_exit_summary()
-        assert (
-            summary["total_problems"] >= expected_problems
-        ), f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
+        assert summary["total_problems"] >= expected_problems, (
+            f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
+        )
 
 
 # Add to pytest namespace for easy import
@@ -750,11 +750,13 @@ def codebase_tools_factory(
     """Factory for creating CodebaseTools instances with automatic cleanup."""
 
     def _create(
-        repositories: dict = {},
+        repositories: dict | None = None,
         use_real_repository_manager: bool = False,
         use_real_symbol_storage: bool = False,
         use_real_lsp_client_factory: bool = False,
     ) -> codebase_tools.CodebaseTools:
+        if repositories is None:
+            repositories = {}
         # Create repository manager
         repository_manager = repository_manager_factory(
             mock=not use_real_repository_manager

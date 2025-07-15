@@ -671,7 +671,7 @@ class TestCodebaseTools:
 
         # RepositoryConfig now validates that name cannot be empty
         try:
-            repo_config = RepositoryConfig(
+            RepositoryConfig(
                 name="",
                 workspace=temp_git_repo,
                 description="Test repo",
@@ -682,7 +682,7 @@ class TestCodebaseTools:
                 github_repo="test-repo",
             )
             # If we get here, validation failed
-            assert False, "Expected ValueError for empty repository name"
+            raise AssertionError("Expected ValueError for empty repository name")
         except ValueError as e:
             assert "Repository name cannot be empty" in str(e)
 

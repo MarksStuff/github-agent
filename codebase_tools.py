@@ -12,7 +12,7 @@ import subprocess
 import threading
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from constants import Language
 from lsp_client import AbstractLSPClient, LSPClientState
@@ -112,7 +112,7 @@ class CodebaseTools:
     """Object-oriented codebase tools with dependency injection."""
 
     # Class-level mapping of tool names to method names
-    TOOL_HANDLERS = {
+    TOOL_HANDLERS: ClassVar[dict[str, str]] = {
         "codebase_health_check": "codebase_health_check",
         "search_symbols": "search_symbols",
         "find_definition": "find_definition",
@@ -329,9 +329,9 @@ class CodebaseTools:
 
     async def codebase_health_check(self, repository_id: str) -> str:
         """Perform a basic health check of the repository."""
-        checks = {}
-        warnings = []
-        errors = []
+        checks: dict[str, Any] = {}
+        warnings: list[str] = []
+        errors: list[str] = []
 
         try:
             repo_config = self.repository_manager.get_repository(repository_id)
@@ -766,9 +766,9 @@ class CodebaseTools:
         with self._lsp_lock:
             # Check if we already have a client
             if repository_id in self._lsp_clients:
-                client = self._lsp_clients[repository_id]
-                if client.state == LSPClientState.INITIALIZED:
-                    return client
+                existing_client = self._lsp_clients[repository_id]
+                if existing_client.state == LSPClientState.INITIALIZED:
+                    return existing_client
                 else:
                     # Remove unhealthy client
                     del self._lsp_clients[repository_id]
@@ -787,15 +787,15 @@ class CodebaseTools:
 
             try:
                 # Create new LSP client using the factory
-                client: AbstractLSPClient = self.lsp_client_factory(
+                new_client: AbstractLSPClient = self.lsp_client_factory(
                     repo_config.workspace,
                     repo_config.python_path,
                 )
 
                 # Start the client
-                if await client.connect():
-                    self._lsp_clients[repository_id] = client
-                    return client
+                if await new_client.start():
+                    self._lsp_clients[repository_id] = new_client
+                    return new_client
                 else:
                     self.logger.error(f"Failed to start LSP client for {repository_id}")
                     return None
@@ -868,10 +868,10 @@ class CodebaseTools:
         with self._lsp_lock:
             for repository_id, client in self._lsp_clients.items():
                 try:
-                    await client.disconnect()
+                    await client.stop()
                 except Exception as e:
                     self.logger.error(
-                        f"Error disconnecting LSP client for {repository_id}: {e}"
+                        f"Error stopping LSP client for {repository_id}: {e}"
                     )
 
             self._lsp_clients.clear()

@@ -343,8 +343,6 @@ def find_max(numbers: List[int]) -> Optional[int]:
         manager.shutdown()
 
         # Check that appropriate log messages were generated
-        log_messages = [msg for msg in self.log_messages if "shutdown" in msg.lower()]
-
         # The shutdown method should log "Shutting down repository manager..."
         # and "Repository manager shutdown complete"
         expected_messages = [
