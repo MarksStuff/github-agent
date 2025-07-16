@@ -198,13 +198,4 @@ if __name__ == "__main__":
 
 
 if __name__ == "__main__":
-    # Only run if explicitly requested
-    if len(sys.argv) > 1 and sys.argv[1] == "--real-lsp":
-        # Remove the custom argument so unittest doesn't see it
-        sys.argv.remove("--real-lsp")
-        unittest.main()
-    else:
-        print(
-            "To run real LSP integration tests, use: python -m pytest tests/test_real_lsp_integration.py"
-        )
-        print("Or: python tests/test_real_lsp_integration.py --real-lsp")
+    unittest.main()
