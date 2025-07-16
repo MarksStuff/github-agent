@@ -136,7 +136,7 @@ if __name__ == "__main__":
 
             # The LSP server startup might fail due to port conflict,
             # but it should not crash the application
-            result = self.manager.start_lsp_server("test-python-repo")
+            self.manager.start_lsp_server("test-python-repo")
 
             # We don't assert the result because port conflict handling
             # behavior may vary, but the test should not crash
