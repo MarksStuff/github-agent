@@ -9,7 +9,6 @@ import json
 
 import pytest
 
-import codebase_tools
 from constants import Language
 from repository_manager import RepositoryConfig
 from symbol_storage import Symbol, SymbolKind
@@ -35,23 +34,9 @@ def mock_repo_config(temp_repo_path):
 class TestSearchSymbolsMCPIntegration:
     """Integration tests for search_symbols MCP tool"""
 
-    async def execute_search_with_mock(self, mock_symbol_storage, **kwargs):
-        """Helper to execute search_symbols with mock storage"""
-        original_func = codebase_tools.execute_search_symbols
-
-        async def patched_execute_search_symbols(*args, **kwargs_inner):
-            kwargs_inner["symbol_storage"] = mock_symbol_storage
-            return await original_func(*args, **kwargs_inner)
-
-        codebase_tools.TOOL_HANDLERS["search_symbols"] = patched_execute_search_symbols
-
-        try:
-            return await codebase_tools.execute_tool("search_symbols", **kwargs)
-        finally:
-            codebase_tools.TOOL_HANDLERS["search_symbols"] = original_func
-
-    def test_search_symbols_tool_registration(self):
+    def test_search_symbols_tool_registration(self, codebase_tools_factory):
         """Test that search_symbols tool is properly registered in MCP tools"""
+        codebase_tools = codebase_tools_factory()
         tools = codebase_tools.get_tools("test-repo", "/test/path")
 
         # Find the search_symbols tool
@@ -93,8 +78,15 @@ class TestSearchSymbolsMCPIntegration:
         assert properties["limit"]["maximum"] == 100
 
     @pytest.mark.asyncio
-    async def test_search_symbols_tool_execution_flow(self, mock_symbol_storage):
+    async def test_search_symbols_tool_execution_flow(
+        self, codebase_tools_factory, mock_symbol_storage, mock_repo_config
+    ):
         """Test complete execution flow of search_symbols tool"""
+        codebase_tools = codebase_tools_factory(use_real_symbol_storage=False)
+
+        # Add the repository to the mock repository manager
+        codebase_tools.repository_manager.add_repository("test-repo", mock_repo_config)
+
         # Setup test data
         mock_symbol_storage.insert_symbol(
             Symbol(
@@ -120,25 +112,31 @@ class TestSearchSymbolsMCPIntegration:
         )
 
         # Test basic search
-        result = await self.execute_search_with_mock(
-            mock_symbol_storage,
-            repo_name="test-repo",
-            repository_workspace="/test/path",
+        result = await codebase_tools.execute_tool(
+            "search_symbols",
+            repository_id="test-repo",
             query="test",
         )
 
         data = json.loads(result)
         assert (
-            "error" not in data or data.get("total_results", 0) >= 0
+            "error" not in data or data.get("count", 0) >= 0
         )  # Allow for empty results or success
         assert "query" in data
-        assert "repository" in data
+        assert "repository_id" in data
         assert "symbols" in data
-        assert "total_results" in data
+        assert "count" in data
 
     @pytest.mark.asyncio
-    async def test_search_symbols_with_all_parameters(self, mock_symbol_storage):
+    async def test_search_symbols_with_all_parameters(
+        self, codebase_tools_factory, mock_symbol_storage, mock_repo_config
+    ):
         """Test search_symbols tool with all parameter combinations"""
+        codebase_tools = codebase_tools_factory(use_real_symbol_storage=False)
+
+        # Add the repository to the mock repository manager
+        codebase_tools.repository_manager.add_repository("test-repo", mock_repo_config)
+
         # Setup test data
         mock_symbol_storage.insert_symbol(
             Symbol(
@@ -175,10 +173,9 @@ class TestSearchSymbolsMCPIntegration:
         )
 
         # Test with query only
-        result = await self.execute_search_with_mock(
-            mock_symbol_storage,
-            repo_name="test-repo",
-            repository_workspace="/test/path",
+        result = await codebase_tools.execute_tool(
+            "search_symbols",
+            repository_id="test-repo",
             query="search",
         )
         data = json.loads(result)
@@ -187,10 +184,9 @@ class TestSearchSymbolsMCPIntegration:
         assert data["limit"] == 50  # Default limit
 
         # Test with query and symbol_kind filter
-        result = await self.execute_search_with_mock(
-            mock_symbol_storage,
-            repo_name="test-repo",
-            repository_workspace="/test/path",
+        result = await codebase_tools.execute_tool(
+            "search_symbols",
+            repository_id="test-repo",
             query="search",
             symbol_kind="function",
         )
@@ -199,10 +195,9 @@ class TestSearchSymbolsMCPIntegration:
         assert data["symbol_kind"] == "function"
 
         # Test with query and custom limit
-        result = await self.execute_search_with_mock(
-            mock_symbol_storage,
-            repo_name="test-repo",
-            repository_workspace="/test/path",
+        result = await codebase_tools.execute_tool(
+            "search_symbols",
+            repository_id="test-repo",
             query="search",
             limit=10,
         )
@@ -211,10 +206,9 @@ class TestSearchSymbolsMCPIntegration:
         assert data["limit"] == 10
 
         # Test with all parameters
-        result = await self.execute_search_with_mock(
-            mock_symbol_storage,
-            repo_name="test-repo",
-            repository_workspace="/test/path",
+        result = await codebase_tools.execute_tool(
+            "search_symbols",
+            repository_id="test-repo",
             query="search",
             symbol_kind="class",
             limit=5,
@@ -225,13 +219,19 @@ class TestSearchSymbolsMCPIntegration:
         assert data["limit"] == 5
 
     @pytest.mark.asyncio
-    async def test_search_symbols_error_handling_integration(self):
+    async def test_search_symbols_error_handling_integration(
+        self, codebase_tools_factory, mock_repo_config
+    ):
         """Test error handling in the complete MCP tool flow"""
+        codebase_tools = codebase_tools_factory()
+
+        # Add the repository to the mock repository manager
+        codebase_tools.repository_manager.add_repository("test-repo", mock_repo_config)
+
         # Test with missing required parameter
         result = await codebase_tools.execute_tool(
             "search_symbols",
-            repo_name="test-repo",
-            repository_workspace="/test/path",
+            repository_id="test-repo",
             # Missing query parameter
         )
 
@@ -239,35 +239,43 @@ class TestSearchSymbolsMCPIntegration:
         assert "error" in data
         assert "Tool execution failed" in data["error"]
 
-        # Test with invalid parameters
+        # Test with invalid parameters (limit validation)
         result = await codebase_tools.execute_tool(
             "search_symbols",
-            repo_name="test-repo",
-            repository_workspace="/test/path",
+            repository_id="test-repo",
             query="test",
-            limit=0,  # Invalid limit
+            limit=0,  # Invalid limit (< 1)
         )
 
         data = json.loads(result)
+        # The function validates limit and returns error for limit < 1
         assert "error" in data
+        assert "Limit must be between 1 and 100" in data["error"]
+        assert data["repository_id"] == "test-repo"
+        assert data["query"] == "test"
 
-    def test_search_symbols_tool_handler_registration(self):
+    def test_search_symbols_tool_handler_registration(self, codebase_tools_factory):
         """Test that search_symbols is properly registered in TOOL_HANDLERS"""
-        assert "search_symbols" in codebase_tools.TOOL_HANDLERS
-        handler = codebase_tools.TOOL_HANDLERS["search_symbols"]
-        assert callable(handler)
-        assert handler == codebase_tools.execute_search_symbols
+        codebase_tools = codebase_tools_factory()
+        # Check that the handler is bound to the class
+        assert hasattr(codebase_tools, "search_symbols")
+        assert callable(codebase_tools.search_symbols)
 
     @pytest.mark.asyncio
-    async def test_search_symbols_empty_query_handling(self, mock_symbol_storage):
+    async def test_search_symbols_empty_query_handling(
+        self, codebase_tools_factory, mock_symbol_storage, mock_repo_config
+    ):
         """Test handling of empty or whitespace-only queries"""
+        codebase_tools = codebase_tools_factory(use_real_symbol_storage=False)
+
+        # Add the repository to the mock repository manager
+        codebase_tools.repository_manager.add_repository("test-repo", mock_repo_config)
+
         # Test empty string
         result = await codebase_tools.execute_tool(
             "search_symbols",
-            repo_name="test-repo",
-            repository_workspace="/test/path",
+            repository_id="test-repo",
             query="",
-            symbol_storage=mock_symbol_storage,
         )
 
         data = json.loads(result)
@@ -278,10 +286,8 @@ class TestSearchSymbolsMCPIntegration:
         # Test whitespace-only query
         result = await codebase_tools.execute_tool(
             "search_symbols",
-            repo_name="test-repo",
-            repository_workspace="/test/path",
+            repository_id="test-repo",
             query="   ",
-            symbol_storage=mock_symbol_storage,
         )
 
         data = json.loads(result)
@@ -289,8 +295,15 @@ class TestSearchSymbolsMCPIntegration:
         assert data["query"] == "   "
 
     @pytest.mark.asyncio
-    async def test_search_symbols_special_characters(self, mock_symbol_storage):
+    async def test_search_symbols_special_characters(
+        self, codebase_tools_factory, mock_symbol_storage, mock_repo_config
+    ):
         """Test search_symbols with special characters in queries"""
+        codebase_tools = codebase_tools_factory(use_real_symbol_storage=False)
+
+        # Add the repository to the mock repository manager
+        codebase_tools.repository_manager.add_repository("test-repo", mock_repo_config)
+
         # Setup test data with special characters
         mock_symbol_storage.insert_symbol(
             Symbol(
@@ -318,10 +331,8 @@ class TestSearchSymbolsMCPIntegration:
         # Test search with underscore
         result = await codebase_tools.execute_tool(
             "search_symbols",
-            repo_name="test-repo",
-            repository_workspace="/test/path",
+            repository_id="test-repo",
             query="__init__",
-            symbol_storage=mock_symbol_storage,
         )
 
         data = json.loads(result)
@@ -331,18 +342,23 @@ class TestSearchSymbolsMCPIntegration:
         # Test search with partial special characters
         result = await codebase_tools.execute_tool(
             "search_symbols",
-            repo_name="test-repo",
-            repository_workspace="/test/path",
+            repository_id="test-repo",
             query="_",
-            symbol_storage=mock_symbol_storage,
         )
 
         data = json.loads(result)
         assert data["query"] == "_"
 
     @pytest.mark.asyncio
-    async def test_search_symbols_case_sensitivity(self, mock_symbol_storage):
+    async def test_search_symbols_case_sensitivity(
+        self, codebase_tools_factory, mock_symbol_storage, mock_repo_config
+    ):
         """Test search_symbols case sensitivity behavior"""
+        codebase_tools = codebase_tools_factory(use_real_symbol_storage=False)
+
+        # Add the repository to the mock repository manager
+        codebase_tools.repository_manager.add_repository("test-repo", mock_repo_config)
+
         # Setup test data with mixed case
         mock_symbol_storage.insert_symbol(
             Symbol(
@@ -370,10 +386,8 @@ class TestSearchSymbolsMCPIntegration:
         # Test search behavior with different cases
         result = await codebase_tools.execute_tool(
             "search_symbols",
-            repo_name="test-repo",
-            repository_workspace="/test/path",
+            repository_id="test-repo",
             query="test",
-            symbol_storage=mock_symbol_storage,
         )
 
         data = json.loads(result)
@@ -382,8 +396,15 @@ class TestSearchSymbolsMCPIntegration:
         # Should find symbols regardless of case (due to LIKE pattern)
 
     @pytest.mark.asyncio
-    async def test_search_symbols_repository_isolation(self, mock_symbol_storage):
+    async def test_search_symbols_repository_isolation(
+        self, codebase_tools_factory, mock_symbol_storage, mock_repo_config
+    ):
         """Test that search_symbols only returns symbols from the specified repository"""
+        codebase_tools = codebase_tools_factory(use_real_symbol_storage=False)
+
+        # Add the repository to the mock repository manager
+        codebase_tools.repository_manager.add_repository("test-repo", mock_repo_config)
+
         # Setup symbols in different repositories
         mock_symbol_storage.insert_symbol(
             Symbol(
@@ -411,21 +432,20 @@ class TestSearchSymbolsMCPIntegration:
         # Search should only return symbols from test-repo
         result = await codebase_tools.execute_tool(
             "search_symbols",
-            repo_name="test-repo",
-            repository_workspace="/test/path",
+            repository_id="test-repo",
             query="function",
-            symbol_storage=mock_symbol_storage,
         )
 
         data = json.loads(result)
-        assert data["repository"] == "test-repo"
+        assert data["repository_id"] == "test-repo"
 
         # All returned symbols should belong to test-repo
         for symbol in data.get("symbols", []):
             assert symbol["repository_id"] == "test-repo"
 
-    def test_search_symbols_mcp_schema_validation(self):
+    def test_search_symbols_mcp_schema_validation(self, codebase_tools_factory):
         """Test that search_symbols tool schema follows MCP standards"""
+        codebase_tools = codebase_tools_factory()
         tools = codebase_tools.get_tools("test-repo", "/test/path")
         search_tool = next((t for t in tools if t["name"] == "search_symbols"), None)
 

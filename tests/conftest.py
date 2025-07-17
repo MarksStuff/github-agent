@@ -4,6 +4,7 @@ Pytest configuration and shared fixtures for shutdown system tests.
 
 import logging
 import os
+import socket
 import subprocess
 import tempfile
 import threading
@@ -13,7 +14,9 @@ from typing import Any
 
 import pytest
 
+import codebase_tools
 import mcp_master
+from lsp_client import AbstractLSPClient, LSPClientState
 from python_symbol_extractor import AbstractSymbolExtractor, PythonSymbolExtractor
 from repository_indexer import (
     AbstractRepositoryIndexer,
@@ -33,6 +36,108 @@ from symbol_storage import (
 from tests.test_fixtures import MockRepositoryManager
 
 
+def find_free_port(start_port: int = 8081, max_attempts: int = 100) -> int:
+    """
+    Find a free port starting from start_port.
+
+    Args:
+        start_port: Port to start searching from
+        max_attempts: Maximum number of ports to try
+
+    Returns:
+        Free port number
+
+    Raises:
+        RuntimeError: If no free port found within max_attempts
+    """
+    for port in range(start_port, start_port + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            try:
+                sock.bind(("localhost", port))
+                return port
+            except OSError:
+                continue
+
+    raise RuntimeError(
+        f"No free port found in range {start_port}-{start_port + max_attempts}"
+    )
+
+
+class MockLSPClient(AbstractLSPClient):
+    """Mock LSP client for testing."""
+
+    def __init__(
+        self,
+        workspace_root: str = "/test",
+        state: LSPClientState = LSPClientState.INITIALIZED,
+    ):
+        # Don't call super().__init__ to avoid needing server_manager
+        self.workspace_root = workspace_root
+        self.state = state
+        self.logger = logging.getLogger(__name__)
+
+        # Mock responses that can be set by tests
+        self._definition_response: list[dict] = []
+        self._references_response: list[dict] = []
+        self._hover_response = None
+        self._document_symbols_response: list[dict] = []
+        self._start_result = True  # Default to successful start
+
+    async def get_definition(
+        self, uri: str, line: int, character: int
+    ) -> list[dict] | None:
+        """Mock get_definition method."""
+        return self._definition_response
+
+    async def get_references(
+        self, uri: str, line: int, character: int, include_declaration: bool = True
+    ) -> list[dict] | None:
+        """Mock get_references method."""
+        return self._references_response
+
+    async def get_hover(self, uri: str, line: int, character: int) -> dict | None:
+        """Mock get_hover method."""
+        return self._hover_response
+
+    async def get_document_symbols(self, uri: str) -> list[dict] | None:
+        """Mock get_document_symbols method."""
+        return self._document_symbols_response
+
+    async def connect(self) -> bool:
+        """Mock connect method."""
+        return True
+
+    async def disconnect(self) -> None:
+        """Mock disconnect method."""
+        pass
+
+    async def stop(self) -> None:
+        """Mock stop method."""
+        pass
+
+    async def start(self) -> bool:
+        """Mock start method."""
+        if self._start_result:
+            self.state = LSPClientState.INITIALIZED
+        return self._start_result
+
+    def shutdown(self) -> None:
+        """Mock shutdown method."""
+        self.state = LSPClientState.DISCONNECTED
+
+    def set_definition_response(self, response: list[dict]):
+        """Set the response for get_definition calls."""
+        self._definition_response = response
+
+    def set_references_response(self, response: list[dict]):
+        """Set the response for get_references calls."""
+        self._references_response = response
+
+    def set_start_result(self, result: bool):
+        """Set the result for start method calls."""
+        self._start_result = result
+
+
 @pytest.fixture(scope="session")
 def temp_dir():
     """Create a temporary directory for test files."""
@@ -43,6 +148,23 @@ def temp_dir():
 @pytest.fixture
 def mock_repository_manager():
     """Create a fresh mock repository manager for each test."""
+    return MockRepositoryManager()
+
+
+def mock_lsp_client_provider(workspace_root: str, python_path: str) -> MockLSPClient:
+    """Provider function to create mock LSP clients for dependency injection."""
+    return MockLSPClient(workspace_root=workspace_root)
+
+
+@pytest.fixture
+def mock_lsp_client():
+    """Create a mock LSP client for testing."""
+    return MockLSPClient()
+
+
+@pytest.fixture
+def mock_repository_manager_with_lsp():
+    """Create a mock repository manager that returns mock LSP clients."""
     return MockRepositoryManager()
 
 
@@ -551,6 +673,20 @@ def mcp_master_factory():
         shutdown_coordinator = SimpleShutdownCoordinator(test_logger)
         health_monitor = SimpleHealthMonitor(test_logger)
 
+        # Create CodebaseTools instance
+        from codebase_tools import CodebaseLSPClient
+
+        def mock_lsp_client_factory(workspace: str, python_path: str):
+            return CodebaseLSPClient(workspace, python_path)
+
+        from codebase_tools import CodebaseTools
+
+        codebase_tools = CodebaseTools(
+            repository_manager=repository_manager,
+            symbol_storage=symbol_storage,
+            lsp_client_factory=mock_lsp_client_factory,
+        )
+
         return mcp_master.MCPMaster(
             repository_manager=repository_manager,
             workers=workers,
@@ -558,6 +694,114 @@ def mcp_master_factory():
             symbol_storage=symbol_storage,
             shutdown_coordinator=shutdown_coordinator,
             health_monitor=health_monitor,
+            codebase_tools=codebase_tools,
         )
 
     return create_mcp_master
+
+
+# Factory fixtures for dependency injection with automatic cleanup
+@pytest.fixture
+def repository_manager_factory():
+    """Factory for creating repository manager instances."""
+
+    def _create(mock=True):
+        if mock:
+            return MockRepositoryManager()
+        else:
+            # Use real RepositoryManager for testing
+            from repository_manager import RepositoryManager
+
+            return RepositoryManager()
+
+    return _create
+
+
+@pytest.fixture
+def symbol_storage_factory():
+    """Factory for creating symbol storage instances with automatic cleanup."""
+    created_objects = []
+
+    def _create(mock=True):
+        if mock:
+            return MockSymbolStorage()
+        else:
+            # Use real SQLiteSymbolStorage with in-memory database
+            from symbol_storage import SQLiteSymbolStorage
+
+            storage = SQLiteSymbolStorage(db_path=":memory:")
+            created_objects.append(storage)
+            return storage
+
+    yield _create
+
+    # Cleanup all created real objects
+    for obj in created_objects:
+        obj.close()
+
+
+@pytest.fixture
+def lsp_client_factory_factory():
+    """Factory for creating LSP client factory functions."""
+
+    def _create(mock=True):
+        if mock:
+
+            def mock_lsp_client_factory(
+                workspace_root: str, python_path: str
+            ) -> MockLSPClient:
+                return MockLSPClient(workspace_root=workspace_root)
+
+            return mock_lsp_client_factory
+        else:
+            # Use real LSP client factory for testing
+            from codebase_tools import CodebaseLSPClient
+
+            def real_lsp_client_factory(
+                workspace_root: str, python_path: str
+            ) -> CodebaseLSPClient:
+                return CodebaseLSPClient(
+                    workspace_root=workspace_root, python_path=python_path
+                )
+
+            return real_lsp_client_factory
+
+    return _create
+
+
+@pytest.fixture
+def codebase_tools_factory(
+    repository_manager_factory, symbol_storage_factory, lsp_client_factory_factory
+):
+    """Factory for creating CodebaseTools instances with automatic cleanup."""
+
+    def _create(
+        repositories: dict | None = None,
+        use_real_repository_manager: bool = False,
+        use_real_symbol_storage: bool = False,
+        use_real_lsp_client_factory: bool = False,
+    ) -> codebase_tools.CodebaseTools:
+        if repositories is None:
+            repositories = {}
+        # Create repository manager
+        repository_manager = repository_manager_factory(
+            mock=not use_real_repository_manager
+        )
+        for name, config in repositories.items():
+            repository_manager.add_repository(name, config)
+
+        # Create symbol storage
+        symbol_storage = symbol_storage_factory(mock=not use_real_symbol_storage)
+
+        # Create LSP client factory
+        lsp_client_factory = lsp_client_factory_factory(
+            mock=not use_real_lsp_client_factory
+        )
+
+        return codebase_tools.CodebaseTools(
+            repository_manager=repository_manager,
+            symbol_storage=symbol_storage,
+            lsp_client_factory=lsp_client_factory,
+        )
+
+    return _create

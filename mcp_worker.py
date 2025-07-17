@@ -29,9 +29,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-import codebase_tools
 import github_tools
-from constants import DATA_DIR, LOGS_DIR, Language
+from codebase_tools import CodebaseLSPClient, CodebaseTools
+from constants import DATA_DIR, LOGS_DIR, SYMBOLS_DB_PATH, Language
 from github_tools import (
     GitHubAPIContext,
     execute_find_pr_for_branch,
@@ -50,7 +50,7 @@ from symbol_storage import ProductionSymbolStorage, SQLiteSymbolStorage
 from system_utils import MicrosecondFormatter, log_system_state
 
 # Tool modules for dynamic dispatch
-TOOL_MODULES = [github_tools, codebase_tools]
+TOOL_MODULES = [github_tools]
 
 
 class MCPWorker:
@@ -66,6 +66,7 @@ class MCPWorker:
     app: FastAPI
     shutdown_coordinator: SimpleShutdownCoordinator
     symbol_storage: SQLiteSymbolStorage | None
+    codebase_tools_instance: CodebaseTools
 
     def __init__(self, repository_config: RepositoryConfig, db_path: str | None = None):
         # Store repository configuration
@@ -171,6 +172,30 @@ class MCPWorker:
             self.logger.error(f"Failed to setup repository manager: {e}")
             raise
 
+        self.logger.debug("Initializing CodebaseTools instance...")
+        try:
+            # Initialize CodebaseTools instance for this worker
+            # Use the same temporary repository manager created in _setup_repository_manager
+            github_temp_repo_manager = github_tools.repo_manager
+            if github_temp_repo_manager is None:
+                raise RuntimeError("Repository manager not initialized")
+
+            # Create CodebaseTools with default dependencies for now
+            # We'll replace symbol_storage later if Python-specific storage is available
+            from symbol_storage import SQLiteSymbolStorage
+
+            default_symbol_storage = SQLiteSymbolStorage(SYMBOLS_DB_PATH)
+
+            self.codebase_tools_instance = CodebaseTools(
+                repository_manager=github_temp_repo_manager,
+                symbol_storage=default_symbol_storage,
+                lsp_client_factory=CodebaseLSPClient,
+            )
+            self.logger.debug("CodebaseTools instance created successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to create CodebaseTools instance: {e}")
+            raise
+
         self.logger.debug("Creating message queue...")
         # Message queue for MCP communication
         self.message_queue: queue.Queue[dict[str, Any]] = queue.Queue()
@@ -185,11 +210,14 @@ class MCPWorker:
             self.logger.debug("Initializing symbol storage for Python repository...")
             try:
                 self._initialize_symbol_storage()
+                # Update CodebaseTools instance with symbol storage
+                if self.symbol_storage is not None:
+                    self.codebase_tools_instance.symbol_storage = self.symbol_storage
                 self.logger.debug("Symbol storage initialized successfully")
             except Exception as e:
                 self.logger.error(f"Failed to initialize symbol storage: {e}")
                 # Don't raise - continue without symbol storage
-                self.symbol_storage = None
+                self.symbol_storage = None  # type: ignore[assignment]
 
         self.logger.debug("Creating FastAPI app...")
         try:
@@ -421,6 +449,13 @@ class MCPWorker:
                             module.get_tools(self.repo_name, self.repo_path)
                         )
 
+                    # Add codebase tools from the instance
+                    all_tools.extend(
+                        self.codebase_tools_instance.get_tools(
+                            self.repo_name, self.repo_path
+                        )
+                    )
+
                     response = {
                         "jsonrpc": "2.0",
                         "id": body.get("id", 1),
@@ -556,58 +591,59 @@ class MCPWorker:
                                 }
                             )
                         else:
-                            result = await codebase_tools.execute_tool(
+                            result = await self.codebase_tools_instance.execute_tool(
                                 tool_name,
-                                repo_name=self.repo_name,
-                                repo_path=self.repo_path,
+                                repository_id=self.repo_name,
                                 query=query,
                                 symbol_kind=symbol_kind,
                                 limit=limit,
-                                symbol_storage=self.symbol_storage,
                             )
 
                     # If no special handling was needed, use module dispatch
                     if result is None:
-                        # Try to find the tool in any of the registered modules
-                        for module in TOOL_MODULES:
-                            if tool_name in module.TOOL_HANDLERS:
-                                # Standard tools that just need repo_name and repo_path
-                                if tool_name in [
-                                    "git_get_current_branch",
-                                    "git_get_current_commit",
-                                    "codebase_health_check",
-                                ]:
-                                    result = await module.execute_tool(
-                                        tool_name,
-                                        repo_name=self.repo_name,
-                                        repository_workspace=self.repo_path,
-                                        **tool_args,
-                                    )
-                                elif tool_name in [
-                                    "find_definition",
-                                    "find_references",
-                                ]:
-                                    # LSP tools need repo_name, repo_path, and python_path
-                                    result = await module.execute_tool(
-                                        tool_name,
-                                        repo_name=self.repo_name,
-                                        repository_workspace=self.repo_path,
-                                        python_path=self.python_path,
-                                        **tool_args,
-                                    )
-                                elif tool_name == "github_post_pr_reply":
-                                    # This tool only needs repo_name, not repo_path
-                                    result = await module.execute_tool(
-                                        tool_name,
-                                        repo_name=self.repo_name,
-                                        **tool_args,
-                                    )
-                                else:
-                                    # For other tools, pass all args as-is
-                                    result = await module.execute_tool(
-                                        tool_name, **tool_args
-                                    )
-                                break
+                        # Check if this is a codebase tool
+                        codebase_tool_handlers = {
+                            "codebase_health_check",
+                            "find_definition",
+                            "find_references",
+                            "get_hover",
+                        }
+
+                        if tool_name in codebase_tool_handlers:
+                            # Use the CodebaseTools instance
+                            result = await self.codebase_tools_instance.execute_tool(
+                                tool_name,
+                                repository_id=self.repo_name,
+                                **tool_args,
+                            )
+                        else:
+                            # Try to find the tool in any of the registered modules
+                            for module in TOOL_MODULES:
+                                if tool_name in module.TOOL_HANDLERS:
+                                    # Standard tools that just need repo_name and repo_path
+                                    if tool_name in [
+                                        "git_get_current_branch",
+                                        "git_get_current_commit",
+                                    ]:
+                                        result = await module.execute_tool(
+                                            tool_name,
+                                            repo_name=self.repo_name,
+                                            repository_workspace=self.repo_path,
+                                            **tool_args,
+                                        )
+                                    elif tool_name == "github_post_pr_reply":
+                                        # This tool only needs repo_name, not repo_path
+                                        result = await module.execute_tool(
+                                            tool_name,
+                                            repo_name=self.repo_name,
+                                            **tool_args,
+                                        )
+                                    else:
+                                        # For other tools, pass all args as-is
+                                        result = await module.execute_tool(
+                                            tool_name, **tool_args
+                                        )
+                                    break
 
                         # If tool not found in any module
                         if result is None:

@@ -28,8 +28,9 @@ from typing import Any
 import aiohttp
 from dotenv import load_dotenv
 
-import codebase_tools
+# codebase_tools imported locally where needed
 import github_tools
+from codebase_tools import CodebaseTools
 from constants import LOGS_DIR, Language
 from python_symbol_extractor import PythonSymbolExtractor
 from repository_indexer import PythonRepositoryIndexer
@@ -194,6 +195,7 @@ class MCPMaster:
         workers: dict[str, WorkerProcess],
         startup_orchestrator: CodebaseStartupOrchestrator,
         symbol_storage: SQLiteSymbolStorage,
+        codebase_tools: CodebaseTools,
         shutdown_coordinator: SimpleShutdownCoordinator,
         health_monitor: SimpleHealthMonitor,
     ):
@@ -201,6 +203,7 @@ class MCPMaster:
         self.workers = workers
         self.startup_orchestrator = startup_orchestrator
         self.symbol_storage = symbol_storage
+        self.codebase_tools = codebase_tools
         self.shutdown_coordinator = shutdown_coordinator
         self.health_monitor = health_monitor
         self.running = False
@@ -266,7 +269,7 @@ class MCPMaster:
             github_tools.validate(logger, repositories)
 
             # Validate codebase service prerequisites
-            codebase_tools.validate(logger, repositories)
+            self.codebase_tools.validate(logger, repositories)
 
             logger.info("✅ All service prerequisite validation completed successfully")
 
@@ -754,6 +757,15 @@ async def main() -> None:
                     indexer=indexer,
                 )
 
+                # Create codebase tools
+                from codebase_tools import CodebaseLSPClient, CodebaseTools
+
+                codebase_tools = CodebaseTools(
+                    repository_manager=repository_manager,
+                    symbol_storage=symbol_storage,
+                    lsp_client_factory=CodebaseLSPClient,
+                )
+
                 # Create shutdown and health monitoring components
                 shutdown_coordinator = SimpleShutdownCoordinator(logger)
                 health_monitor = SimpleHealthMonitor(logger)
@@ -764,6 +776,7 @@ async def main() -> None:
                     workers=workers,
                     startup_orchestrator=startup_orchestrator,
                     symbol_storage=symbol_storage,
+                    codebase_tools=codebase_tools,
                     shutdown_coordinator=shutdown_coordinator,
                     health_monitor=health_monitor,
                 )
@@ -807,6 +820,15 @@ async def main() -> None:
             indexer=indexer,
         )
 
+        # Create codebase tools
+        from codebase_tools import CodebaseLSPClient, CodebaseTools
+
+        codebase_tools = CodebaseTools(
+            repository_manager=repository_manager,
+            symbol_storage=symbol_storage,
+            lsp_client_factory=CodebaseLSPClient,
+        )
+
         # Create shutdown and health monitoring components
         shutdown_coordinator = SimpleShutdownCoordinator(logger)
         health_monitor = SimpleHealthMonitor(logger)
@@ -819,6 +841,7 @@ async def main() -> None:
             workers=workers,
             startup_orchestrator=startup_orchestrator,
             symbol_storage=symbol_storage,
+            codebase_tools=codebase_tools,
             shutdown_coordinator=shutdown_coordinator,
             health_monitor=health_monitor,
         )

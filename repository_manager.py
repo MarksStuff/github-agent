@@ -8,6 +8,7 @@ for the GitHub MCP server's URL-based routing system.
 """
 
 import abc
+import asyncio
 import json
 import logging
 import os
@@ -30,6 +31,11 @@ from constants import (
     MINIMUM_PYTHON_VERSION,
     Language,
 )
+from lsp_client import AbstractLSPClient, LSPClientState
+from pyright_lsp_manager import PyrightLSPManager
+
+# Type for LSP client provider
+LSPClientProvider = Callable[[str, str], AbstractLSPClient]
 
 
 class AbstractRepositoryManager(abc.ABC):
@@ -73,6 +79,7 @@ class RepositoryConfig:
     python_path: str
     github_owner: str
     github_repo: str
+    lsp_enabled: bool = True  # Whether LSP is enabled for this repository
 
     def __post_init__(self):
         """Validate configuration after initialization - basic validation only"""
@@ -410,13 +417,18 @@ class RepositoryConfig:
 class RepositoryManager(AbstractRepositoryManager):
     """Manages multiple repository configurations for the MCP server"""
 
-    def __init__(self, config_path: str | None = None):
+    def __init__(
+        self,
+        config_path: str | None = None,
+        lsp_client_provider: LSPClientProvider | None = None,
+    ):
         """
         Initialize repository manager
 
         Args:
             config_path: Path to repositories.json config file.
                         Defaults to ~/.local/share/github-agent/repositories.json
+            lsp_client_provider: Function to create LSP clients (workspace_root, python_path) -> AbstractLSPClient
         """
         self.logger = logging.getLogger(__name__)
 
@@ -440,9 +452,28 @@ class RepositoryManager(AbstractRepositoryManager):
 
         self._repositories: dict[str, RepositoryConfig] = {}
 
+        # LSP client provider for dependency injection
+        self.lsp_client_provider = (
+            lsp_client_provider or self._default_lsp_client_provider
+        )
+
+        # LSP server management
+        self._lsp_clients: dict[str, AbstractLSPClient] = {}
+        self._lsp_managers: dict[str, PyrightLSPManager] = {}
+        self._lsp_lock = threading.Lock()
+
         # Hot reload support
         self._last_modified: float | None = None
         self._reload_callbacks: list[Callable[[], None]] = []
+
+    def _default_lsp_client_provider(
+        self, workspace_root: str, python_path: str
+    ) -> AbstractLSPClient:
+        """Default LSP client provider that creates CodebaseLSPClient instances."""
+        # Import here to avoid circular imports
+        from codebase_tools import CodebaseLSPClient
+
+        return CodebaseLSPClient(workspace_root=workspace_root, python_path=python_path)
 
     @classmethod
     def create_from_config(cls, config_path: str) -> "RepositoryManager":
@@ -719,7 +750,7 @@ class RepositoryManager(AbstractRepositoryManager):
         if not repo_config:
             return None
 
-        return {
+        info = {
             "name": repo_config.name,
             "workspace": repo_config.workspace,
             "description": repo_config.description,
@@ -729,11 +760,289 @@ class RepositoryManager(AbstractRepositoryManager):
             "github_owner": repo_config.github_owner,
             "github_repo": repo_config.github_repo,
             "exists": os.path.exists(repo_config.workspace),
+            "lsp_enabled": repo_config.lsp_enabled,
         }
+
+        # Add LSP status
+        info["lsp_status"] = self.get_lsp_status(repo_name)
+
+        return info
 
     def is_multi_repo_mode(self) -> bool:
         """Check if running in multi-repository mode"""
         return bool(self._repositories)
+
+    def start_lsp_server(self, repo_name: str) -> bool:
+        """
+        Start LSP server for a repository if it's enabled and not already running.
+
+        Args:
+            repo_name: Name of the repository
+
+        Returns:
+            True if server started successfully or already running, False otherwise
+        """
+        repo_config = self.get_repository(repo_name)
+        if not repo_config:
+            self.logger.error(f"Repository '{repo_name}' not found")
+            return False
+
+        if not repo_config.lsp_enabled:
+            self.logger.debug(f"LSP disabled for repository '{repo_name}'")
+            return True
+
+        if repo_config.language != Language.PYTHON:
+            self.logger.debug(
+                f"LSP not supported for language '{repo_config.language}' in repository '{repo_name}'"
+            )
+            return True
+
+        with self._lsp_lock:
+            # Check if already running
+            if repo_name in self._lsp_clients:
+                client = self._lsp_clients[repo_name]
+                if client.state == LSPClientState.INITIALIZED:
+                    self.logger.debug(
+                        f"LSP server already running for repository '{repo_name}'"
+                    )
+                    return True
+                else:
+                    # Clean up failed/disconnected client
+                    self._cleanup_lsp_client(repo_name)
+
+            try:
+                # Create LSP manager
+                lsp_manager = PyrightLSPManager(
+                    workspace_path=repo_config.workspace,
+                    python_path=repo_config.python_path,
+                )
+
+                # Prepare workspace before starting server
+                lsp_manager.prepare_workspace()
+
+                self._lsp_managers[repo_name] = lsp_manager
+
+                # Create LSP client using the provider
+                lsp_client = self.lsp_client_provider(
+                    repo_config.workspace,
+                    repo_config.python_path,
+                )
+                self._lsp_clients[repo_name] = lsp_client
+
+                # Start the server
+                if asyncio.run(lsp_client.start()):
+                    self.logger.info(
+                        f"✅ Started LSP server for repository '{repo_name}'"
+                    )
+                    return True
+                else:
+                    self.logger.error(
+                        f"❌ Failed to start LSP server for repository '{repo_name}'"
+                    )
+                    self._cleanup_lsp_client(repo_name)
+                    return False
+
+            except Exception as e:
+                self.logger.error(
+                    f"❌ Error starting LSP server for repository '{repo_name}': {e}"
+                )
+                self._cleanup_lsp_client(repo_name)
+                return False
+
+    def stop_lsp_server(self, repo_name: str) -> bool:
+        """
+        Stop LSP server for a repository.
+
+        Args:
+            repo_name: Name of the repository
+
+        Returns:
+            True if server stopped successfully or not running, False otherwise
+        """
+        with self._lsp_lock:
+            if repo_name not in self._lsp_clients:
+                self.logger.debug(f"No LSP server running for repository '{repo_name}'")
+                return True
+
+            try:
+                client = self._lsp_clients[repo_name]
+                # Use asyncio to run the async stop method
+
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(client.stop())
+                finally:
+                    loop.close()
+                    asyncio.set_event_loop(None)
+
+                self._cleanup_lsp_client(repo_name)
+                self.logger.info(f"✅ Stopped LSP server for repository '{repo_name}'")
+                return True
+
+            except Exception as e:
+                self.logger.error(
+                    f"❌ Error stopping LSP server for repository '{repo_name}': {e}"
+                )
+                # Force cleanup even if shutdown failed
+                self._cleanup_lsp_client(repo_name)
+                return False
+
+    def restart_lsp_server(self, repo_name: str) -> bool:
+        """
+        Restart LSP server for a repository.
+
+        Args:
+            repo_name: Name of the repository
+
+        Returns:
+            True if server restarted successfully, False otherwise
+        """
+        self.logger.info(f"Restarting LSP server for repository '{repo_name}'")
+
+        if not self.stop_lsp_server(repo_name):
+            self.logger.error(f"Failed to stop LSP server for repository '{repo_name}'")
+            return False
+
+        # Verify cleanup is complete
+        with self._lsp_lock:
+            if repo_name in self._lsp_clients or repo_name in self._lsp_managers:
+                self.logger.warning(
+                    f"LSP cleanup incomplete for repository '{repo_name}'"
+                )
+                return False
+
+        return self.start_lsp_server(repo_name)
+
+    def get_lsp_client(self, repo_name: str) -> AbstractLSPClient | None:
+        """
+        Get LSP client for a repository.
+
+        Args:
+            repo_name: Name of the repository
+
+        Returns:
+            LSP client if available, None otherwise
+        """
+        with self._lsp_lock:
+            return self._lsp_clients.get(repo_name)
+
+    def get_lsp_status(self, repo_name: str) -> dict[str, Any]:
+        """
+        Get LSP server status for a repository.
+
+        Args:
+            repo_name: Name of the repository
+
+        Returns:
+            Dictionary with LSP status information
+        """
+        repo_config = self.get_repository(repo_name)
+        if not repo_config:
+            return {"error": f"Repository '{repo_name}' not found"}
+
+        status = {
+            "repository": repo_name,
+            "lsp_enabled": repo_config.lsp_enabled,
+            "language": repo_config.language.value,
+            "supported": repo_config.language == Language.PYTHON,
+        }
+
+        with self._lsp_lock:
+            if repo_name in self._lsp_clients:
+                client = self._lsp_clients[repo_name]
+                status.update(
+                    {
+                        "running": True,
+                        "state": client.state.value,
+                        "healthy": client.state == LSPClientState.INITIALIZED,
+                    }
+                )
+
+                if repo_name in self._lsp_managers:
+                    manager = self._lsp_managers[repo_name]
+                    status["server_info"] = manager.get_server_info()
+            else:
+                status.update(
+                    {
+                        "running": False,
+                        "state": "not_started",
+                        "healthy": False,
+                    }
+                )
+
+        return status
+
+    def start_all_lsp_servers(self) -> dict[str, bool]:
+        """
+        Start LSP servers for all repositories.
+
+        Returns:
+            Dictionary mapping repository names to success status
+        """
+        results = {}
+        for repo_name in self._repositories:
+            results[repo_name] = self.start_lsp_server(repo_name)
+        return results
+
+    def stop_all_lsp_servers(self) -> dict[str, bool]:
+        """
+        Stop LSP servers for all repositories.
+
+        Returns:
+            Dictionary mapping repository names to success status
+        """
+        results = {}
+        for repo_name in list(self._lsp_clients.keys()):
+            results[repo_name] = self.stop_lsp_server(repo_name)
+        return results
+
+    def monitor_lsp_health(self) -> dict[str, bool]:
+        """
+        Monitor health of all LSP servers and restart unhealthy ones.
+
+        Returns:
+            Dictionary mapping repository names to health status
+        """
+        health_status = {}
+
+        with self._lsp_lock:
+            for repo_name, client in list(self._lsp_clients.items()):
+                try:
+                    if (
+                        client.state == LSPClientState.ERROR
+                        or client.state == LSPClientState.DISCONNECTED
+                    ):
+                        self.logger.warning(
+                            f"LSP server for '{repo_name}' is unhealthy, restarting"
+                        )
+                        health_status[repo_name] = self.restart_lsp_server(repo_name)
+                    else:
+                        health_status[repo_name] = True
+
+                except Exception as e:
+                    self.logger.error(
+                        f"Error checking health of LSP server for '{repo_name}': {e}"
+                    )
+                    health_status[repo_name] = False
+
+        return health_status
+
+    def _cleanup_lsp_client(self, repo_name: str) -> None:
+        """Clean up LSP client and manager for a repository."""
+        # Clean up client
+        if repo_name in self._lsp_clients:
+            del self._lsp_clients[repo_name]
+
+        # Clean up manager
+        if repo_name in self._lsp_managers:
+            try:
+                self._lsp_managers[repo_name].cleanup()
+            except Exception as e:
+                self.logger.warning(
+                    f"Error cleaning up LSP manager for '{repo_name}': {e}"
+                )
+            del self._lsp_managers[repo_name]
 
     def create_default_config(self, repo_configs: list[dict]) -> None:
         """
@@ -866,6 +1175,12 @@ class RepositoryManager(AbstractRepositoryManager):
         thread = threading.Thread(target=watch_loop, daemon=True)
         thread.start()
         self.logger.info(f"✅ Started watching configuration file: {self.config_path}")
+
+    def shutdown(self) -> None:
+        """Shutdown the repository manager and all LSP servers."""
+        self.logger.info("Shutting down repository manager...")
+        self.stop_all_lsp_servers()
+        self.logger.info("✅ Repository manager shutdown complete")
 
 
 def extract_repo_name_from_url(url_path: str) -> str | None:

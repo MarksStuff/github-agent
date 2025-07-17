@@ -27,7 +27,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import codebase_tools
 import github_tools
 import mcp_master
 from constants import Language
@@ -233,6 +232,24 @@ class TestMCPIntegration:
             assert tool["inputSchema"]["type"] == "object"
 
         # Test codebase tools loading
+        from codebase_tools import CodebaseTools
+        from tests.conftest import MockLSPClient, MockSymbolStorage
+        from tests.test_fixtures import MockRepositoryManager
+
+        mock_repo_manager = MockRepositoryManager()
+        mock_symbol_storage = MockSymbolStorage()
+
+        def mock_lsp_client_factory(
+            workspace_root: str, python_path: str
+        ) -> MockLSPClient:
+            return MockLSPClient(workspace_root=workspace_root)
+
+        codebase_tools = CodebaseTools(
+            repository_manager=mock_repo_manager,
+            symbol_storage=mock_symbol_storage,
+            lsp_client_factory=mock_lsp_client_factory,
+        )
+
         codebase_tool_list = codebase_tools.get_tools(repo_name, repo_path)
         assert isinstance(codebase_tool_list, list)
         assert len(codebase_tool_list) > 0
@@ -260,9 +277,22 @@ class TestMCPIntegration:
         # This validates the complete workflow from tool registration to execution
 
         # Execute health check directly (simulating MCP tool call)
-        health_result = await codebase_tools.execute_codebase_health_check(
-            repo_name, repo_path
+        # Add the repository to the mock manager first
+        from repository_manager import RepositoryConfig
+
+        repo_config = RepositoryConfig(
+            name=repo_name,
+            workspace=repo_path,
+            description="Integration test repo",
+            language=Language.PYTHON,
+            port=test_port,
+            python_path="/usr/bin/python3",
+            github_owner="test-owner",
+            github_repo="integration-test",
         )
+        mock_repo_manager.add_repository(repo_name, repo_config)
+
+        health_result = await codebase_tools.codebase_health_check(repo_name)
 
         # Parse and validate health check results
         health_data = json.loads(health_result)
@@ -275,14 +305,12 @@ class TestMCPIntegration:
             "warning",
         ]  # Should not be unhealthy/error
 
-        # Verify specific health checks passed (these validate real repository state)
-        assert health_data["checks"]["path_exists"] is True
-        assert health_data["checks"]["is_directory"] is True
-        assert health_data["checks"]["is_git_repo"] is True
-        assert health_data["checks"]["git_responsive"] is True
-
-        # Should have branch information from real git repo
-        assert "current_branch" in health_data["checks"]
+        # Verify response structure matches new format
+        assert "checks" in health_data
+        assert "warnings" in health_data
+        assert "errors" in health_data
+        assert "current_commit" in health_data
+        assert "lsp_status" in health_data
 
         # ============================================================================
         # PHASE 5: Tool Integration Validation
@@ -293,7 +321,7 @@ class TestMCPIntegration:
 
         # Test tool execution through codebase_tools.execute_tool
         tool_result = await codebase_tools.execute_tool(
-            "codebase_health_check", repo_name=repo_name, repository_workspace=repo_path
+            "codebase_health_check", repository_id=repo_name
         )
 
         # Verify tool execution succeeded

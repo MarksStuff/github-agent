@@ -13,7 +13,7 @@
 
 ## Task Breakdown
 
-### Task 1: Abstract LSP Client Infrastructure
+### Task 1: Abstract LSP Client Infrastructure - DONE
 **Description**: Create the core abstract LSP client infrastructure that can communicate with any language server using the Language Server Protocol, with pluggable implementations.
 
 **Implementation Details**:
@@ -43,7 +43,7 @@
 - Error recovery on connection failures
 - All tests pass without warnings
 
-### Task 2: Pyright LSP Server Management
+### Task 2: Pyright LSP Server Management - DONE
 **Description**: Implement Python-specific LSP server management that launches and manages pyright instances using repository configuration, with pluggable architecture.
 
 **Implementation Details**:
@@ -75,7 +75,7 @@
 - Superior type checking and IntelliSense compared to basic text matching
 - All tests pass without warnings
 
-### Task 3: Core LSP Tools Implementation
+### Task 3: Core LSP Tools Implementation - DONE
 **Description**: Implement the core MCP tools that provide symbol definition and reference lookup using the abstract LSP client with hybrid indexing approach.
 
 **Implementation Details**:

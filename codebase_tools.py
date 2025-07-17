@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Codebase Tools for MCP Server
+Codebase Tools for MCP Server - Object-Oriented Refactor
 Contains codebase-related tool implementations for repository analysis and management.
 """
 
@@ -9,18 +9,23 @@ import json
 import logging
 import os
 import subprocess
-import sys
-from collections.abc import Awaitable, Callable
+import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
-from constants import DATA_DIR, Language
+from constants import Language
 from lsp_client import AbstractLSPClient, LSPClientState
 from lsp_constants import LSPMethod
 from pyright_lsp_manager import PyrightLSPManager
-from symbol_storage import AbstractSymbolStorage, SQLiteSymbolStorage
+from repository_manager import AbstractRepositoryManager
+from symbol_storage import AbstractSymbolStorage
 
 logger = logging.getLogger(__name__)
+
+
+# Type for LSP client factory
+LSPClientFactory = Callable[[str, str], AbstractLSPClient]
 
 
 # LSP Tools Implementation
@@ -103,998 +108,775 @@ class CodebaseLSPClient(AbstractLSPClient):
         await self.stop()
 
 
-def _resolve_file_path(file_path: str, workspace_root: str) -> str:
-    """
-    Resolve file path to absolute path within workspace.
+class CodebaseTools:
+    """Object-oriented codebase tools with dependency injection."""
 
-    Args:
-        file_path: Relative or absolute file path
-        workspace_root: Root directory of the workspace
-
-    Returns:
-        Absolute file path within workspace
-
-    Raises:
-        ValueError: If file path is outside workspace
-    """
-    workspace_path = Path(workspace_root).resolve()
-
-    if Path(file_path).is_absolute():
-        resolved_path = Path(file_path).resolve()
-    else:
-        resolved_path = (workspace_path / file_path).resolve()
-
-    # Ensure the file is within the workspace
-    try:
-        resolved_path.relative_to(workspace_path)
-    except ValueError as e:
-        raise ValueError(
-            f"File path '{file_path}' is outside workspace '{workspace_root}'"
-        ) from e
-
-    return str(resolved_path)
-
-
-def _path_to_uri(file_path: str) -> str:
-    """Convert file path to LSP URI format."""
-    return f"file://{Path(file_path).as_posix()}"
-
-
-def _uri_to_path(uri: str) -> str:
-    """Convert LSP URI to file path."""
-    if uri.startswith("file://"):
-        return uri[7:]  # Remove "file://" prefix
-    return uri
-
-
-def _lsp_position_to_user_friendly(line: int, character: int) -> dict[str, int]:
-    """
-    Convert LSP position (0-based) to user-friendly format (1-based).
-
-    Args:
-        line: LSP line number (0-based)
-        character: LSP character position (0-based)
-
-    Returns:
-        Dictionary with 1-based line and column numbers
-    """
-    return {
-        "line": line + 1,
-        "column": character + 1,
+    # Class-level mapping of tool names to method names
+    TOOL_HANDLERS: ClassVar[dict[str, str]] = {
+        "codebase_health_check": "codebase_health_check",
+        "search_symbols": "search_symbols",
+        "find_definition": "find_definition",
+        "find_references": "find_references",
+        "get_hover": "get_hover",
     }
 
+    def __init__(
+        self,
+        repository_manager: AbstractRepositoryManager,
+        symbol_storage: AbstractSymbolStorage,
+        lsp_client_factory: LSPClientFactory,
+    ):
+        """
+        Initialize codebase tools with dependencies.
 
-def _user_friendly_to_lsp_position(line: int, column: int) -> dict[str, int]:
-    """
-    Convert user-friendly position (1-based) to LSP format (0-based).
+        Args:
+            repository_manager: Repository manager for accessing repository configurations
+            symbol_storage: Symbol storage for caching
+            lsp_client_factory: Factory function to create LSP clients
+        """
+        self.repository_manager = repository_manager
+        self.symbol_storage = symbol_storage
+        self.lsp_client_factory = lsp_client_factory
+        self.logger = logging.getLogger(__name__)
 
-    Args:
-        line: User-friendly line number (1-based)
-        column: User-friendly column position (1-based)
+        # Thread safety for LSP client cache
+        self._lsp_lock = threading.Lock()
+        self._lsp_clients: dict[str, AbstractLSPClient] = {}
 
-    Returns:
-        Dictionary with 0-based line and character positions
-    """
-    return {
-        "line": max(0, line - 1),
-        "character": max(0, column - 1),
-    }
-
-
-def validate(logger: logging.Logger, repositories: dict[str, Any]) -> None:
-    """
-    Validate codebase service prerequisites.
-
-    Args:
-        logger: Logger instance for debugging and monitoring
-        repositories: Dictionary of repository configurations
-
-    Raises:
-        RuntimeError: If codebase prerequisites are not met
-    """
-    logger.info("Validating codebase service prerequisites...")
-
-    # Validate symbol storage service
-    _validate_symbol_storage(logger)
-
-    # Validate language-specific tools for each repository
-    for repo_name, repo_config in repositories.items():
-        language = repo_config.language
-        workspace = repo_config.workspace
-
-        # Validate workspace accessibility
-        _validate_workspace_access(logger, workspace, repo_name)
-
-        # Validate language-specific LSP tools
-        if language == Language.PYTHON:
-            _validate_python_lsp_tools(logger, repo_name)
-
-    logger.info(
-        f"✅ Codebase service validation passed for {len(repositories)} repositories"
-    )
-
-
-def _validate_workspace_access(
-    logger: logging.Logger, workspace: str, repo_name: str
-) -> None:
-    """
-    Validate that the workspace is accessible for reading/writing.
-    """
-    if not os.path.exists(workspace):
-        raise RuntimeError(
-            f"Repository workspace does not exist: {workspace} (repo: {repo_name})"
-        )
-
-    if not os.path.isdir(workspace):
-        raise RuntimeError(
-            f"Repository workspace is not a directory: {workspace} (repo: {repo_name})"
-        )
-
-    if not os.access(workspace, os.R_OK):
-        raise RuntimeError(
-            f"Repository workspace is not readable: {workspace} (repo: {repo_name})"
-        )
-
-    if not os.access(workspace, os.W_OK):
-        raise RuntimeError(
-            f"Repository workspace is not writable: {workspace} (repo: {repo_name})"
-        )
-
-    logger.debug(f"Workspace access validation passed: {workspace} (repo: {repo_name})")
-
-
-def _validate_symbol_storage(logger: logging.Logger) -> None:
-    """
-    Validate that symbol storage service is available and configured.
-    """
-    try:
-        # Create storage instance and test connection
-        storage = SQLiteSymbolStorage(DATA_DIR / "symbols.db")
-        if not storage.health_check():
-            raise RuntimeError("Symbol storage connection failed")
-
-        logger.debug("Symbol storage validation passed: connection successful")
-    except ImportError as e:
-        raise RuntimeError(
-            f"Symbol storage not available: {e}. Required for codebase indexing."
-        ) from e
-    except Exception as e:
-        raise RuntimeError(
-            f"Symbol storage validation failed: {e}. Required for codebase indexing."
-        ) from e
-
-
-def _validate_python_lsp_tools(logger: logging.Logger, repo_name: str) -> None:
-    """
-    Validate Python-specific LSP tools for codebase service.
-    """
-    # Validate pyright is available since that's the main LSP tool for Python
-    try:
-        # Try to use pyright from virtual environment first, then system PATH
-        pyright_cmd = "pyright"
-        if hasattr(sys, "real_prefix") or (
-            hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
-        ):
-            # We're in a virtual environment, try the venv path first
-            venv_pyright = Path(sys.prefix) / "bin" / "pyright"
-            if venv_pyright.exists():
-                pyright_cmd = str(venv_pyright)
-
-        result = subprocess.run(
-            [pyright_cmd, "--version"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=10,
-        )
-        version = result.stdout.strip()
-        logger.debug(
-            f"Python LSP tools validation passed for {repo_name}: pyright {version}"
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        raise RuntimeError(
-            f"Python LSP tools not available for repository {repo_name}. "
-            "Please add it to requirements.txt"
-        ) from e
-    except subprocess.TimeoutExpired:
-        raise RuntimeError(
-            f"Pyright command timed out for repository {repo_name}"
-        ) from None
-
-
-def get_tools(repo_name: str, repository_workspace: str) -> list[dict]:
-    """Get codebase tool definitions for MCP registration
-
-    Args:
-        repo_name: Repository name for display purposes
-        repository_workspace: Repository path for tool descriptions
-
-    Returns:
-        List of tool definitions in MCP format
-    """
-    return [
-        {
-            "name": "codebase_health_check",
-            "description": f"Perform a basic health check of the repository at {repository_workspace}. Validates that the path exists, is accessible, and is a valid Git repository with readable metadata.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {},
-                "required": [],
-            },
-        },
-        {
-            "name": "search_symbols",
-            "description": f"Search for symbols (functions, classes, variables) in the {repo_name} repository. Supports fuzzy matching by symbol name with optional filtering by symbol kind.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query for symbol names (supports partial matches)",
-                    },
-                    "symbol_kind": {
-                        "type": "string",
-                        "description": "Optional filter by symbol kind",
-                        "enum": ["function", "class", "variable"],
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Maximum number of results to return (default: 50, max: 100)",
-                        "minimum": 1,
-                        "maximum": 100,
-                        "default": 50,
-                    },
-                },
-                "required": ["query"],
-            },
-        },
-        {
-            "name": "find_definition",
-            "description": f"Find the definition of a symbol in the {repo_name} repository using LSP. Returns the exact file location and line number where the symbol is defined.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "symbol": {
-                        "type": "string",
-                        "description": "Symbol name to find the definition for",
-                    },
-                    "file_path": {
-                        "type": "string",
-                        "description": "File path containing the symbol (relative to repository root or absolute)",
-                    },
-                    "line": {
-                        "type": "integer",
-                        "description": "Line number where the symbol appears (1-based)",
-                        "minimum": 1,
-                    },
-                    "column": {
-                        "type": "integer",
-                        "description": "Column number where the symbol appears (1-based)",
-                        "minimum": 1,
-                    },
-                },
-                "required": ["symbol", "file_path", "line", "column"],
-            },
-        },
-        {
-            "name": "find_references",
-            "description": f"Find all references to a symbol in the {repo_name} repository using LSP. Returns all usage locations for the symbol across the codebase.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "symbol": {
-                        "type": "string",
-                        "description": "Symbol name to find references for",
-                    },
-                    "file_path": {
-                        "type": "string",
-                        "description": "File path containing the symbol (relative to repository root or absolute)",
-                    },
-                    "line": {
-                        "type": "integer",
-                        "description": "Line number where the symbol appears (1-based)",
-                        "minimum": 1,
-                    },
-                    "column": {
-                        "type": "integer",
-                        "description": "Column number where the symbol appears (1-based)",
-                        "minimum": 1,
-                    },
-                    "include_declaration": {
-                        "type": "boolean",
-                        "description": "Whether to include the declaration/definition in results (default: true)",
-                        "default": True,
-                    },
-                },
-                "required": ["symbol", "file_path", "line", "column"],
-            },
-        },
-    ]
-
-
-async def execute_codebase_health_check(
-    repo_name: str, repository_workspace: str
-) -> str:
-    """Execute basic health check for the repository
-
-    Args:
-        repo_name: Repository name to check
-        repository_workspace: Path to the repository
-
-    Returns:
-        JSON string with health check results
-    """
-    logger.info(f"Performing health check for repository: {repo_name}")
-
-    try:
-        repository_workspace_obj = Path(repository_workspace)
-
-        health_status: dict[str, Any] = {
-            "repo": repo_name,
-            "workspace": str(repository_workspace_obj),
-            "status": "healthy",
-            "checks": {},
-            "warnings": [],
-            "errors": [],
+    def _user_friendly_to_lsp_position(self, line: int, column: int) -> dict:
+        """Convert user-friendly (1-based) coordinates to LSP (0-based) coordinates."""
+        return {
+            "line": line - 1,
+            "character": column - 1,
         }
 
-        # Check 1: Repository exists and is accessible
-        if not repository_workspace_obj.exists():
-            health_status["status"] = "unhealthy"
-            health_status["checks"]["path_exists"] = False
-            health_status["errors"].append(
-                f"Repository path does not exist: {repository_workspace_obj}"
+    def _lsp_position_to_user_friendly(self, line: int, character: int) -> dict:
+        """Convert LSP (0-based) coordinates to user-friendly (1-based) coordinates."""
+        return {
+            "line": line + 1,
+            "column": character + 1,
+        }
+
+    def _path_to_uri(self, path: str) -> str:
+        """Convert file path to URI."""
+        return Path(path).as_uri()
+
+    def _uri_to_path(self, uri: str) -> str:
+        """Convert URI to file path."""
+        return str(Path(uri.replace("file://", "")))
+
+    def get_tools(self, repo_name: str, repository_workspace: str) -> list[dict]:
+        """Get codebase tool definitions for MCP registration
+
+        Args:
+            repo_name: Repository name for display purposes
+            repository_workspace: Repository path for tool descriptions
+
+        Returns:
+            List of tool definitions in MCP format
+        """
+        return [
+            {
+                "name": "codebase_health_check",
+                "description": f"Perform a basic health check of the repository at {repository_workspace}. Validates that the path exists, is accessible, and is a valid Git repository with readable metadata.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "repository_id": {
+                            "type": "string",
+                            "description": "Repository identifier",
+                        }
+                    },
+                    "required": ["repository_id"],
+                },
+            },
+            {
+                "name": "search_symbols",
+                "description": f"Search for symbols (functions, classes, variables) in the {repo_name} repository. Supports fuzzy matching by symbol name with optional filtering by symbol kind.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "repository_id": {
+                            "type": "string",
+                            "description": "Repository identifier",
+                        },
+                        "query": {
+                            "type": "string",
+                            "description": "Search query for symbol names (supports partial matches)",
+                        },
+                        "symbol_kind": {
+                            "type": "string",
+                            "description": "Optional filter by symbol kind",
+                            "enum": ["function", "class", "variable"],
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of results to return (default: 50, max: 100)",
+                            "minimum": 1,
+                            "maximum": 100,
+                            "default": 50,
+                        },
+                    },
+                    "required": ["repository_id", "query"],
+                },
+            },
+            {
+                "name": "find_definition",
+                "description": f"Find the definition of a symbol in the {repo_name} repository using LSP. Returns the exact file location and line number where the symbol is defined.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "repository_id": {
+                            "type": "string",
+                            "description": "Repository identifier",
+                        },
+                        "symbol": {
+                            "type": "string",
+                            "description": "Symbol name to find the definition for",
+                        },
+                        "file_path": {
+                            "type": "string",
+                            "description": "File path containing the symbol (relative to repository root or absolute)",
+                        },
+                        "line": {
+                            "type": "integer",
+                            "description": "Line number where the symbol appears (1-based)",
+                            "minimum": 1,
+                        },
+                        "column": {
+                            "type": "integer",
+                            "description": "Column number where the symbol appears (1-based)",
+                            "minimum": 1,
+                        },
+                    },
+                    "required": [
+                        "repository_id",
+                        "symbol",
+                        "file_path",
+                        "line",
+                        "column",
+                    ],
+                },
+            },
+            {
+                "name": "find_references",
+                "description": f"Find all references to a symbol in the {repo_name} repository using LSP. Returns all usage locations for the symbol across the codebase.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "repository_id": {
+                            "type": "string",
+                            "description": "Repository identifier",
+                        },
+                        "symbol": {
+                            "type": "string",
+                            "description": "Symbol name to find references for",
+                        },
+                        "file_path": {
+                            "type": "string",
+                            "description": "File path containing the symbol (relative to repository root or absolute)",
+                        },
+                        "line": {
+                            "type": "integer",
+                            "description": "Line number where the symbol appears (1-based)",
+                            "minimum": 1,
+                        },
+                        "column": {
+                            "type": "integer",
+                            "description": "Column number where the symbol appears (1-based)",
+                            "minimum": 1,
+                        },
+                    },
+                    "required": [
+                        "repository_id",
+                        "symbol",
+                        "file_path",
+                        "line",
+                        "column",
+                    ],
+                },
+            },
+        ]
+
+    async def execute_tool(self, tool_name: str, **kwargs) -> str:
+        """Execute a codebase tool by name
+
+        Args:
+            tool_name: Name of the tool to execute
+            **kwargs: Tool-specific arguments
+
+        Returns:
+            Tool execution result as JSON string
+        """
+        if tool_name not in self.TOOL_HANDLERS:
+            return json.dumps(
+                {
+                    "error": f"Unknown tool: {tool_name}",
+                    "available_tools": list(self.TOOL_HANDLERS.keys()),
+                }
             )
-            return json.dumps(health_status)
 
-        if not repository_workspace_obj.is_dir():
-            health_status["status"] = "unhealthy"
-            health_status["checks"]["path_exists"] = True
-            health_status["checks"]["is_directory"] = False
-            health_status["errors"].append(
-                f"Repository path is not a directory: {repository_workspace_obj}"
-            )
-            return json.dumps(health_status)
-
-        health_status["checks"]["path_exists"] = True
-        health_status["checks"]["is_directory"] = True
-
-        # Check 2: Git repository validation
-        git_dir = repository_workspace_obj / ".git"
-        if not git_dir.exists():
-            health_status["status"] = "unhealthy"
-            health_status["checks"]["is_git_repo"] = False
-            health_status["errors"].append(
-                "Not a Git repository (no .git directory found)"
-            )
-            return json.dumps(health_status)
-
-        health_status["checks"]["is_git_repo"] = True
-
-        # Check 3: Basic Git metadata access
+        method_name = self.TOOL_HANDLERS[tool_name]
+        handler = getattr(self, method_name)
         try:
-            # Get current branch
-            result = subprocess.run(
-                ["git", "branch", "--show-current"],
-                cwd=repository_workspace_obj,
-                capture_output=True,
-                text=True,
-                timeout=10,
+            # Type ignore because we know these are bound methods that accept **kwargs
+            return await handler(**kwargs)  # type: ignore
+        except Exception as e:
+            self.logger.exception(f"Error executing tool {tool_name}")
+            return json.dumps(
+                {"error": f"Tool execution failed: {e!s}", "tool": tool_name}
             )
-            if result.returncode == 0:
-                current_branch = result.stdout.strip()
-                health_status["checks"]["current_branch"] = current_branch
-            else:
-                health_status["warnings"].append(
-                    "Could not determine current Git branch"
+
+    async def codebase_health_check(self, repository_id: str) -> str:
+        """Perform a basic health check of the repository."""
+        checks: dict[str, Any] = {}
+        warnings: list[str] = []
+        errors: list[str] = []
+
+        try:
+            repo_config = self.repository_manager.get_repository(repository_id)
+            if not repo_config:
+                return json.dumps(
+                    {
+                        "repo": repository_id,
+                        "workspace": None,
+                        "status": "error",
+                        "checks": {},
+                        "warnings": [],
+                        "errors": [f"Repository '{repository_id}' not found"],
+                    }
                 )
 
-            # Get remote origin URL
-            result = subprocess.run(
-                ["git", "config", "--get", "remote.origin.url"],
-                cwd=repository_workspace_obj,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            if result.returncode == 0:
-                remote_url = result.stdout.strip()
-                health_status["checks"]["has_remote"] = bool(remote_url)
-                if remote_url:
-                    health_status["checks"]["remote_url"] = remote_url
-            else:
-                health_status["checks"]["has_remote"] = False
+            repository_workspace = repo_config.workspace
 
-            health_status["checks"]["git_responsive"] = True
+            # Check if repository exists and is accessible
+            if not os.path.exists(repository_workspace):
+                return json.dumps(
+                    {
+                        "repo": repository_id,
+                        "workspace": repository_workspace,
+                        "status": "error",
+                        "checks": {"path_exists": False},
+                        "warnings": [],
+                        "errors": [
+                            f"Repository path does not exist: {repository_workspace}"
+                        ],
+                    }
+                )
 
-        except subprocess.TimeoutExpired:
-            health_status["warnings"].append("Git commands timed out")
-            health_status["checks"]["git_responsive"] = False
-        except subprocess.CalledProcessError as e:
-            health_status["warnings"].append(f"Could not access Git metadata: {e}")
-            health_status["checks"]["git_responsive"] = False
+            checks["path_exists"] = True
 
-        # Determine overall health
-        if health_status["errors"]:
-            health_status["status"] = "unhealthy"
-        elif health_status["warnings"]:
-            health_status["status"] = "warning"
-        else:
-            health_status["status"] = "healthy"
+            if not os.access(repository_workspace, os.R_OK):
+                return json.dumps(
+                    {
+                        "repo": repository_id,
+                        "workspace": repository_workspace,
+                        "status": "error",
+                        "checks": {"path_exists": True, "path_readable": False},
+                        "warnings": [],
+                        "errors": [
+                            f"Repository path is not readable: {repository_workspace}"
+                        ],
+                    }
+                )
 
-        return json.dumps(health_status, indent=2)
+            checks["path_readable"] = True
 
-    except Exception as e:
-        logger.exception(f"Error during health check for {repo_name}")
-        error_response = {
-            "repo": repo_name,
-            "workspace": repository_workspace,
-            "status": "error",
-            "errors": [f"Health check failed: {e!s}"],
-            "checks": {},
-            "warnings": [],
-        }
-        return json.dumps(error_response)
+            # Check if it's a git repository
+            git_dir = os.path.join(repository_workspace, ".git")
+            if not os.path.exists(git_dir):
+                return json.dumps(
+                    {
+                        "repo": repository_id,
+                        "workspace": repository_workspace,
+                        "status": "warning",
+                        "checks": {
+                            "path_exists": True,
+                            "path_readable": True,
+                            "is_git_repo": False,
+                        },
+                        "warnings": [
+                            f"Directory exists but is not a Git repository: {repository_workspace}"
+                        ],
+                        "errors": [],
+                    }
+                )
 
+            checks["is_git_repo"] = True
 
-async def execute_search_symbols(
-    repo_name: str,
-    repository_workspace: str,
-    query: str,
-    symbol_storage: AbstractSymbolStorage,
-    symbol_kind: str | None = None,
-    limit: int = 50,
-) -> str:
-    """Execute symbol search for the repository with enhanced error handling
+            # Get basic git info and check git responsiveness
+            try:
+                result = subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=repository_workspace,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=10,
+                )
+                current_commit = result.stdout.strip()
+                checks["git_responsive"] = True
+                checks["current_commit"] = current_commit
+            except subprocess.TimeoutExpired:
+                checks["git_responsive"] = False
+                warnings.append("Git command timed out")
+                current_commit = "unknown"
+            except Exception as e:
+                checks["git_responsive"] = False
+                warnings.append(f"Git command failed: {e}")
+                current_commit = "unknown"
 
-    Args:
-        repo_name: Repository name to search
-        repository_workspace: Path to the repository
-        query: Search query for symbol names
-        symbol_storage: Symbol storage instance for search operations
-        symbol_kind: Optional filter by symbol kind (function, class, variable)
-        limit: Maximum number of results to return
+            # Check LSP status if applicable
+            lsp_status = None
+            if hasattr(self.repository_manager, "get_lsp_status"):
+                lsp_status = self.repository_manager.get_lsp_status(repository_id)
+                checks["lsp_status"] = lsp_status
 
-    Returns:
-        JSON string with search results
-    """
-    logger.info(
-        f"Searching symbols in repository: {repo_name}, query: '{query}', kind: {symbol_kind}, limit: {limit}"
-    )
+            # Determine overall status
+            overall_status = "healthy"
+            if errors:
+                overall_status = "error"
+            elif warnings:
+                overall_status = "warning"
 
-    try:
-        # Validate inputs
-        if not query or not query.strip():
             return json.dumps(
                 {
-                    "error": "Query cannot be empty",
-                    "query": query,
-                    "repository": repo_name,
-                    "symbols": [],
-                    "total_results": 0,
+                    "repo": repository_id,
+                    "workspace": repository_workspace,
+                    "status": overall_status,
+                    "checks": checks,
+                    "warnings": warnings,
+                    "errors": errors,
+                    "current_commit": current_commit,
+                    "lsp_status": lsp_status,
                 }
             )
 
-        if limit < 1 or limit > 100:
+        except Exception as e:
+            self.logger.exception(f"Error in codebase health check for {repository_id}")
             return json.dumps(
                 {
-                    "error": "Limit must be between 1 and 100",
-                    "query": query,
-                    "repository": repo_name,
-                    "symbols": [],
-                    "total_results": 0,
+                    "repo": repository_id,
+                    "workspace": repository_workspace
+                    if "repository_workspace" in locals()
+                    else None,
+                    "status": "error",
+                    "checks": checks,
+                    "warnings": warnings,
+                    "errors": [f"Health check failed: {e!s}"],
                 }
             )
 
-        # Validate symbol_kind if provided
-        valid_kinds = [
-            "function",
-            "class",
-            "variable",
-            "method",
-            "property",
-            "constant",
-            "module",
-        ]
-        if symbol_kind and symbol_kind not in valid_kinds:
-            return json.dumps(
-                {
-                    "error": f"Invalid symbol kind '{symbol_kind}'. Valid kinds: {valid_kinds}",
-                    "query": query,
-                    "repository": repo_name,
-                    "symbols": [],
-                    "total_results": 0,
-                }
-            )
-
-        # Execute symbol search with timeout and error handling
+    async def search_symbols(
+        self,
+        repository_id: str,
+        query: str,
+        symbol_kind: str | None = None,
+        limit: int = 50,
+    ) -> str:
+        """Search for symbols in the repository."""
         try:
-            symbols = symbol_storage.search_symbols(
+            # Validate limit parameter
+            if limit < 1 or limit > 100:
+                return json.dumps(
+                    {
+                        "error": "Limit must be between 1 and 100",
+                        "repository_id": repository_id,
+                        "query": query,
+                        "symbols": [],
+                    }
+                )
+
+            repo_config = self.repository_manager.get_repository(repository_id)
+            if not repo_config:
+                return json.dumps(
+                    {"error": f"Repository '{repository_id}' not found", "symbols": []}
+                )
+
+            # Search symbols using symbol storage
+            symbols = self.symbol_storage.search_symbols(
+                repository_id=repository_id,
                 query=query,
-                repository_id=repo_name,
                 symbol_kind=symbol_kind,
                 limit=limit,
             )
-        except Exception as search_error:
-            logger.error(f"Database search error for {repo_name}: {search_error}")
+
             return json.dumps(
                 {
-                    "error": f"Database search failed: {search_error!s}",
+                    "repository_id": repository_id,
                     "query": query,
-                    "repository": repo_name,
-                    "symbols": [],
-                    "total_results": 0,
-                    "troubleshooting": {
-                        "suggestions": [
-                            "Check if the repository has been indexed",
-                            "Try a simpler query",
-                            "Check database connectivity",
-                        ]
-                    },
+                    "symbol_kind": symbol_kind,
+                    "limit": limit,
+                    "symbols": [symbol.to_dict() for symbol in symbols],
+                    "count": len(symbols),
                 }
             )
 
-        # Format results for JSON response
-        results = []
-        for symbol in symbols:
-            try:
-                results.append(
+        except Exception as e:
+            self.logger.exception(f"Error searching symbols in {repository_id}")
+            return json.dumps(
+                {
+                    "error": f"Symbol search failed: {e!s}",
+                    "repository_id": repository_id,
+                    "query": query,
+                    "symbols": [],
+                }
+            )
+
+    async def find_definition(
+        self,
+        repository_id: str,
+        symbol: str,
+        file_path: str,
+        line: int,
+        column: int,
+    ) -> str:
+        """Find the definition of a symbol using LSP."""
+        try:
+            repo_config = self.repository_manager.get_repository(repository_id)
+            if not repo_config:
+                return json.dumps(
                     {
-                        "name": symbol.name,
-                        "kind": symbol.kind.value,
-                        "file_path": symbol.file_path,
-                        "line_number": symbol.line_number,
-                        "column_number": symbol.column_number,
-                        "docstring": symbol.docstring,
-                        "repository_id": symbol.repository_id,
+                        "error": f"Repository '{repository_id}' not found",
+                        "symbol": symbol,
                     }
                 )
-            except Exception as format_error:
-                logger.warning(f"Error formatting symbol result: {format_error}")
-                # Continue with other symbols
-                continue
 
-        response = {
-            "query": query,
-            "symbol_kind": symbol_kind,
-            "limit": limit,
-            "repository": repo_name,
-            "total_results": len(results),
-            "symbols": results,
-        }
+            # Get or create LSP client for this repository
+            lsp_client = await self._get_lsp_client(repository_id)
+            if not lsp_client:
+                return json.dumps(
+                    {
+                        "error": f"LSP not available for repository '{repository_id}'",
+                        "symbol": symbol,
+                    }
+                )
 
-        logger.info(f"Found {len(results)} symbols for query '{query}' in {repo_name}")
-        return json.dumps(response, indent=2)
+            # Resolve file path
+            resolved_path = self._resolve_file_path(file_path, repo_config.workspace)
+            file_uri = Path(resolved_path).as_uri()
 
-    except Exception as e:
-        logger.exception(f"Error during symbol search for {repo_name}")
-        error_response = {
-            "query": query,
-            "repository": repo_name,
-            "error": f"Symbol search failed: {e!s}",
-            "symbols": [],
-            "total_results": 0,
-            "troubleshooting": {
-                "error_type": type(e).__name__,
-                "suggestions": [
-                    "Check repository configuration",
-                    "Verify database is accessible",
-                    "Try re-indexing the repository",
-                ],
-            },
-        }
-        return json.dumps(error_response)
-
-
-async def _setup_lsp_client_for_request(
-    repo_name: str,
-    repository_workspace: str,
-    file_path: str,
-    python_path: str,
-) -> tuple[CodebaseLSPClient, str]:
-    """
-    Set up LSP client and validate file for LSP requests.
-
-    Args:
-        repo_name: Repository name for logging
-        repository_workspace: Path to the repository workspace
-        file_path: File path containing the symbol
-        python_path: Python path for LSP server
-
-    Returns:
-        Tuple of (LSP client, resolved file path)
-
-    Raises:
-        ValueError: If file validation fails
-        RuntimeError: If LSP setup fails
-    """
-    logger.info(f"Setting up LSP client for {repo_name} at {file_path}")
-
-    # Resolve file path
-    resolved_file_path = _resolve_file_path(file_path, repository_workspace)
-
-    # Check if file exists
-    if not Path(resolved_file_path).exists():
-        raise ValueError(f"File not found: {file_path}")
-
-    # Create LSP client
-    lsp_client = CodebaseLSPClient(repository_workspace, python_path)
-
-    # Connect to LSP server
-    if not await lsp_client.connect():
-        raise RuntimeError("Failed to connect to LSP server")
-
-    if lsp_client.state != LSPClientState.INITIALIZED:
-        await lsp_client.disconnect()
-        raise RuntimeError("LSP client not properly initialized")
-
-    return lsp_client, resolved_file_path
-
-
-async def execute_find_definition(
-    repo_name: str,
-    repository_workspace: str,
-    symbol: str,
-    file_path: str,
-    line: int,
-    column: int,
-    python_path: str,
-) -> str:
-    """Execute LSP-based definition lookup for a symbol
-
-    Args:
-        repo_name: Repository name for logging
-        repository_workspace: Path to the repository workspace
-        symbol: Symbol name to find definition for
-        file_path: File path containing the symbol
-        line: Line number (1-based)
-        column: Column number (1-based)
-        python_path: Python path for LSP server
-
-    Returns:
-        JSON string with definition results
-    """
-    logger.info(
-        f"Finding definition for '{symbol}' in {repo_name} at {file_path}:{line}:{column}"
-    )
-
-    try:
-        # Setup LSP client and validate file
-        lsp_client, resolved_file_path = await _setup_lsp_client_for_request(
-            repo_name, repository_workspace, file_path, python_path
-        )
-
-        try:
-            # Convert to LSP position format
-            lsp_position = _user_friendly_to_lsp_position(line, column)
-
-            # Prepare LSP definition request
-            uri = _path_to_uri(resolved_file_path)
-            definition_params = {
-                "textDocument": {"uri": uri},
-                "position": lsp_position,
-            }
-
-            # Send definition request
-            request = lsp_client.protocol.create_request(
-                LSPMethod.DEFINITION, definition_params
+            # Get definition from LSP
+            definitions = await lsp_client.get_definition(
+                file_uri, line - 1, column - 1
             )
-            response = await lsp_client._send_request(request, timeout=10.0)
 
-            if response is None:
-                raise RuntimeError("LSP definition request returned None response")
-
-            # Process response
-            result = response.get("result")
-            if not result:
+            if not definitions:
                 return json.dumps(
                     {
                         "symbol": symbol,
-                        "repository": repo_name,
-                        "query_location": {
-                            "file_path": file_path,
-                            "line": line,
-                            "column": column,
-                        },
+                        "repository_id": repository_id,
                         "definitions": [],
                         "message": "No definition found",
-                        "method": "lsp",
                     }
                 )
 
-            # Handle different result formats (Location | Location[] | LocationLink[])
-            definitions = []
-            if isinstance(result, list):
-                for item in result:
-                    if "targetUri" in item:  # LocationLink
-                        def_uri = item["targetUri"]
-                        def_range = item.get(
-                            "targetRange", item.get("targetSelectionRange", {})
-                        )
-                    else:  # Location
-                        def_uri = item.get("uri")
-                        def_range = item.get("range", {})
+            # Convert LSP response to user-friendly format
+            results = []
+            for defn in definitions:
+                if "uri" in defn and "range" in defn:
+                    file_path = str(Path(defn["uri"].replace("file://", "")))
+                    start_pos = defn["range"]["start"]
+                    results.append(
+                        {
+                            "file": file_path,
+                            "line": start_pos["line"] + 1,  # Convert to 1-based
+                            "column": start_pos["character"] + 1,
+                        }
+                    )
 
-                    if def_uri and def_range:
-                        def_file_path = _uri_to_path(def_uri)
-                        start_pos = def_range.get("start", {})
-                        if start_pos:
-                            user_pos = _lsp_position_to_user_friendly(
-                                start_pos.get("line", 0), start_pos.get("character", 0)
-                            )
-                            # Make path relative to workspace if possible
-                            try:
-                                rel_path = Path(def_file_path).relative_to(
-                                    repository_workspace
-                                )
-                                display_path = str(rel_path)
-                            except ValueError:
-                                display_path = def_file_path
-
-                            definitions.append(
-                                {
-                                    "file_path": display_path,
-                                    "line": user_pos["line"],
-                                    "column": user_pos["column"],
-                                    "absolute_path": def_file_path,
-                                }
-                            )
-            else:
-                # Single Location
-                def_uri = result.get("uri")
-                def_range = result.get("range", {})
-                if def_uri and def_range:
-                    def_file_path = _uri_to_path(def_uri)
-                    start_pos = def_range.get("start", {})
-                    if start_pos:
-                        user_pos = _lsp_position_to_user_friendly(
-                            start_pos.get("line", 0), start_pos.get("character", 0)
-                        )
-                        # Make path relative to workspace if possible
-                        try:
-                            rel_path = Path(def_file_path).relative_to(
-                                repository_workspace
-                            )
-                            display_path = str(rel_path)
-                        except ValueError:
-                            display_path = def_file_path
-
-                        definitions.append(
-                            {
-                                "file_path": display_path,
-                                "line": user_pos["line"],
-                                "column": user_pos["column"],
-                                "absolute_path": def_file_path,
-                            }
-                        )
-
-            result_data = {
-                "symbol": symbol,
-                "repository": repo_name,
-                "query_location": {
-                    "file_path": file_path,
-                    "line": line,
-                    "column": column,
-                },
-                "definitions": definitions,
-                "total_results": len(definitions),
-                "method": "lsp",
-            }
-
-            logger.info(
-                f"Found {len(definitions)} definition(s) for '{symbol}' using LSP"
+            return json.dumps(
+                {
+                    "symbol": symbol,
+                    "repository_id": repository_id,
+                    "definitions": results,
+                    "count": len(results),
+                }
             )
-            return json.dumps(result_data, indent=2)
 
-        finally:
-            # Always cleanup LSP client
-            try:
-                await lsp_client.disconnect()
-            except Exception as cleanup_error:
-                logger.warning(f"Error during LSP client cleanup: {cleanup_error}")
+        except Exception as e:
+            self.logger.exception(
+                f"Error finding definition for {symbol} in {repository_id}"
+            )
+            return json.dumps(
+                {
+                    "error": f"Definition search failed: {e!s}",
+                    "symbol": symbol,
+                    "repository_id": repository_id,
+                }
+            )
 
-    except Exception as e:
-        logger.exception(
-            f"Error during LSP definition lookup for {symbol} in {repo_name}"
-        )
-        return json.dumps(
-            {
-                "error": f"Definition lookup failed: {e!s}",
-                "symbol": symbol,
-                "repository": repo_name,
-                "query_location": {
-                    "file_path": file_path,
-                    "line": line,
-                    "column": column,
-                },
-                "definitions": [],
-                "method": "lsp_failed",
-            }
-        )
-
-
-async def execute_find_references(
-    repo_name: str,
-    repository_workspace: str,
-    symbol: str,
-    file_path: str,
-    line: int,
-    column: int,
-    python_path: str,
-    include_declaration: bool = True,
-) -> str:
-    """Execute LSP-based reference lookup for a symbol
-
-    Args:
-        repo_name: Repository name for logging
-        repository_workspace: Path to the repository workspace
-        symbol: Symbol name to find references for
-        file_path: File path containing the symbol
-        line: Line number (1-based)
-        column: Column number (1-based)
-        include_declaration: Whether to include declaration in results
-        python_path: Python path for LSP server
-
-    Returns:
-        JSON string with reference results
-    """
-    logger.info(
-        f"Finding references for '{symbol}' in {repo_name} at {file_path}:{line}:{column}"
-    )
-
-    try:
-        # Setup LSP client and validate file
-        lsp_client, resolved_file_path = await _setup_lsp_client_for_request(
-            repo_name, repository_workspace, file_path, python_path
-        )
-
+    async def find_references(
+        self,
+        repository_id: str,
+        symbol: str,
+        file_path: str,
+        line: int,
+        column: int,
+    ) -> str:
+        """Find all references to a symbol using LSP."""
         try:
-            # Convert to LSP position format
-            lsp_position = _user_friendly_to_lsp_position(line, column)
+            repo_config = self.repository_manager.get_repository(repository_id)
+            if not repo_config:
+                return json.dumps(
+                    {
+                        "error": f"Repository '{repository_id}' not found",
+                        "symbol": symbol,
+                    }
+                )
 
-            # Prepare LSP references request
-            uri = _path_to_uri(resolved_file_path)
-            references_params = {
-                "textDocument": {"uri": uri},
-                "position": lsp_position,
-                "context": {"includeDeclaration": include_declaration},
-            }
+            # Get or create LSP client for this repository
+            lsp_client = await self._get_lsp_client(repository_id)
+            if not lsp_client:
+                return json.dumps(
+                    {
+                        "error": f"LSP not available for repository '{repository_id}'",
+                        "symbol": symbol,
+                    }
+                )
 
-            # Send references request
-            request = lsp_client.protocol.create_request(
-                LSPMethod.REFERENCES, references_params
-            )
-            response = await lsp_client._send_request(request, timeout=15.0)
+            # Resolve file path
+            resolved_path = self._resolve_file_path(file_path, repo_config.workspace)
+            file_uri = Path(resolved_path).as_uri()
 
-            if response is None:
-                raise RuntimeError("LSP references request returned None response")
+            # Get references from LSP
+            references = await lsp_client.get_references(file_uri, line - 1, column - 1)
 
-            # Process response
-            result = response.get("result")
-            if not result:
+            if not references:
                 return json.dumps(
                     {
                         "symbol": symbol,
-                        "repository": repo_name,
-                        "query_location": {
-                            "file_path": file_path,
-                            "line": line,
-                            "column": column,
-                        },
+                        "repository_id": repository_id,
                         "references": [],
-                        "include_declaration": include_declaration,
                         "message": "No references found",
-                        "method": "lsp",
                     }
                 )
 
-            # Process references
-            references = []
-            for item in result:
-                ref_uri = item.get("uri")
-                ref_range = item.get("range", {})
+            # Convert LSP response to user-friendly format
+            results = []
+            for ref in references:
+                if "uri" in ref and "range" in ref:
+                    file_path = str(Path(ref["uri"].replace("file://", "")))
+                    start_pos = ref["range"]["start"]
+                    results.append(
+                        {
+                            "file": file_path,
+                            "line": start_pos["line"] + 1,  # Convert to 1-based
+                            "column": start_pos["character"] + 1,
+                        }
+                    )
 
-                if ref_uri and ref_range:
-                    ref_file_path = _uri_to_path(ref_uri)
-                    start_pos = ref_range.get("start", {})
-                    if start_pos:
-                        user_pos = _lsp_position_to_user_friendly(
-                            start_pos.get("line", 0), start_pos.get("character", 0)
-                        )
-                        # Make path relative to workspace if possible
-                        try:
-                            rel_path = Path(ref_file_path).relative_to(
-                                repository_workspace
-                            )
-                            display_path = str(rel_path)
-                        except ValueError:
-                            display_path = ref_file_path
-
-                        references.append(
-                            {
-                                "file_path": display_path,
-                                "line": user_pos["line"],
-                                "column": user_pos["column"],
-                                "absolute_path": ref_file_path,
-                            }
-                        )
-
-            result_data = {
-                "symbol": symbol,
-                "repository": repo_name,
-                "query_location": {
-                    "file_path": file_path,
-                    "line": line,
-                    "column": column,
-                },
-                "references": references,
-                "total_results": len(references),
-                "include_declaration": include_declaration,
-                "method": "lsp",
-            }
-
-            logger.info(
-                f"Found {len(references)} reference(s) for '{symbol}' using LSP"
+            return json.dumps(
+                {
+                    "symbol": symbol,
+                    "repository_id": repository_id,
+                    "references": results,
+                    "count": len(results),
+                }
             )
-            return json.dumps(result_data, indent=2)
 
-        finally:
-            # Always cleanup LSP client
-            try:
-                await lsp_client.disconnect()
-            except Exception as cleanup_error:
-                logger.warning(f"Error during LSP client cleanup: {cleanup_error}")
+        except Exception as e:
+            self.logger.exception(
+                f"Error finding references for {symbol} in {repository_id}"
+            )
+            return json.dumps(
+                {
+                    "error": f"Reference search failed: {e!s}",
+                    "symbol": symbol,
+                    "repository_id": repository_id,
+                }
+            )
 
-    except Exception as e:
-        logger.exception(
-            f"Error during LSP references lookup for {symbol} in {repo_name}"
-        )
-        return json.dumps(
-            {
-                "error": f"References lookup failed: {e!s}",
-                "symbol": symbol,
-                "repository": repo_name,
-                "query_location": {
+    async def get_hover(
+        self, repository_id: str, file_path: str, line: int, character: int
+    ) -> str:
+        """Get hover information for a symbol at a specific position.
+
+        Args:
+            repository_id: The repository identifier
+            file_path: Path to the file relative to repository root
+            line: Line number (0-based)
+            character: Character position (0-based)
+
+        Returns:
+            JSON string containing hover information or error details
+        """
+        try:
+            self.logger.debug(
+                f"Getting hover info for {repository_id}:{file_path}:{line}:{character}"
+            )
+
+            # Get LSP client
+            client = await self._get_lsp_client(repository_id)
+            if not client:
+                return json.dumps(
+                    {
+                        "error": f"LSP client not available for repository {repository_id}",
+                        "file_path": file_path,
+                        "line": line,
+                        "character": character,
+                    }
+                )
+
+            # Get hover information
+            hover_info = await client.get_hover(file_path, line, character)
+
+            if not hover_info:
+                return json.dumps(
+                    {
+                        "message": "No hover information available",
+                        "file_path": file_path,
+                        "line": line,
+                        "character": character,
+                    }
+                )
+
+            return json.dumps(
+                {
+                    "hover_info": hover_info,
                     "file_path": file_path,
                     "line": line,
-                    "column": column,
-                },
-                "references": [],
-                "method": "lsp_failed",
-            }
-        )
+                    "character": character,
+                    "repository_id": repository_id,
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(
+                f"Error getting hover info for {repository_id}:{file_path}:{line}:{character}: {e}",
+                exc_info=True,
+            )
+            return json.dumps(
+                {
+                    "error": f"Hover request failed: {e!s}",
+                    "file_path": file_path,
+                    "line": line,
+                    "character": character,
+                    "repository_id": repository_id,
+                }
+            )
+
+    async def _get_lsp_client(self, repository_id: str) -> AbstractLSPClient | None:
+        """Get LSP client for a repository from the repository manager."""
+        # Delegate to repository manager's LSP client management
+        if hasattr(self.repository_manager, "get_lsp_client"):
+            return self.repository_manager.get_lsp_client(repository_id)
+
+        # Fallback: create our own LSP client if repository manager doesn't support it
+        with self._lsp_lock:
+            # Check if we already have a client
+            if repository_id in self._lsp_clients:
+                existing_client = self._lsp_clients[repository_id]
+                if existing_client.state == LSPClientState.INITIALIZED:
+                    return existing_client
+                else:
+                    # Remove unhealthy client
+                    del self._lsp_clients[repository_id]
+
+            # Get repository configuration
+            repo_config = self.repository_manager.get_repository(repository_id)
+            if not repo_config:
+                return None
+
+            # Only support Python repositories for now
+            if repo_config.language != Language.PYTHON:
+                self.logger.debug(
+                    f"LSP not supported for language {repo_config.language}"
+                )
+                return None
+
+            try:
+                # Create new LSP client using the factory
+                new_client: AbstractLSPClient = self.lsp_client_factory(
+                    repo_config.workspace,
+                    repo_config.python_path,
+                )
+
+                # Start the client
+                if await new_client.start():
+                    self._lsp_clients[repository_id] = new_client
+                    return new_client
+                else:
+                    self.logger.error(f"Failed to start LSP client for {repository_id}")
+                    return None
+
+            except Exception as e:
+                self.logger.error(f"Error creating LSP client for {repository_id}: {e}")
+                return None
+
+    def _resolve_file_path(self, file_path: str, workspace_root: str) -> str:
+        """
+        Resolve file path to absolute path within workspace.
+
+        Args:
+            file_path: Relative or absolute file path
+            workspace_root: Root directory of the workspace
+
+        Returns:
+            Absolute file path within workspace
+
+        Raises:
+            ValueError: If file path is outside workspace
+        """
+        workspace_path = Path(workspace_root).resolve()
+
+        if os.path.isabs(file_path):
+            resolved_path = Path(file_path).resolve()
+        else:
+            resolved_path = (workspace_path / file_path).resolve()
+
+        # Security check: ensure resolved path is within workspace
+        try:
+            resolved_path.relative_to(workspace_path)
+        except ValueError:
+            raise ValueError(f"File path is outside workspace: {file_path}") from None
+
+        if not resolved_path.exists():
+            raise ValueError(f"File does not exist: {resolved_path}")
+
+        return str(resolved_path)
+
+    def validate(self, logger, repositories: dict) -> None:
+        """Validate codebase service prerequisites."""
+        try:
+            logger.info("🔍 Validating codebase service prerequisites...")
+
+            # Validate symbol storage
+            if not self.symbol_storage:
+                raise RuntimeError("Symbol storage not initialized")
+
+            # Test symbol storage connection
+            try:
+                # Try to perform a basic operation to verify the storage works
+                self.symbol_storage.health_check()
+                logger.debug("✅ Symbol storage health check passed")
+            except Exception as e:
+                raise RuntimeError(f"Symbol storage health check failed: {e}") from e
+
+            # Validate repository manager
+            if not self.repository_manager:
+                raise RuntimeError("Repository manager not initialized")
+
+            logger.info("✅ Codebase service validation completed")
+
+        except Exception as e:
+            logger.error(f"❌ Codebase service validation failed: {e}")
+            raise
+
+    async def shutdown(self) -> None:
+        """Shutdown all LSP clients and clean up resources."""
+        with self._lsp_lock:
+            for repository_id, client in self._lsp_clients.items():
+                try:
+                    await client.stop()
+                except Exception as e:
+                    self.logger.error(
+                        f"Error stopping LSP client for {repository_id}: {e}"
+                    )
+
+            self._lsp_clients.clear()
+
+        self.logger.info("CodebaseTools shutdown complete")
 
 
-# Tool execution mapping
-TOOL_HANDLERS: dict[str, Callable[..., Awaitable[str]]] = {
-    "codebase_health_check": execute_codebase_health_check,
-    "search_symbols": execute_search_symbols,
-    "find_definition": execute_find_definition,
-    "find_references": execute_find_references,
-}
-
-
-async def execute_tool(tool_name: str, **kwargs) -> str:
-    """Execute a codebase tool by name
-
-    Args:
-        tool_name: Name of the tool to execute
-        **kwargs: Tool-specific arguments (including symbol_storage for search_symbols)
-
-    Returns:
-        Tool execution result as JSON string
-    """
-    if tool_name not in TOOL_HANDLERS:
-        return json.dumps(
-            {
-                "error": f"Unknown tool: {tool_name}",
-                "available_tools": list(TOOL_HANDLERS.keys()),
-            }
-        )
-
-    handler = TOOL_HANDLERS[tool_name]
-    try:
-        return await handler(**kwargs)
-    except Exception as e:
-        logger.exception(f"Error executing tool {tool_name}")
-        return json.dumps({"error": f"Tool execution failed: {e!s}", "tool": tool_name})
+# End of CodebaseTools class

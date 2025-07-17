@@ -13,9 +13,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import codebase_tools
 import github_tools
-from constants import DATA_DIR, SYMBOLS_DB_PATH
+from codebase_tools import CodebaseLSPClient, CodebaseTools
+from constants import DATA_DIR, SYMBOLS_DB_PATH, Language
 from repository_manager import (
     AbstractRepositoryManager,
     RepositoryConfig,
@@ -149,18 +149,41 @@ async def execute_tool_command(
     repo_name: str,
     repo_workspace: str,
     symbol_storage: AbstractSymbolStorage,
+    codebase_tools: CodebaseTools | None = None,
 ) -> dict[str, Any]:
     """Execute a tool command and return the results."""
     try:
+        # Define codebase tool handlers
+        codebase_tool_handlers = {
+            "codebase_health_check",
+            "search_symbols",
+            "find_definition",
+            "find_references",
+            "get_hover",
+        }
+
         # Route to appropriate tool module
-        if tool_name in codebase_tools.TOOL_HANDLERS:
-            # Add symbol_storage to tool_args for search_symbols
-            if tool_name == "search_symbols":
-                tool_args["symbol_storage"] = symbol_storage
+        if tool_name in codebase_tool_handlers:
+            # Use injected codebase_tools or create default instance
+            if codebase_tools is None:
+                # Create default CodebaseTools instance
+                repo_manager = RepositoryManager()
+                repo_config = RepositoryConfig.create_repository_config(
+                    name=repo_name,
+                    workspace=repo_workspace,
+                    description=f"Test repository for {repo_name}",
+                    language=Language.PYTHON,
+                    port=8080,
+                    python_path="/usr/bin/python3",
+                )
+                repo_manager.add_repository(repo_name, repo_config)
+                codebase_tools = CodebaseTools(
+                    repo_manager, symbol_storage, CodebaseLSPClient
+                )
+
             result = await codebase_tools.execute_tool(
                 tool_name,
-                repo_name=repo_name,
-                repository_workspace=repo_workspace,
+                repository_id=repo_name,
                 **tool_args,
             )
         elif tool_name in github_tools.TOOL_HANDLERS:
@@ -173,7 +196,7 @@ async def execute_tool_command(
         else:
             return {
                 "error": f"Unknown tool: {tool_name}",
-                "available_tools": list(codebase_tools.TOOL_HANDLERS.keys())
+                "available_tools": list(codebase_tool_handlers)
                 + list(github_tools.TOOL_HANDLERS.keys()),
             }
 
