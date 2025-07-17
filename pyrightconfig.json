@@ -1,0 +1,20 @@
+{
+  "include": [
+    "**/*.py"
+  ],
+  "exclude": [
+    "**/.git",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/.venv",
+    "**/venv",
+    "**/tests",
+    "**/htmlcov"
+  ],
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": "information", 
+  "pythonVersion": "3.13",
+  "pythonPlatform": "All",
+  "typeCheckingMode": "basic",
+  "pythonPath": ".venv/bin/python"
+}

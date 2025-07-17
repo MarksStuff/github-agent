@@ -68,6 +68,9 @@ class AbstractLSPClient(ABC):
         self._reader_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
 
+        # Event loop for async operations
+        self._event_loop: asyncio.AbstractEventLoop | None = None
+
         # Initialize built-in handlers
         self._setup_builtin_handlers()
 
@@ -122,6 +125,9 @@ class AbstractLSPClient(ABC):
         """Start the LSP server and initialize the connection."""
         try:
             self._set_state_connecting()
+
+            # Store the current event loop for use in message processing thread
+            self._event_loop = asyncio.get_running_loop()
 
             # Start the server process
             if not await self._start_server():
@@ -301,15 +307,13 @@ class AbstractLSPClient(ABC):
                         buffer = buffer[message_end:]
 
                         # Process the message
-                        try:
-                            loop = asyncio.get_running_loop()
+                        if self._event_loop and not self._event_loop.is_closed():
                             asyncio.run_coroutine_threadsafe(
-                                self._process_message(content), loop
+                                self._process_message(content), self._event_loop
                             )
-                        except RuntimeError:
-                            # No event loop running, skip processing
+                        else:
                             self.logger.warning(
-                                "No event loop running, skipping message processing"
+                                "Event loop not available, skipping message processing"
                             )
 
                     except Exception as e:

@@ -292,6 +292,58 @@ class TestMCPWorker:
 
             # This is now an integration test - the actual health check runs
 
+    @pytest.mark.asyncio
+    async def test_mcp_tool_call_find_references_no_duplicate_args(
+        self, temp_repo, mock_github_token, mock_subprocess
+    ):
+        """Test MCP tool call for find_references to prevent duplicate repository_id argument regression"""
+        with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
+            from repository_manager import RepositoryConfig
+
+            repo_config = RepositoryConfig.create_repository_config(
+                name="test-repo",
+                workspace=temp_repo,
+                description="Test repository",
+                language=Language.PYTHON,
+                port=8080,
+                python_path="/usr/bin/python3",
+            )
+            worker = MCPWorker(repo_config)
+
+            client = TestClient(worker.app)
+
+            # Test find_references tool call with repository_id argument
+            # This specifically tests the fix for duplicate repository_id argument issue
+            tool_call_request = {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {
+                    "name": "find_references",
+                    "arguments": {
+                        "repository_id": "test-repo",
+                        "symbol": "test_symbol",
+                        "file_path": "main.py",
+                        "line": 1,
+                        "column": 1,
+                    },
+                },
+            }
+
+            response = client.post("/mcp/", json=tool_call_request)
+            assert response.status_code == 200
+            assert response.json()["status"] == "queued"
+
+            # Check that response was queued (should not fail with duplicate argument error)
+            assert not worker.message_queue.empty()
+            queued_response = worker.message_queue.get()
+            result_text = queued_response["result"]["content"][0]["text"]
+            
+            # Should not contain the specific duplicate argument error
+            assert "got multiple values for keyword argument 'repository_id'" not in result_text
+            # Should contain either a valid response or an LSP-related error (not argument error)
+            assert ('"error"' in result_text or '"symbol"' in result_text)
+
     def test_mcp_unknown_tool(self, temp_repo, mock_github_token, mock_subprocess):
         """Test MCP tool call for unknown tool"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):

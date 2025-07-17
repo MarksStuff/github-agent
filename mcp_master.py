@@ -504,6 +504,19 @@ class MCPMaster:
         # Initialize repository indexes
         await self.initialize_repository_indexes()
 
+        # Start LSP servers for all repositories
+        logger.info("Starting LSP servers for all repositories...")
+        lsp_results = await self.repository_manager.start_all_lsp_servers_async()
+        successful_lsp = [repo for repo, success in lsp_results.items() if success]
+        failed_lsp = [repo for repo, success in lsp_results.items() if not success]
+
+        if successful_lsp:
+            logger.info(f"✅ Started LSP servers for: {', '.join(successful_lsp)}")
+        if failed_lsp:
+            logger.warning(
+                f"⚠️ Failed to start LSP servers for: {', '.join(failed_lsp)}"
+            )
+
         # Set up signal handlers
         signal.signal(signal.SIGTERM, self.signal_handler)
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -596,6 +609,24 @@ class MCPMaster:
         logger.info(
             f"Worker shutdown complete: {success_count}/{total_count} successful"
         )
+
+        # Stop LSP servers for all repositories
+        logger.info("Stopping LSP servers for all repositories...")
+        try:
+            lsp_results = self.repository_manager.stop_all_lsp_servers()
+            stopped_lsp = [repo for repo, success in lsp_results.items() if success]
+            failed_stop_lsp = [
+                repo for repo, success in lsp_results.items() if not success
+            ]
+
+            if stopped_lsp:
+                logger.info(f"✅ Stopped LSP servers for: {', '.join(stopped_lsp)}")
+            if failed_stop_lsp:
+                logger.warning(
+                    f"⚠️ Failed to stop LSP servers for: {', '.join(failed_stop_lsp)}"
+                )
+        except Exception as e:
+            logger.error(f"Error stopping LSP servers: {e}")
 
         # Clean up symbol storage after all workers are shutdown
         try:

@@ -611,10 +611,11 @@ class MCPWorker:
 
                         if tool_name in codebase_tool_handlers:
                             # Use the CodebaseTools instance
+                            # Ensure repository_id from self.repo_name takes precedence
+                            codebase_args = {**tool_args, "repository_id": self.repo_name}
                             result = await self.codebase_tools_instance.execute_tool(
                                 tool_name,
-                                repository_id=self.repo_name,
-                                **tool_args,
+                                **codebase_args,
                             )
                         else:
                             # Try to find the tool in any of the registered modules
