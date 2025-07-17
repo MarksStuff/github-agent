@@ -8,11 +8,19 @@ using our new AsyncLSPClient for seamless integration with the existing system.
 import asyncio
 import json
 import logging
+from enum import Enum
 from typing import Any
 
 from async_lsp_client import AsyncLSPClient
 from lsp_client import AbstractLSPClient, LSPClientState
-from lsp_server_factory import LSPServerFactory, create_default_python_lsp_manager
+from lsp_server_factory import LSPServerFactory
+
+
+class LSPServerType(Enum):
+    """Supported LSP server types."""
+
+    PYLSP = "pylsp"
+    PYRIGHT = "pyright"
 
 
 class AsyncCodebaseLSPClient(AbstractLSPClient):
@@ -24,7 +32,10 @@ class AsyncCodebaseLSPClient(AbstractLSPClient):
     """
 
     def __init__(
-        self, workspace_root: str, python_path: str, server_type: str | None = None
+        self,
+        workspace_root: str,
+        python_path: str,
+        server_type: LSPServerType = LSPServerType.PYLSP,
     ):
         """
         Initialize the async codebase LSP client.
@@ -32,21 +43,16 @@ class AsyncCodebaseLSPClient(AbstractLSPClient):
         Args:
             workspace_root: Path to the workspace root
             python_path: Path to the Python interpreter
-            server_type: LSP server type to use (defaults to pylsp)
+            server_type: LSP server type to use
         """
         self.workspace_root = workspace_root
         self.python_path = python_path
         self.logger = logging.getLogger(f"{__name__}.{workspace_root.split('/')[-1]}")
 
-        # Create server manager
-        if server_type:
-            self.server_manager = LSPServerFactory.create_server_manager(
-                server_type, workspace_root, python_path
-            )
-        else:
-            self.server_manager = create_default_python_lsp_manager(
-                workspace_root, python_path
-            )
+        # Create server manager using the specified type
+        self.server_manager = LSPServerFactory.create_server_manager(
+            server_type.value, workspace_root, python_path
+        )
 
         # Create async client
         self._async_client = AsyncLSPClient(
@@ -54,7 +60,7 @@ class AsyncCodebaseLSPClient(AbstractLSPClient):
         )
 
         self.logger.info(
-            f"🔧 AsyncCodebaseLSPClient initialized with {server_type or 'default'} server"
+            f"🔧 AsyncCodebaseLSPClient initialized with {server_type.value} server"
         )
 
     @property

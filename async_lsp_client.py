@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import uuid
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -37,16 +38,24 @@ class AsyncLSPClientState(Enum):
     ERROR = "error"
 
 
+@dataclass
 class LSPMessage:
     """Represents an LSP message with proper typing."""
 
-    def __init__(self, content: dict[str, Any]):
-        self.content = content
-        self.id = content.get("id")
-        self.method = content.get("method")
-        self.params = content.get("params")
-        self.result = content.get("result")
-        self.error = content.get("error")
+    content: dict[str, Any]
+    id: str | None = None
+    method: str | None = None
+    params: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
+    error: dict[str, Any] | None = None
+
+    def __post_init__(self):
+        """Extract message fields from content after initialization."""
+        self.id = self.content.get("id")
+        self.method = self.content.get("method")
+        self.params = self.content.get("params")
+        self.result = self.content.get("result")
+        self.error = self.content.get("error")
 
     @property
     def is_request(self) -> bool:
@@ -123,6 +132,7 @@ class AsyncLSPClient:
         server_manager: LSPServerManager,
         workspace_root: str,
         logger: logging.Logger | None = None,
+        protocol: LSPProtocol | None = None,
     ):
         """
         Initialize the async LSP client.
@@ -131,6 +141,7 @@ class AsyncLSPClient:
             server_manager: LSP server manager for server-specific configuration
             workspace_root: Root directory of the workspace
             logger: Logger instance (creates one if not provided)
+            protocol: LSP protocol handler (creates one if not provided)
         """
         self.server_manager = server_manager
         self.workspace_root = Path(workspace_root)
@@ -145,7 +156,7 @@ class AsyncLSPClient:
         self._writer: asyncio.StreamWriter | None = None
 
         # Protocol handling
-        self.protocol = LSPProtocol(self.logger)
+        self.protocol = protocol or LSPProtocol(self.logger)
 
         # Request/response tracking
         self._pending_requests: dict[str, asyncio.Future] = {}
