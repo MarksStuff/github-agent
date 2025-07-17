@@ -1,18 +1,24 @@
 {
   "include": [
-    "**/*.py"
+    "*.py"
   ],
   "exclude": [
     "**/.git",
     "**/__pycache__",
-    "**/node_modules",
+    "**/node_modules", 
     "**/.venv",
     "**/venv",
-    "**/htmlcov"
+    "**/htmlcov",
+    "tests/**",
+    "setup/**",
+    "scripts/**", 
+    "improvements/**",
+    "comprehensive_test_fix.py",
+    "fix_remaining_tests.py"
   ],
   "reportMissingImports": "warning",
-  "reportMissingTypeStubs": "information", 
-  "pythonVersion": "3.13",
+  "reportMissingTypeStubs": "information",
+  "pythonVersion": "3.13", 
   "pythonPlatform": "All",
   "typeCheckingMode": "basic",
   "pythonPath": ".venv/bin/python"

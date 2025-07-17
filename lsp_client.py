@@ -358,14 +358,16 @@ class AbstractLSPClient(ABC):
     async def _handle_response(self, message: JsonRPCMessage) -> None:
         """Handle a response message."""
         message_id = message.get("id")
+        self.logger.debug(f"Received response for ID: {message_id}")
         if message_id in self._response_handlers:
             handler = self._response_handlers.pop(message_id)
+            self.logger.debug(f"Found handler for response ID: {message_id}")
             try:
                 await handler(message)
             except Exception as e:
                 self.logger.error(f"Error in response handler: {e}")
         else:
-            self.logger.warning(f"No handler for response ID: {message_id}")
+            self.logger.warning(f"No handler for response ID: {message_id} (available handlers: {list(self._response_handlers.keys())})")
 
     async def _handle_request(self, message: JsonRPCMessage) -> None:
         """Handle a request message."""
@@ -495,17 +497,20 @@ class AbstractLSPClient(ABC):
 
         # Register response handler
         self._response_handlers[request.id] = response_handler
+        self.logger.debug(f"Registered handler for request {request.id} ({request.method})")
 
         try:
             # Send request
             await self._send_message(request)
+            self.logger.debug(f"Sent request {request.id} ({request.method})")
 
             # Wait for response
             response = await asyncio.wait_for(response_future, timeout=timeout)
+            self.logger.debug(f"Received response for request {request.id} ({request.method})")
             return response
 
         except TimeoutError:
-            self.logger.error(f"Request timeout: {request.method}")
+            self.logger.error(f"Request timeout: {request.method} (ID: {request.id}) after {timeout}s")
             self._response_handlers.pop(request.id, None)
             return None
         except Exception as e:
