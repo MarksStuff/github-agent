@@ -123,30 +123,49 @@ class AbstractLSPClient(ABC):
 
     async def start(self) -> bool:
         """Start the LSP server and initialize the connection."""
+        import time
+        start_time = time.time()
+        
         try:
+            self.logger.info(f"🚀 Starting LSP server for workspace: {self.workspace_root}")
             self._set_state_connecting()
 
             # Store the current event loop for use in message processing thread
             self._event_loop = asyncio.get_running_loop()
 
             # Start the server process
+            step_start = time.time()
+            self.logger.info("📦 Starting LSP server process...")
             if not await self._start_server():
                 self._set_state_error("Failed to start LSP server process")
                 return False
+            elapsed = time.time() - step_start
+            self.logger.info(f"✅ LSP server process started in {elapsed:.1f}s")
 
             # Start message reading thread
+            step_start = time.time()
+            self.logger.info("🔄 Starting message reading thread...")
             self._start_reader_thread()
+            elapsed = time.time() - step_start
+            self.logger.info(f"✅ Message reading thread started in {elapsed:.1f}s")
 
             # Initialize the connection
+            step_start = time.time()
+            self.logger.info("🤝 Initializing LSP connection...")
             if not await self._initialize_connection():
                 self._set_state_error("Failed to initialize LSP connection")
                 await self.stop()
                 return False
+            elapsed = time.time() - step_start
+            total_elapsed = time.time() - start_time
+            self.logger.info(f"✅ LSP connection initialized in {elapsed:.1f}s (total: {total_elapsed:.1f}s)")
 
             self._set_state_initialized()
             return True
 
         except Exception as e:
+            total_elapsed = time.time() - start_time
+            self.logger.error(f"❌ LSP startup failed after {total_elapsed:.1f}s: {e}")
             self._set_state_error(f"Exception during startup: {e}")
             await self.stop()
             return False
@@ -455,10 +474,15 @@ class AbstractLSPClient(ABC):
                 self.logger.debug(f"Initialization options: {init_options}")
 
             # Send initialize request
+            import time
             init_request = self.protocol.create_request(
                 LSPMethod.INITIALIZE, init_params
             )
+            self.logger.info(f"📤 Sending LSP initialize request...")
+            init_start = time.time()
             init_response = await self._send_request(init_request)
+            init_elapsed = time.time() - init_start
+            self.logger.info(f"📥 Initialize request completed in {init_elapsed:.1f}s")
 
             if not init_response or "error" in init_response:
                 self.logger.error(f"Initialize request failed: {init_response}")

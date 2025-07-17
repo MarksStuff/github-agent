@@ -559,7 +559,7 @@ class RepositoryManager(AbstractRepositoryManager):
                         f"Repository '{name}' missing required field: {field}"
                     )
 
-            self.logger.debug(
+            self.logger.info(
                 f"Creating repository config for '{name}' from parsed data"
             )
 
@@ -592,7 +592,7 @@ class RepositoryManager(AbstractRepositoryManager):
 
         for name, repo_config in self._repositories.items():
             try:
-                self.logger.debug(
+                self.logger.info(
                     f"Validating repository '{name}' at {repo_config.workspace}"
                 )
 
@@ -649,7 +649,7 @@ class RepositoryManager(AbstractRepositoryManager):
                 )
             port_to_repo[port] = name
 
-        self.logger.debug(
+        self.logger.info(
             f"✅ No port conflicts found among {len(self._repositories)} repositories"
         )
 
@@ -662,7 +662,7 @@ class RepositoryManager(AbstractRepositoryManager):
             validated_path = RepositoryConfig._validate_python_path(
                 repo_config.python_path, self.logger
             )
-            self.logger.debug(
+            self.logger.info(
                 f"Python path validation passed for {name}: {validated_path}"
             )
         except Exception as e:
@@ -691,7 +691,7 @@ class RepositoryManager(AbstractRepositoryManager):
                     "This repository is configured as a Python repository but contains no .py files."
                 )
 
-            self.logger.debug(f"Python files found in repository '{name}'")
+            self.logger.info(f"Python files found in repository '{name}'")
 
         except Exception as e:
             if "No Python files found" in str(e):
@@ -734,7 +734,7 @@ class RepositoryManager(AbstractRepositoryManager):
             config: Repository configuration
         """
         self._repositories[name] = config
-        self.logger.debug(f"Added repository: {name}")
+        self.logger.info(f"Added repository: {name}")
 
     def get_repository_info(self, repo_name: str) -> dict | None:
         """
@@ -788,12 +788,12 @@ class RepositoryManager(AbstractRepositoryManager):
             return False
 
         if not repo_config.lsp_enabled:
-            self.logger.debug(f"LSP disabled for repository '{repo_name}'")
+            self.logger.info(f"🔇 LSP disabled for repository '{repo_name}'")
             return True
 
         if repo_config.language != Language.PYTHON:
-            self.logger.debug(
-                f"LSP not supported for language '{repo_config.language}' in repository '{repo_name}'"
+            self.logger.info(
+                f"⏭️ LSP not supported for {repo_config.language.value} repository '{repo_name}' - skipping"
             )
             return True
 
@@ -802,8 +802,8 @@ class RepositoryManager(AbstractRepositoryManager):
             if repo_name in self._lsp_clients:
                 client = self._lsp_clients[repo_name]
                 if client.state == LSPClientState.INITIALIZED:
-                    self.logger.debug(
-                        f"LSP server already running for repository '{repo_name}'"
+                    self.logger.info(
+                        f"LSP server already running for repository '{repo_name}' - skipping"
                     )
                     return True
                 else:
@@ -849,12 +849,12 @@ class RepositoryManager(AbstractRepositoryManager):
                 
                 if success:
                     self.logger.info(
-                        f"✅ Started LSP server for repository '{repo_name}'"
+                        f"✅ Started LSP server for repository '{repo_name}' - skipping"
                     )
                     return True
                 else:
                     self.logger.error(
-                        f"❌ Failed to start LSP server for repository '{repo_name}'"
+                        f"❌ Failed to start LSP server for repository '{repo_name}' - skipping"
                     )
                     self._cleanup_lsp_client(repo_name)
                     return False
@@ -878,7 +878,7 @@ class RepositoryManager(AbstractRepositoryManager):
         """
         with self._lsp_lock:
             if repo_name not in self._lsp_clients:
-                self.logger.debug(f"No LSP server running for repository '{repo_name}'")
+                self.logger.info(f"No LSP server running for repository '{repo_name}'")
                 return True
 
             try:
@@ -948,7 +948,7 @@ class RepositoryManager(AbstractRepositoryManager):
         with self._lsp_lock:
             if repo_name in self._lsp_clients or repo_name in self._lsp_managers:
                 self.logger.warning(
-                    f"LSP cleanup incomplete for repository '{repo_name}'"
+                    f"LSP cleanup incomplete for repository '{repo_name}' - skipping"
                 )
                 return False
 
@@ -1032,12 +1032,12 @@ class RepositoryManager(AbstractRepositoryManager):
             return False
 
         if not repo_config.lsp_enabled:
-            self.logger.debug(f"LSP disabled for repository '{repo_name}'")
+            self.logger.info(f"🔇 LSP disabled for repository '{repo_name}'")
             return True
 
         if repo_config.language != Language.PYTHON:
-            self.logger.debug(
-                f"LSP not supported for language '{repo_config.language}' in repository '{repo_name}'"
+            self.logger.info(
+                f"⏭️ LSP not supported for {repo_config.language.value} repository '{repo_name}' - skipping"
             )
             return True
 
@@ -1046,8 +1046,8 @@ class RepositoryManager(AbstractRepositoryManager):
             if repo_name in self._lsp_clients:
                 client = self._lsp_clients[repo_name]
                 if client.state == LSPClientState.INITIALIZED:
-                    self.logger.debug(
-                        f"LSP server already running for repository '{repo_name}'"
+                    self.logger.info(
+                        f"LSP server already running for repository '{repo_name}' - skipping"
                     )
                     return True
                 else:
@@ -1076,12 +1076,12 @@ class RepositoryManager(AbstractRepositoryManager):
                 # Start the server (clean async call)
                 if await lsp_client.start():
                     self.logger.info(
-                        f"✅ Started LSP server for repository '{repo_name}'"
+                        f"✅ Started LSP server for repository '{repo_name}' - skipping"
                     )
                     return True
                 else:
                     self.logger.error(
-                        f"❌ Failed to start LSP server for repository '{repo_name}'"
+                        f"❌ Failed to start LSP server for repository '{repo_name}' - skipping"
                     )
                     self._cleanup_lsp_client(repo_name)
                     return False
