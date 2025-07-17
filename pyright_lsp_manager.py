@@ -31,9 +31,10 @@ class PyrightLSPManager(LSPServerManager):
         self.logger = logging.getLogger(__name__)
 
         # Check if pyright is available and store version/method
-        self.pyright_version, self.use_python_module = (
-            self._check_pyright_availability()
-        )
+        (
+            self.pyright_version,
+            self.use_python_module,
+        ) = self._check_pyright_availability()
 
     def _check_pyright_availability(self) -> tuple[str, bool]:
         """Check if pyright is available in the system and return version and method.

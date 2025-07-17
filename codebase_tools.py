@@ -553,41 +553,45 @@ class CodebaseTools:
         column: int | None = None,
     ) -> str:
         """Find the definition of a symbol using LSP.
-        
+
         If file_path, line, and column are not provided, will first search for the symbol
         using search_symbols to find its location, then get the definition.
         """
         self.logger.info(
             f"Finding definition for symbol '{symbol}' in repository '{repository_id}'"
         )
-        
+
         # If location not provided, search for the symbol first
         if file_path is None or line is None or column is None:
             self.logger.debug(f"Location not provided, searching for symbol '{symbol}'")
             search_result = await self.search_symbols(repository_id, symbol, limit=1)
             search_data = json.loads(search_result)
-            
+
             if "error" in search_data:
-                return json.dumps({
-                    "error": f"Failed to search for symbol: {search_data['error']}",
-                    "symbol": symbol
-                })
-            
+                return json.dumps(
+                    {
+                        "error": f"Failed to search for symbol: {search_data['error']}",
+                        "symbol": symbol,
+                    }
+                )
+
             symbols = search_data.get("symbols", [])
             if not symbols:
-                return json.dumps({
-                    "error": f"Symbol '{symbol}' not found in repository '{repository_id}'",
-                    "symbol": symbol
-                })
-            
+                return json.dumps(
+                    {
+                        "error": f"Symbol '{symbol}' not found in repository '{repository_id}'",
+                        "symbol": symbol,
+                    }
+                )
+
             # Use the first symbol found
             symbol_info = symbols[0]
             file_path = symbol_info.get("file_path")
             line = symbol_info.get("line")
             column = symbol_info.get("column", 0)  # Default to column 0 if not provided
-            
+
             self.logger.debug(f"Found symbol at {file_path}:{line}:{column}")
-        
+
         self.logger.info(
             f"Getting definition for symbol '{symbol}' at {file_path}:{line}:{column}"
         )

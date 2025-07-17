@@ -27,14 +27,16 @@ class TestLSPStartupIntegration(unittest.TestCase):
         self.test_repo_path.mkdir()
 
         # Create a simple Python file
-        (self.test_repo_path / "main.py").write_text("""
+        (self.test_repo_path / "main.py").write_text(
+            """
 def hello_world():
     return "Hello, World!"
 
 class TestClass:
     def test_method(self):
         return hello_world()
-""")
+"""
+        )
 
         # Create git repo
         import subprocess
@@ -43,7 +45,8 @@ class TestClass:
 
         # Create test repositories.json
         self.config_file = Path(self.temp_dir) / "repositories.json"
-        self.config_file.write_text(f"""{{
+        self.config_file.write_text(
+            f"""{{
   "repositories": {{
     "test-repo": {{
       "workspace": "{self.test_repo_path}",
@@ -53,7 +56,8 @@ class TestClass:
       "python_path": "{Path.cwd() / ".venv" / "bin" / "python"}"
     }}
   }}
-}}""")
+}}"""
+        )
 
     def tearDown(self):
         """Clean up test environment."""
