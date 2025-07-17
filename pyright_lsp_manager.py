@@ -310,6 +310,11 @@ class PyrightLSPManager(LSPServerManager):
 
         return True
 
+    def cleanup_workspace(self) -> bool:
+        """Clean up pyright-specific workspace artifacts."""
+        # pyright doesn't create persistent artifacts that need cleanup
+        return True
+
     def get_server_info(self) -> dict[str, Any]:
         """Get information about the pyright server."""
         return {

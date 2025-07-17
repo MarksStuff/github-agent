@@ -85,7 +85,7 @@ class LSPProtocol:
         return message.encode("utf-8")
 
     def create_request(
-        self, method: str, params: Any = None, request_id: str = None
+        self, method: str, params: Any = None, request_id: str | None = None
     ) -> dict[str, Any]:
         """Create a JSON-RPC request."""
         if request_id is None:
@@ -262,16 +262,6 @@ class AsyncLSPClient:
         self.logger.info(f"🖥️  Starting server process: {' '.join(full_command)}")
 
         try:
-            # Validate server configuration first
-            if not self.server_manager.validate_configuration():
-                self.logger.error("❌ Server configuration validation failed")
-                return False
-
-            # Prepare workspace
-            if not self.server_manager.prepare_workspace():
-                self.logger.error("❌ Workspace preparation failed")
-                return False
-
             # Start process with pipes for communication
             self._server_process = await asyncio.create_subprocess_exec(
                 *full_command,
@@ -482,11 +472,15 @@ class AsyncLSPClient:
 
         # Handle common server requests
         if message.method == "workspace/configuration":
-            response = {"jsonrpc": "2.0", "id": message.id, "result": {}}
+            response: dict[str, Any] = {
+                "jsonrpc": "2.0",
+                "id": message.id,
+                "result": {},
+            }
             await self._send_message(response)
         else:
             # Unknown request - send error
-            error_response = {
+            error_response: dict[str, Any] = {
                 "jsonrpc": "2.0",
                 "id": message.id,
                 "error": {
@@ -539,7 +533,7 @@ class AsyncLSPClient:
             raise
 
     async def _send_request(
-        self, method: str, params: Any = None, timeout: float = None
+        self, method: str, params: Any = None, timeout: float | None = None
     ) -> LSPMessage:
         """
         Send a request and wait for response.
@@ -586,7 +580,7 @@ class AsyncLSPClient:
             self._pending_requests.pop(request_id, None)
             error_msg = f"Request timeout: {method} (ID: {request_id}) after {timeout}s"
             self.logger.error(f"⏰ {error_msg}")
-            raise TimeoutError(error_msg)
+            raise TimeoutError(error_msg) from None
         except Exception as e:
             self._pending_requests.pop(request_id, None)
             self.logger.error(f"❌ Request failed: {method} (ID: {request_id}) - {e}")
@@ -707,7 +701,7 @@ class AsyncLSPClient:
                 self.logger.debug(f"Error terminating server process: {e}")
 
         # Cancel pending requests
-        for request_id, future in self._pending_requests.items():
+        for _request_id, future in self._pending_requests.items():
             if not future.done():
                 future.cancel()
         self._pending_requests.clear()
