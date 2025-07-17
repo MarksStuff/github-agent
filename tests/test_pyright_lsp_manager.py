@@ -47,7 +47,10 @@ class TestPyrightLSPManager(unittest.TestCase):
         self.assertEqual(manager.python_path, self.python_path)
         # Should try Python module first
         mock_run.assert_called_once_with(
-            [self.python_path, "-m", "pyright", "--version"], capture_output=True, text=True, check=True
+            [self.python_path, "-m", "pyright", "--version"],
+            capture_output=True,
+            text=True,
+            check=True,
         )
 
     @patch("pyright_lsp_manager.subprocess.run")
@@ -71,6 +74,7 @@ class TestPyrightLSPManager(unittest.TestCase):
 
         # Since the Python module version is detected first, it should return the venv path
         import os
+
         venv_path = os.path.dirname(os.path.dirname(self.python_path))
         expected_langserver = os.path.join(venv_path, "bin", "pyright-langserver")
         self.assertEqual(command, [expected_langserver, "--stdio"])

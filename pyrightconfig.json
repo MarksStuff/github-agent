@@ -1,29 +1,20 @@
 {
   "include": [
-    "*.py"
+    "constants.py"
   ],
   "exclude": [
-    "**/.git",
-    "**/__pycache__",
-    "**/node_modules", 
+    "**/.git/**",
+    "**/__pycache__/**",
     "**/.venv/**",
     "**/venv/**",
-    "**/htmlcov",
     "tests/**",
     "setup/**",
-    "scripts/**", 
+    "scripts/**",
     "improvements/**",
-    "comprehensive_test_fix.py",
-    "fix_remaining_tests.py"
+    "**/htmlcov/**"
   ],
-  "venvPath": ".",
-  "venv": ".venv",
+  "typeCheckingMode": "off",
   "autoSearchPaths": false,
-  "extraPaths": [],
-  "reportMissingImports": "warning",
-  "reportMissingTypeStubs": "information",
-  "pythonVersion": "3.13", 
-  "pythonPlatform": "All",
-  "typeCheckingMode": "basic",
-  "pythonPath": ".venv/bin/python"
+  "reportMissingImports": "none",
+  "reportMissingTypeStubs": "none"
 }

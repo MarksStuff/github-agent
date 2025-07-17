@@ -32,7 +32,8 @@ from constants import (
     Language,
 )
 from lsp_client import AbstractLSPClient, LSPClientState
-from pyright_lsp_manager import PyrightLSPManager
+
+# Removed direct import of PyrightLSPManager - now using factory pattern
 
 # Type for LSP client provider
 LSPClientProvider = Callable[[str, str], AbstractLSPClient]
@@ -80,6 +81,7 @@ class RepositoryConfig:
     github_owner: str
     github_repo: str
     lsp_enabled: bool = True  # Whether LSP is enabled for this repository
+    lsp_server: str = "pylsp"  # LSP server type to use (pylsp, pyright)
 
     def __post_init__(self):
         """Validate configuration after initialization - basic validation only"""
@@ -459,7 +461,7 @@ class RepositoryManager(AbstractRepositoryManager):
 
         # LSP server management
         self._lsp_clients: dict[str, AbstractLSPClient] = {}
-        self._lsp_managers: dict[str, PyrightLSPManager] = {}
+        # Removed _lsp_managers - now managed internally by LSP clients
         self._lsp_lock = threading.Lock()
 
         # Hot reload support
@@ -467,13 +469,17 @@ class RepositoryManager(AbstractRepositoryManager):
         self._reload_callbacks: list[Callable[[], None]] = []
 
     def _default_lsp_client_provider(
-        self, workspace_root: str, python_path: str
+        self, workspace_root: str, python_path: str, server_type: str = "pylsp"
     ) -> AbstractLSPClient:
-        """Default LSP client provider that creates CodebaseLSPClient instances."""
+        """Default LSP client provider that creates AsyncCodebaseLSPClient instances."""
         # Import here to avoid circular imports
-        from codebase_tools import CodebaseLSPClient
+        from async_codebase_lsp_client import AsyncCodebaseLSPClient
 
-        return CodebaseLSPClient(workspace_root=workspace_root, python_path=python_path)
+        return AsyncCodebaseLSPClient(
+            workspace_root=workspace_root,
+            python_path=python_path,
+            server_type=server_type,
+        )
 
     @classmethod
     def create_from_config(cls, config_path: str) -> "RepositoryManager":
@@ -772,7 +778,7 @@ class RepositoryManager(AbstractRepositoryManager):
         """Check if running in multi-repository mode"""
         return bool(self._repositories)
 
-    def start_lsp_server(self, repo_name: str) -> bool:
+    def start_lsp_server(self, repo_name: str) -> bool | None:
         """
         Start LSP server for a repository if it's enabled and not already running.
 
@@ -780,7 +786,9 @@ class RepositoryManager(AbstractRepositoryManager):
             repo_name: Name of the repository
 
         Returns:
-            True if server started successfully or already running, False otherwise
+            - True: Successfully started or already running
+            - False: Failed to start
+            - None: Skipped (not Python or disabled)
         """
         repo_config = self.get_repository(repo_name)
         if not repo_config:
@@ -789,13 +797,13 @@ class RepositoryManager(AbstractRepositoryManager):
 
         if not repo_config.lsp_enabled:
             self.logger.info(f"🔇 LSP disabled for repository '{repo_name}'")
-            return True
+            return None
 
         if repo_config.language != Language.PYTHON:
             self.logger.info(
                 f"⏭️ LSP not supported for {repo_config.language.value} repository '{repo_name}' - skipping"
             )
-            return True
+            return None
 
         with self._lsp_lock:
             # Check if already running
@@ -811,21 +819,11 @@ class RepositoryManager(AbstractRepositoryManager):
                     self._cleanup_lsp_client(repo_name)
 
             try:
-                # Create LSP manager
-                lsp_manager = PyrightLSPManager(
-                    workspace_path=repo_config.workspace,
-                    python_path=repo_config.python_path,
-                )
-
-                # Prepare workspace before starting server
-                lsp_manager.prepare_workspace()
-
-                self._lsp_managers[repo_name] = lsp_manager
-
-                # Create LSP client using the provider
+                # Create LSP client using the provider with configured server type
                 lsp_client = self.lsp_client_provider(
                     repo_config.workspace,
                     repo_config.python_path,
+                    repo_config.lsp_server,
                 )
                 self._lsp_clients[repo_name] = lsp_client
 
@@ -835,8 +833,7 @@ class RepositoryManager(AbstractRepositoryManager):
                     loop = asyncio.get_running_loop()
                     # We're in an async context, but this method is sync
                     # We need to use asyncio.run_coroutine_threadsafe or similar
-                    import concurrent.futures
-                    
+
                     # Create a future and run the coroutine in the event loop
                     future = asyncio.run_coroutine_threadsafe(lsp_client.start(), loop)
                     success = future.result(timeout=30)  # 30 second timeout
@@ -846,7 +843,7 @@ class RepositoryManager(AbstractRepositoryManager):
                 except Exception as e:
                     self.logger.error(f"Error starting LSP client: {e}")
                     success = False
-                
+
                 if success:
                     self.logger.info(
                         f"✅ Started LSP server for repository '{repo_name}' - skipping"
@@ -884,14 +881,13 @@ class RepositoryManager(AbstractRepositoryManager):
             try:
                 client = self._lsp_clients[repo_name]
                 # Use asyncio to run the async stop method
-                
+
                 try:
                     # Check if there's already an event loop running
                     loop = asyncio.get_running_loop()
                     # If we're already in an event loop, use run_coroutine_threadsafe
                     import concurrent.futures
-                    import threading
-                    
+
                     # Run the stop operation in a separate thread to avoid loop conflicts
                     def run_stop():
                         new_loop = asyncio.new_event_loop()
@@ -900,12 +896,12 @@ class RepositoryManager(AbstractRepositoryManager):
                             new_loop.run_until_complete(client.stop())
                         finally:
                             new_loop.close()
-                    
+
                     # Run in a separate thread
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(run_stop)
                         future.result(timeout=30)  # 30 second timeout
-                        
+
                 except RuntimeError:
                     # No event loop running, we can create our own
                     loop = asyncio.new_event_loop()
@@ -946,7 +942,7 @@ class RepositoryManager(AbstractRepositoryManager):
 
         # Verify cleanup is complete
         with self._lsp_lock:
-            if repo_name in self._lsp_clients or repo_name in self._lsp_managers:
+            if repo_name in self._lsp_clients:
                 self.logger.warning(
                     f"LSP cleanup incomplete for repository '{repo_name}' - skipping"
                 )
@@ -999,9 +995,7 @@ class RepositoryManager(AbstractRepositoryManager):
                     }
                 )
 
-                if repo_name in self._lsp_managers:
-                    manager = self._lsp_managers[repo_name]
-                    status["server_info"] = manager.get_server_info()
+                # Server info now managed internally by LSP client
             else:
                 status.update(
                     {
@@ -1013,10 +1007,10 @@ class RepositoryManager(AbstractRepositoryManager):
 
         return status
 
-    async def start_lsp_server_async(self, repo_name: str) -> bool:
+    async def start_lsp_server_async(self, repo_name: str) -> bool | None:
         """
         Start LSP server for a repository (async version).
-        
+
         This is the clean async implementation that should be used
         in async contexts like the master process startup.
 
@@ -1024,7 +1018,9 @@ class RepositoryManager(AbstractRepositoryManager):
             repo_name: Name of the repository
 
         Returns:
-            True if server started successfully or already running, False otherwise
+            - True: Successfully started or already running
+            - False: Failed to start
+            - None: Skipped (not Python or disabled)
         """
         repo_config = self.get_repository(repo_name)
         if not repo_config:
@@ -1033,13 +1029,13 @@ class RepositoryManager(AbstractRepositoryManager):
 
         if not repo_config.lsp_enabled:
             self.logger.info(f"🔇 LSP disabled for repository '{repo_name}'")
-            return True
+            return None
 
         if repo_config.language != Language.PYTHON:
             self.logger.info(
                 f"⏭️ LSP not supported for {repo_config.language.value} repository '{repo_name}' - skipping"
             )
-            return True
+            return None
 
         with self._lsp_lock:
             # Check if already running
@@ -1055,21 +1051,11 @@ class RepositoryManager(AbstractRepositoryManager):
                     self._cleanup_lsp_client(repo_name)
 
             try:
-                # Create LSP manager
-                lsp_manager = PyrightLSPManager(
-                    workspace_path=repo_config.workspace,
-                    python_path=repo_config.python_path,
-                )
-
-                # Prepare workspace before starting server
-                lsp_manager.prepare_workspace()
-
-                self._lsp_managers[repo_name] = lsp_manager
-
-                # Create LSP client using the provider
+                # Create LSP client using the provider with configured server type
                 lsp_client = self.lsp_client_provider(
                     repo_config.workspace,
                     repo_config.python_path,
+                    repo_config.lsp_server,
                 )
                 self._lsp_clients[repo_name] = lsp_client
 
@@ -1093,26 +1079,32 @@ class RepositoryManager(AbstractRepositoryManager):
                 self._cleanup_lsp_client(repo_name)
                 return False
 
-    async def start_all_lsp_servers_async(self) -> dict[str, bool]:
+    async def start_all_lsp_servers_async(self) -> dict[str, bool | None]:
         """
         Start LSP servers for all repositories (async version).
-        
+
         This is the clean async implementation for use in async contexts.
 
         Returns:
-            Dictionary mapping repository names to success status
+            Dictionary mapping repository names to status:
+            - True: Successfully started
+            - False: Failed to start
+            - None: Skipped (not Python or disabled)
         """
         results = {}
         for repo_name in self._repositories:
             results[repo_name] = await self.start_lsp_server_async(repo_name)
         return results
 
-    def start_all_lsp_servers(self) -> dict[str, bool]:
+    def start_all_lsp_servers(self) -> dict[str, bool | None]:
         """
         Start LSP servers for all repositories (sync wrapper).
 
         Returns:
-            Dictionary mapping repository names to success status
+            Dictionary mapping repository names to status:
+            - True: Successfully started
+            - False: Failed to start
+            - None: Skipped (not Python or disabled)
         """
         results = {}
         for repo_name in self._repositories:
@@ -1169,14 +1161,7 @@ class RepositoryManager(AbstractRepositoryManager):
             del self._lsp_clients[repo_name]
 
         # Clean up manager
-        if repo_name in self._lsp_managers:
-            try:
-                self._lsp_managers[repo_name].cleanup()
-            except Exception as e:
-                self.logger.warning(
-                    f"Error cleaning up LSP manager for '{repo_name}': {e}"
-                )
-            del self._lsp_managers[repo_name]
+        # LSP managers are now handled internally by the LSP clients
 
     def create_default_config(self, repo_configs: list[dict]) -> None:
         """

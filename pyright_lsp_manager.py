@@ -31,19 +31,23 @@ class PyrightLSPManager(LSPServerManager):
         self.logger = logging.getLogger(__name__)
 
         # Check if pyright is available and store version/method
-        self.pyright_version, self.use_python_module = self._check_pyright_availability()
+        self.pyright_version, self.use_python_module = (
+            self._check_pyright_availability()
+        )
 
     def _check_pyright_availability(self) -> tuple[str, bool]:
         """Check if pyright is available in the system and return version and method.
-        
+
         Returns:
             Tuple of (version_string, use_python_module)
         """
         # First try using the Python module (pip installed pyright)
         try:
             result = subprocess.run(
-                [self.python_path, "-m", "pyright", "--version"], 
-                capture_output=True, text=True, check=True
+                [self.python_path, "-m", "pyright", "--version"],
+                capture_output=True,
+                text=True,
+                check=True,
             )
             version = result.stdout.strip()
             self.logger.info(f"Pyright version (Python module): {version}")
@@ -67,7 +71,10 @@ class PyrightLSPManager(LSPServerManager):
         if self.use_python_module:
             # Use the pip-installed pyright langserver
             import os
-            venv_path = os.path.dirname(os.path.dirname(self.python_path))  # Go up from bin/python to venv root
+
+            venv_path = os.path.dirname(
+                os.path.dirname(self.python_path)
+            )  # Go up from bin/python to venv root
             langserver_path = os.path.join(venv_path, "bin", "pyright-langserver")
             return [langserver_path, "--stdio"]
         else:

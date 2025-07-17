@@ -504,18 +504,8 @@ class MCPMaster:
         # Initialize repository indexes
         await self.initialize_repository_indexes()
 
-        # Start LSP servers for all repositories
-        logger.info("Starting LSP servers for all repositories...")
-        lsp_results = await self.repository_manager.start_all_lsp_servers_async()
-        successful_lsp = [repo for repo, success in lsp_results.items() if success]
-        failed_lsp = [repo for repo, success in lsp_results.items() if not success]
-
-        if successful_lsp:
-            logger.info(f"✅ Started LSP servers for: {', '.join(successful_lsp)}")
-        if failed_lsp:
-            logger.warning(
-                f"⚠️ Failed to start LSP servers for: {', '.join(failed_lsp)}"
-            )
+        # LSP servers are now started by individual workers
+        logger.info("LSP servers will be started by individual workers")
 
         # Set up signal handlers
         signal.signal(signal.SIGTERM, self.signal_handler)

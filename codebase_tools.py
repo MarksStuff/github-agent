@@ -17,7 +17,6 @@ from typing import Any, ClassVar
 from constants import Language
 from lsp_client import AbstractLSPClient, LSPClientState
 from lsp_constants import LSPMethod
-from pyright_lsp_manager import PyrightLSPManager
 from repository_manager import AbstractRepositoryManager
 from symbol_storage import AbstractSymbolStorage
 
@@ -32,9 +31,31 @@ LSPClientFactory = Callable[[str, str], AbstractLSPClient]
 class CodebaseLSPClient(AbstractLSPClient):
     """Concrete LSP client implementation for codebase tools."""
 
-    def __init__(self, workspace_root: str, python_path: str):
-        """Initialize the LSP client for codebase operations."""
-        server_manager = PyrightLSPManager(workspace_root, python_path)
+    def __init__(
+        self, workspace_root: str, python_path: str, server_type: str | None = None
+    ):
+        """Initialize the LSP client for codebase operations.
+
+        Args:
+            workspace_root: Path to the workspace root
+            python_path: Path to the Python interpreter
+            server_type: LSP server type to use (defaults to pylsp)
+        """
+        from lsp_server_factory import (
+            LSPServerFactory,
+            create_default_python_lsp_manager,
+        )
+
+        if server_type:
+            server_manager = LSPServerFactory.create_server_manager(
+                server_type, workspace_root, python_path
+            )
+        else:
+            # Use default (pylsp) for better reliability
+            server_manager = create_default_python_lsp_manager(
+                workspace_root, python_path
+            )
+
         super().__init__(
             server_manager=server_manager,
             workspace_root=workspace_root,
@@ -527,13 +548,48 @@ class CodebaseTools:
         self,
         repository_id: str,
         symbol: str,
-        file_path: str,
-        line: int,
-        column: int,
+        file_path: str | None = None,
+        line: int | None = None,
+        column: int | None = None,
     ) -> str:
-        """Find the definition of a symbol using LSP."""
+        """Find the definition of a symbol using LSP.
+        
+        If file_path, line, and column are not provided, will first search for the symbol
+        using search_symbols to find its location, then get the definition.
+        """
         self.logger.info(
-            f"Finding definition for symbol '{symbol}' at {file_path}:{line}:{column} in repository '{repository_id}'"
+            f"Finding definition for symbol '{symbol}' in repository '{repository_id}'"
+        )
+        
+        # If location not provided, search for the symbol first
+        if file_path is None or line is None or column is None:
+            self.logger.debug(f"Location not provided, searching for symbol '{symbol}'")
+            search_result = await self.search_symbols(repository_id, symbol, limit=1)
+            search_data = json.loads(search_result)
+            
+            if "error" in search_data:
+                return json.dumps({
+                    "error": f"Failed to search for symbol: {search_data['error']}",
+                    "symbol": symbol
+                })
+            
+            symbols = search_data.get("symbols", [])
+            if not symbols:
+                return json.dumps({
+                    "error": f"Symbol '{symbol}' not found in repository '{repository_id}'",
+                    "symbol": symbol
+                })
+            
+            # Use the first symbol found
+            symbol_info = symbols[0]
+            file_path = symbol_info.get("file_path")
+            line = symbol_info.get("line")
+            column = symbol_info.get("column", 0)  # Default to column 0 if not provided
+            
+            self.logger.debug(f"Found symbol at {file_path}:{line}:{column}")
+        
+        self.logger.info(
+            f"Getting definition for symbol '{symbol}' at {file_path}:{line}:{column}"
         )
         try:
             repo_config = self.repository_manager.get_repository(repository_id)

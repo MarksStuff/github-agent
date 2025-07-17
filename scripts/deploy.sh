@@ -258,6 +258,10 @@ deploy_file "lsp_constants.py"
 deploy_file "lsp_jsonrpc.py"
 deploy_file "lsp_server_manager.py"
 deploy_file "pyright_lsp_manager.py"
+deploy_file "async_codebase_lsp_client.py"
+deploy_file "async_lsp_client.py"
+deploy_file "lsp_server_factory.py"
+deploy_file "pylsp_manager.py"
 
 # Update dependencies if requirements changed
 echo "Updating Python dependencies..."

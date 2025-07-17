@@ -25,7 +25,7 @@ class TestLSPStartupIntegration(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.test_repo_path = Path(self.temp_dir) / "test-repo"
         self.test_repo_path.mkdir()
-        
+
         # Create a simple Python file
         (self.test_repo_path / "main.py").write_text("""
 def hello_world():
@@ -35,11 +35,12 @@ class TestClass:
     def test_method(self):
         return hello_world()
 """)
-        
+
         # Create git repo
         import subprocess
+
         subprocess.run(["git", "init"], cwd=self.test_repo_path, check=True)
-        
+
         # Create test repositories.json
         self.config_file = Path(self.temp_dir) / "repositories.json"
         self.config_file.write_text(f"""{{
@@ -49,7 +50,7 @@ class TestClass:
       "port": 8090,
       "description": "Test repository",
       "language": "python",
-      "python_path": "{Path.cwd() / '.venv' / 'bin' / 'python'}"
+      "python_path": "{Path.cwd() / ".venv" / "bin" / "python"}"
     }}
   }}
 }}""")
@@ -57,62 +58,73 @@ class TestClass:
     def tearDown(self):
         """Clean up test environment."""
         import shutil
+
         shutil.rmtree(self.temp_dir)
 
     async def test_lsp_server_lifecycle(self):
         """Test complete LSP server lifecycle: start -> use -> stop."""
-        
+
         # Use mock LSP client for testing to avoid pyright dependencies
         from tests.conftest import MockLSPClient
-        
-        def mock_lsp_client_provider(workspace_root: str, python_path: str):
+
+        def mock_lsp_client_provider(
+            workspace_root: str, python_path: str, server_type: str = "pylsp"
+        ):
             mock_client = MockLSPClient(workspace_root=workspace_root)
             mock_client.set_start_result(True)  # Configure to succeed
             return mock_client
-        
+
         # Step 1: Create repository manager and load config
-        repository_manager = RepositoryManager(str(self.config_file), lsp_client_provider=mock_lsp_client_provider)
+        repository_manager = RepositoryManager(
+            str(self.config_file), lsp_client_provider=mock_lsp_client_provider
+        )
         self.assertTrue(repository_manager.load_configuration())
         self.assertIn("test-repo", repository_manager.repositories)
-        
+
         # Step 2: Start LSP servers (this should work without errors)
         lsp_results = {}
         for repo_name in repository_manager.repositories:
             success = await repository_manager.start_lsp_server_async(repo_name)
             lsp_results[repo_name] = success
-        
+
         # Step 3: Verify LSP server started successfully
-        self.assertTrue(lsp_results["test-repo"], "LSP server should start successfully")
-        
+        self.assertTrue(
+            lsp_results["test-repo"], "LSP server should start successfully"
+        )
+
         # Step 4: Verify LSP client is available
         lsp_client = repository_manager.get_lsp_client("test-repo")
         self.assertIsNotNone(lsp_client, "LSP client should be available after startup")
-        
+
         # Step 5: Verify LSP client is in correct state
         from lsp_client import LSPClientState
-        self.assertEqual(lsp_client.state, LSPClientState.INITIALIZED, 
-                        "LSP client should be initialized and ready")
-        
+
+        self.assertEqual(
+            lsp_client.state,
+            LSPClientState.INITIALIZED,
+            "LSP client should be initialized and ready",
+        )
+
         # Step 6: Test basic LSP functionality (optional, but good to verify)
         try:
             # Simple test - get file URI
             file_uri = (self.test_repo_path / "main.py").as_uri()
             # This should not raise an exception
             self.assertTrue(file_uri.startswith("file://"))
-            
+
             # Step 6a: Test find_definition and find_references if LSP server is actually running
             if lsp_client.state == LSPClientState.INITIALIZED:
-                from codebase_tools import CodebaseTools, CodebaseLSPClient
+                from codebase_tools import CodebaseLSPClient, CodebaseTools
                 from symbol_storage import SQLiteSymbolStorage
-                
+
                 # Create codebase tools instance to test find_definition/find_references
                 symbol_storage = SQLiteSymbolStorage(":memory:")
                 codebase_tools = CodebaseTools(
                     repository_manager=repository_manager,
                     symbol_storage=symbol_storage,
-                    lsp_client_factory=CodebaseLSPClient
+                    lsp_client_factory=CodebaseLSPClient,
                 )
-                
+
                 # Test find_definition for TestClass (line 5, column 7 in our test file)
                 test_file_path = str(self.test_repo_path / "main.py")
                 try:
@@ -121,35 +133,44 @@ class TestClass:
                         symbol="TestClass",
                         file_path=test_file_path,
                         line=5,
-                        column=7
+                        column=7,
                     )
-                    
+
                     # Parse and verify result (should contain class definition or timeout gracefully)
                     import json
+
                     result = json.loads(definition_result_str)
                     # If no error, should have definitions or locations; if error (like timeout), should gracefully handle
                     if "error" not in result:
                         # Accept either 'locations' (real LSP) or 'definitions' (mock LSP) format
                         has_results = "locations" in result or "definitions" in result
-                        self.assertTrue(has_results, "Successful definition result should have locations or definitions")
+                        self.assertTrue(
+                            has_results,
+                            "Successful definition result should have locations or definitions",
+                        )
                     # If there is an error (like timeout), that's acceptable for this test
-                    
+
                 except Exception as e:
                     # LSP functionality may timeout or fail, which is acceptable for integration testing
-                    self.fail(f"find_definition should not crash, even if LSP times out: {e}")
-            
+                    self.fail(
+                        f"find_definition should not crash, even if LSP times out: {e}"
+                    )
+
         except Exception as e:
             self.fail(f"Basic LSP operations should work: {e}")
-        
+
         # Step 7: Stop LSP servers cleanly
         stop_results = repository_manager.stop_all_lsp_servers()
         self.assertTrue(stop_results["test-repo"], "LSP server should stop cleanly")
-        
+
         # Step 8: Verify LSP client is no longer available or in disconnected state
         lsp_client_after_stop = repository_manager.get_lsp_client("test-repo")
         if lsp_client_after_stop:
-            self.assertNotEqual(lsp_client_after_stop.state, LSPClientState.INITIALIZED,
-                              "LSP client should not be initialized after stop")
+            self.assertNotEqual(
+                lsp_client_after_stop.state,
+                LSPClientState.INITIALIZED,
+                "LSP client should not be initialized after stop",
+            )
 
     def test_lsp_startup_integration_sync_wrapper(self):
         """Sync wrapper for the async test."""

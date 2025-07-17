@@ -77,19 +77,19 @@ class AbstractLSPClient(ABC):
     def _setup_builtin_handlers(self) -> None:
         """Setup built-in message handlers."""
         # Server-to-client notifications
-        self._notification_handlers[
-            LSPMethod.PUBLISH_DIAGNOSTICS
-        ] = self._handle_publish_diagnostics
+        self._notification_handlers[LSPMethod.PUBLISH_DIAGNOSTICS] = (
+            self._handle_publish_diagnostics
+        )
         self._notification_handlers[LSPMethod.SHOW_MESSAGE] = self._handle_show_message
         self._notification_handlers[LSPMethod.LOG_MESSAGE] = self._handle_log_message
 
         # Server-to-client requests
-        self._message_handlers[
-            "workspace/configuration"
-        ] = self._handle_workspace_configuration
-        self._message_handlers[
-            "window/showMessageRequest"
-        ] = self._handle_show_message_request
+        self._message_handlers["workspace/configuration"] = (
+            self._handle_workspace_configuration
+        )
+        self._message_handlers["window/showMessageRequest"] = (
+            self._handle_show_message_request
+        )
 
     def _set_state_connecting(self) -> None:
         """Set state to connecting and log the transition."""
@@ -124,10 +124,13 @@ class AbstractLSPClient(ABC):
     async def start(self) -> bool:
         """Start the LSP server and initialize the connection."""
         import time
+
         start_time = time.time()
-        
+
         try:
-            self.logger.info(f"🚀 Starting LSP server for workspace: {self.workspace_root}")
+            self.logger.info(
+                f"🚀 Starting LSP server for workspace: {self.workspace_root}"
+            )
             self._set_state_connecting()
 
             # Store the current event loop for use in message processing thread
@@ -158,7 +161,9 @@ class AbstractLSPClient(ABC):
                 return False
             elapsed = time.time() - step_start
             total_elapsed = time.time() - start_time
-            self.logger.info(f"✅ LSP connection initialized in {elapsed:.1f}s (total: {total_elapsed:.1f}s)")
+            self.logger.info(
+                f"✅ LSP connection initialized in {elapsed:.1f}s (total: {total_elapsed:.1f}s)"
+            )
 
             self._set_state_initialized()
             return True
@@ -282,11 +287,27 @@ class AbstractLSPClient(ABC):
 
         while not self._stop_event.is_set() and self.server_process:
             try:
-                # Read data from server
+                # Read data from server with timeout to prevent blocking
                 if self.server_process.stdout:
-                    data = self.server_process.stdout.read(1024)
+                    import select
+
+                    # Use select to check if data is available (Unix/Linux/Mac only)
+                    if hasattr(select, "select"):
+                        ready, _, _ = select.select(
+                            [self.server_process.stdout], [], [], 0.1
+                        )  # 100ms timeout
+                        if ready:
+                            data = self.server_process.stdout.read(1024)
+                            if data:
+                                self.logger.debug(f"Read {len(data)} bytes from server")
+                        else:
+                            data = b""  # No data available
+                    else:
+                        # Fallback for Windows - use original blocking read
+                        data = self.server_process.stdout.read(1024)
                 else:
                     break
+
                 if not data:
                     if self.server_process.poll() is not None:
                         self.logger.warning("Server process terminated")
@@ -386,7 +407,9 @@ class AbstractLSPClient(ABC):
             except Exception as e:
                 self.logger.error(f"Error in response handler: {e}")
         else:
-            self.logger.warning(f"No handler for response ID: {message_id} (available handlers: {list(self._response_handlers.keys())})")
+            self.logger.warning(
+                f"No handler for response ID: {message_id} (available handlers: {list(self._response_handlers.keys())})"
+            )
 
     async def _handle_request(self, message: JsonRPCMessage) -> None:
         """Handle a request message."""
@@ -435,6 +458,9 @@ class AbstractLSPClient(ABC):
         try:
             if self.server_process and self.server_process.stdin:
                 serialized = self.protocol.serialize_message(message)
+                self.logger.debug(
+                    f"Sending {len(serialized)} bytes: {serialized[:200]}..."
+                )
                 self.server_process.stdin.write(serialized)
                 self.server_process.stdin.flush()
 
@@ -475,10 +501,11 @@ class AbstractLSPClient(ABC):
 
             # Send initialize request
             import time
+
             init_request = self.protocol.create_request(
                 LSPMethod.INITIALIZE, init_params
             )
-            self.logger.info(f"📤 Sending LSP initialize request...")
+            self.logger.info("📤 Sending LSP initialize request...")
             init_start = time.time()
             init_response = await self._send_request(init_request)
             init_elapsed = time.time() - init_start
@@ -521,7 +548,9 @@ class AbstractLSPClient(ABC):
 
         # Register response handler
         self._response_handlers[request.id] = response_handler
-        self.logger.debug(f"Registered handler for request {request.id} ({request.method})")
+        self.logger.debug(
+            f"Registered handler for request {request.id} ({request.method})"
+        )
 
         try:
             # Send request
@@ -530,11 +559,15 @@ class AbstractLSPClient(ABC):
 
             # Wait for response
             response = await asyncio.wait_for(response_future, timeout=timeout)
-            self.logger.debug(f"Received response for request {request.id} ({request.method})")
+            self.logger.debug(
+                f"Received response for request {request.id} ({request.method})"
+            )
             return response
 
         except TimeoutError:
-            self.logger.error(f"Request timeout: {request.method} (ID: {request.id}) after {timeout}s")
+            self.logger.error(
+                f"Request timeout: {request.method} (ID: {request.id}) after {timeout}s"
+            )
             self._response_handlers.pop(request.id, None)
             return None
         except Exception as e:

@@ -151,7 +151,9 @@ def find_max(numbers: List[int]) -> Optional[int]:
         # Create mock client provider that returns unhealthy clients
         from tests.conftest import MockLSPClient
 
-        def unhealthy_client_provider(workspace_root: str, python_path: str):
+        def unhealthy_client_provider(
+            workspace_root: str, python_path: str, server_type: str = "pylsp"
+        ):
             mock_client = MockLSPClient(workspace_root=workspace_root)
             mock_client.state = LSPClientState.ERROR
             return mock_client

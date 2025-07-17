@@ -338,11 +338,14 @@ class TestMCPWorker:
             assert not worker.message_queue.empty()
             queued_response = worker.message_queue.get()
             result_text = queued_response["result"]["content"][0]["text"]
-            
+
             # Should not contain the specific duplicate argument error
-            assert "got multiple values for keyword argument 'repository_id'" not in result_text
+            assert (
+                "got multiple values for keyword argument 'repository_id'"
+                not in result_text
+            )
             # Should contain either a valid response or an LSP-related error (not argument error)
-            assert ('"error"' in result_text or '"symbol"' in result_text)
+            assert '"error"' in result_text or '"symbol"' in result_text
 
     def test_mcp_unknown_tool(self, temp_repo, mock_github_token, mock_subprocess):
         """Test MCP tool call for unknown tool"""

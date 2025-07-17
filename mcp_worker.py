@@ -232,6 +232,9 @@ class MCPWorker:
             f"Worker initialization complete for {self.repo_name} on port {self.port}"
         )
 
+        # Start LSP server for this repository if it's Python
+        self._start_lsp_server()
+
     def _initialize_symbol_storage(self) -> None:
         """Initialize symbol storage for codebase tools."""
         try:
@@ -249,6 +252,47 @@ class MCPWorker:
         except Exception as e:
             self.logger.error(f"Failed to initialize symbol storage: {e}")
             raise
+
+    def _start_lsp_server(self) -> None:
+        """Start LSP server for this repository if it's Python."""
+        from constants import Language
+
+        if self.language != Language.PYTHON:
+            self.logger.info(
+                f"⏭️ LSP not supported for {self.language.value} repository '{self.repo_name}' - skipping"
+            )
+            return
+
+        self.logger.info(f"Starting LSP server for repository '{self.repo_name}'...")
+        try:
+            # Use the same repository manager that CodebaseTools uses
+            import github_tools
+
+            repo_manager = github_tools.repo_manager
+
+            if repo_manager is None:
+                self.logger.error("Repository manager not available for LSP startup")
+                return
+
+            # Start LSP server for this specific repository
+            result = repo_manager.start_lsp_server(self.repo_name)
+
+            if result is True:
+                self.logger.info(
+                    f"✅ Started LSP server for repository '{self.repo_name}'"
+                )
+            elif result is False:
+                self.logger.warning(
+                    f"❌ Failed to start LSP server for repository '{self.repo_name}'"
+                )
+            elif result is None:
+                self.logger.info(
+                    f"⏭️ Skipped LSP server for repository '{self.repo_name}' (disabled or unsupported)"
+                )
+
+        except Exception as e:
+            self.logger.error(f"Error starting LSP server for '{self.repo_name}': {e}")
+            # Don't raise - LSP failure shouldn't prevent worker startup
 
     def _setup_repository_manager(self) -> None:
         """Set up a temporary repository manager for this worker's repository"""
@@ -612,7 +656,10 @@ class MCPWorker:
                         if tool_name in codebase_tool_handlers:
                             # Use the CodebaseTools instance
                             # Ensure repository_id from self.repo_name takes precedence
-                            codebase_args = {**tool_args, "repository_id": self.repo_name}
+                            codebase_args = {
+                                **tool_args,
+                                "repository_id": self.repo_name,
+                            }
                             result = await self.codebase_tools_instance.execute_tool(
                                 tool_name,
                                 **codebase_args,

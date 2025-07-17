@@ -929,9 +929,9 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
         manager = RepositoryManager(swift_config_file)
         self.assertTrue(manager.load_configuration())
 
-        # Starting LSP for Swift should succeed but not actually start anything
+        # Starting LSP for Swift should be skipped (returns None)
         result = manager.start_lsp_server("test-swift-repo")
-        self.assertTrue(result)
+        self.assertIsNone(result)
 
     def test_start_lsp_server_disabled(self):
         """Test LSP server start when LSP is disabled"""
@@ -944,9 +944,9 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
         assert repo_config is not None  # For mypy
         repo_config.lsp_enabled = False
 
-        # Starting LSP should succeed but not actually start anything
+        # Starting LSP should be skipped when disabled (returns None)
         result = manager.start_lsp_server("test-python-repo")
-        self.assertTrue(result)
+        self.assertIsNone(result)
 
     def test_get_lsp_client(self):
         """Test getting LSP client for a repository"""

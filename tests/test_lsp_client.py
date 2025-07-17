@@ -281,7 +281,9 @@ class TestAbstractLSPClient:
         result = await self.client._send_request(request, timeout=0.1)
 
         assert result is None
-        self.logger.error.assert_called_with("Request timeout: test/method")
+        self.logger.error.assert_called_with(
+            "Request timeout: test/method (ID: test_id) after 0.1s"
+        )
 
     @pytest.mark.asyncio
     async def test_process_message_response(self):
@@ -350,7 +352,9 @@ class TestAbstractLSPClient:
 
         await self.client._handle_response(message)
 
-        self.logger.warning.assert_called_with("No handler for response ID: unknown_id")
+        self.logger.warning.assert_called_with(
+            "No handler for response ID: unknown_id (available handlers: [])"
+        )
 
     @pytest.mark.asyncio
     async def test_handle_request_no_handler(self):
