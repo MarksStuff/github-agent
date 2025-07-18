@@ -81,7 +81,9 @@ class TestClass:
         from tests.conftest import MockLSPClient
 
         def mock_lsp_client_provider(
-            workspace_root: str, python_path: str, server_type: LSPServerType = LSPServerType.PYLSP
+            workspace_root: str,
+            python_path: str,
+            server_type: LSPServerType = LSPServerType.PYLSP,
         ):
             mock_client = MockLSPClient(workspace_root=workspace_root)
             mock_client.set_start_result(True)  # Configure to succeed

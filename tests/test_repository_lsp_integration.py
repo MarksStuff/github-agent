@@ -153,7 +153,9 @@ def find_max(numbers: List[int]) -> Optional[int]:
         from tests.conftest import MockLSPClient
 
         def unhealthy_client_provider(
-            workspace_root: str, python_path: str, server_type: LSPServerType = LSPServerType.PYLSP
+            workspace_root: str,
+            python_path: str,
+            server_type: LSPServerType = LSPServerType.PYLSP,
         ):
             mock_client = MockLSPClient(workspace_root=workspace_root)
             mock_client.state = AsyncLSPClientState.ERROR
