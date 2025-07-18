@@ -52,29 +52,46 @@ def mock_subprocess():
         yield mock_check_output
 
 
+@pytest.fixture
+def mcp_worker_factory(temp_repo, mock_github_token, mock_subprocess):
+    """Factory for creating MCPWorker instances with automatic cleanup"""
+    workers = []
+    
+    def _create(repo_config):
+        with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
+            worker = MCPWorker(repo_config)
+            workers.append(worker)
+            return worker
+    
+    yield _create
+    
+    # Cleanup all workers
+    for worker in workers:
+        worker.cleanup()
+
+
 class TestMCPWorker:
     """Test cases for the unified MCP worker"""
 
-    def test_worker_initialization(self, temp_repo, mock_github_token, mock_subprocess):
+    def test_worker_initialization(self, mcp_worker_factory, temp_repo):
         """Test that the worker initializes correctly"""
-        with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            from repository_manager import RepositoryConfig
+        from repository_manager import RepositoryConfig
 
-            repo_config = RepositoryConfig.create_repository_config(
-                name="test-repo",
-                workspace=temp_repo,
-                description="Test repository",
-                language=Language.PYTHON,
-                port=8080,
-                python_path="/usr/bin/python3",
-            )
-            worker = MCPWorker(repo_config)
-
-            assert worker.repo_name == "test-repo"
-            assert worker.repo_path == temp_repo
-            assert worker.port == 8080
-            assert worker.description == "Test repository"
-            assert worker.language == Language.PYTHON
+        repo_config = RepositoryConfig.create_repository_config(
+            name="test-repo",
+            workspace=temp_repo,
+            description="Test repository",
+            language=Language.PYTHON,
+            port=8080,
+            python_path="/usr/bin/python3",
+        )
+        worker = mcp_worker_factory(repo_config)
+        
+        assert worker.repo_name == "test-repo"
+        assert worker.repo_path == temp_repo
+        assert worker.port == 8080
+        assert worker.description == "Test repository"
+        assert worker.language == Language.PYTHON
 
     def test_worker_invalid_path(self, mock_github_token):
         """Test that worker fails with invalid repository path"""
@@ -91,50 +108,48 @@ class TestMCPWorker:
             )
             MCPWorker(repo_config)
 
-    def test_fastapi_app_creation(self, temp_repo, mock_github_token, mock_subprocess):
+    def test_fastapi_app_creation(self, mcp_worker_factory, temp_repo):
         """Test that the FastAPI app is created correctly"""
-        with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            from repository_manager import RepositoryConfig
+        from repository_manager import RepositoryConfig
 
-            repo_config = RepositoryConfig.create_repository_config(
-                name="test-repo",
-                workspace=temp_repo,
-                description="Test repository",
-                language=Language.PYTHON,
-                port=8080,
-                python_path="/usr/bin/python3",
-            )
-            worker = MCPWorker(repo_config)
+        repo_config = RepositoryConfig.create_repository_config(
+            name="test-repo",
+            workspace=temp_repo,
+            description="Test repository",
+            language=Language.PYTHON,
+            port=8080,
+            python_path="/usr/bin/python3",
+        )
+        worker = mcp_worker_factory(repo_config)
 
-            assert worker.app is not None
-            assert worker.app.title == "MCP Worker - test-repo"
+        assert worker.app is not None
+        assert worker.app.title == "MCP Worker - test-repo"
 
-    def test_app_endpoints(self, temp_repo, mock_github_token, mock_subprocess):
+    def test_app_endpoints(self, mcp_worker_factory, temp_repo):
         """Test that the app has the correct endpoints"""
-        with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            from repository_manager import RepositoryConfig
+        from repository_manager import RepositoryConfig
 
-            repo_config = RepositoryConfig.create_repository_config(
-                name="test-repo",
-                workspace=temp_repo,
-                description="Test repository",
-                language=Language.PYTHON,
-                port=8080,
-                python_path="/usr/bin/python3",
-            )
-            worker = MCPWorker(repo_config)
+        repo_config = RepositoryConfig.create_repository_config(
+            name="test-repo",
+            workspace=temp_repo,
+            description="Test repository",
+            language=Language.PYTHON,
+            port=8080,
+            python_path="/usr/bin/python3",
+        )
+        worker = mcp_worker_factory(repo_config)
 
-            client = TestClient(worker.app)
+        client = TestClient(worker.app)
 
-            # Test root endpoint
-            response = client.get("/")
-            assert response.status_code == 200
-            data = response.json()
-            assert data["name"] == "MCP Worker - test-repo"
-            assert data["repository"] == "test-repo"
-            assert data["port"] == 8080
-            assert "github" in data["tool_categories"]
-            assert "codebase" in data["tool_categories"]
+        # Test root endpoint
+        response = client.get("/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "MCP Worker - test-repo"
+        assert data["repository"] == "test-repo"
+        assert data["port"] == 8080
+        assert "github" in data["tool_categories"]
+        assert "codebase" in data["tool_categories"]
 
     def test_health_endpoint(self, temp_repo, mock_github_token, mock_subprocess):
         """Test the health check endpoint"""

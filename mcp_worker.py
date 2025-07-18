@@ -253,6 +253,12 @@ class MCPWorker:
             self.logger.error(f"Failed to initialize symbol storage: {e}")
             raise
 
+    def cleanup(self) -> None:
+        """Clean up resources when worker is done."""
+        if hasattr(self, 'symbol_storage') and self.symbol_storage:
+            self.symbol_storage.close()
+            self.symbol_storage = None
+
     def _start_lsp_server(self) -> None:
         """Start LSP server for this repository if it's Python."""
         from constants import Language

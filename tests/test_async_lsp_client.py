@@ -11,7 +11,7 @@ import logging
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from async_lsp_client import (
     AsyncLSPClient,
@@ -554,7 +554,8 @@ class TestAsyncLSPClientIntegration(unittest.IsolatedAsyncioTestCase):
         client = AsyncLSPClient(
             self.server_manager, str(self.workspace), self.logger, protocol
         )
-        client._writer = AsyncMock()
+        client._writer = Mock()
+        client._writer.drain = AsyncMock()
 
         with self.assertRaises(asyncio.TimeoutError):
             await client._send_request("test/method", timeout=0.1)

@@ -16,6 +16,7 @@ from repository_indexer import PythonRepositoryIndexer
 from repository_manager import RepositoryConfig
 from startup_orchestrator import CodebaseStartupOrchestrator, IndexingStatusEnum
 from symbol_storage import SQLiteSymbolStorage
+from tests.conftest import SymbolStorageCloser
 
 
 class TestStartupOrchestratorIntegration:
@@ -134,6 +135,9 @@ class DataProcessor:
             )  # main.py, utils.py, processor.py
             assert status.duration is not None
             assert status.duration > 0
+            
+            # Clean up database connection
+            storage.close()
 
     @pytest.mark.asyncio
     async def test_full_startup_sequence_multiple_repositories(self):

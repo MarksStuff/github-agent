@@ -523,6 +523,31 @@ def in_memory_symbol_storage():
 
 
 @pytest.fixture
+def temp_symbol_storage(tmp_path):
+    """Create a temporary file-based SQLite symbol storage for testing."""
+    db_path = tmp_path / "test_symbols.db"
+    storage = SQLiteSymbolStorage(str(db_path))
+    yield storage
+    storage.close()
+
+
+class SymbolStorageCloser:
+    """Context manager to ensure SQLiteSymbolStorage is properly closed."""
+    
+    def __init__(self, db_path):
+        self.db_path = db_path
+        self.storage = None
+    
+    def __enter__(self):
+        self.storage = SQLiteSymbolStorage(str(self.db_path))
+        return self.storage
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.storage:
+            self.storage.close()
+
+
+@pytest.fixture
 def mock_symbol_extractor():
     """Create an empty mock symbol extractor."""
     return MockSymbolExtractor()
