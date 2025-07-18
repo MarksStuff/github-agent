@@ -43,7 +43,7 @@ from lsp_constants import DEFAULT_LSP_SERVER_TYPE, LSPServerType
 # Removed direct import of PyrightLSPManager - now using factory pattern
 
 # Type for LSP client provider
-LSPClientProvider = Callable[[str, str, str], "AbstractAsyncLSPClient"]
+LSPClientProvider = Callable[[str, str, LSPServerType], "AbstractAsyncLSPClient"]
 
 
 class AbstractRepositoryManager(abc.ABC):
@@ -484,11 +484,7 @@ class RepositoryManager(AbstractRepositoryManager):
         """Default LSP client provider that creates AsyncLSPClient instances."""
         # Import here to avoid circular imports
         from async_lsp_client import AsyncLSPClient
-        from lsp_server_factory import LSPServerFactory
 
-        server_manager = LSPServerFactory.create_server_manager(
-            server_type.value, workspace_root, python_path
-        )
         return AsyncLSPClient.create(workspace_root, python_path)
 
     @classmethod

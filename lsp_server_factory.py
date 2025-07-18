@@ -40,17 +40,17 @@ class LSPServerFactory:
             from pylsp_manager import PylspManager
 
             logger.info(f"Creating pylsp manager for workspace: {workspace_path}")
-            manager = PylspManager(workspace_path, python_path)
+            pylsp_manager: LSPServerManager = PylspManager(workspace_path, python_path)
             # Availability check is performed during manager initialization
-            return manager
+            return pylsp_manager
 
         elif server_type == LSPServerType.PYRIGHT.value:
             from pyright_lsp_manager import PyrightLSPManager
 
             logger.info(f"Creating pyright manager for workspace: {workspace_path}")
-            manager = PyrightLSPManager(workspace_path, python_path)
+            pyright_manager: LSPServerManager = PyrightLSPManager(workspace_path, python_path)
             # Availability check is performed during manager initialization
-            return manager
+            return pyright_manager
 
         else:
             supported_types = [LSPServerType.PYLSP.value, LSPServerType.PYRIGHT.value]

@@ -195,6 +195,18 @@ class AbstractAsyncLSPClient(ABC):
         """Get document symbols."""
         pass
 
+    @property
+    @abstractmethod
+    def state(self) -> "AsyncLSPClientState":
+        """Get the current client state."""
+        pass
+
+    @state.setter
+    @abstractmethod
+    def state(self, value: "AsyncLSPClientState") -> None:
+        """Set the current client state."""
+        pass
+
 
 class AsyncLSPClient(AbstractAsyncLSPClient):
     """
@@ -239,7 +251,7 @@ class AsyncLSPClient(AbstractAsyncLSPClient):
         self.server_capabilities: dict[str, Any] = {}
 
         # Connection state
-        self.state = AsyncLSPClientState.DISCONNECTED
+        self._state = AsyncLSPClientState.DISCONNECTED
         self._server_process: asyncio.subprocess.Process | None = None
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
@@ -348,8 +360,8 @@ class AsyncLSPClient(AbstractAsyncLSPClient):
 
     def _set_state(self, new_state: AsyncLSPClientState) -> None:
         """Set client state with logging."""
-        old_state = self.state
-        self.state = new_state
+        old_state = self._state
+        self._state = new_state
         self.logger.info(f"🔄 State change: {old_state.value} → {new_state.value}")
 
     def _log_stats(self) -> None:
@@ -930,3 +942,13 @@ class AsyncLSPClient(AbstractAsyncLSPClient):
         except Exception as e:
             self.logger.error(f"❌ Document symbols request failed: {e}")
             return None
+
+    @property
+    def state(self) -> AsyncLSPClientState:
+        """Get the current client state."""
+        return self._state
+
+    @state.setter
+    def state(self, value: AsyncLSPClientState) -> None:
+        """Set the current client state."""
+        self._state = value

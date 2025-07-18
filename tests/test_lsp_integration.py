@@ -22,7 +22,7 @@ class SimpleLSPClient(AbstractAsyncLSPClient):
         self.server_manager = server_manager
         self.workspace_root = workspace_root
         self.logger = logger
-        self.state = AsyncLSPClientState.DISCONNECTED
+        self._state = AsyncLSPClientState.DISCONNECTED
         self.server_process = None
         self.server_capabilities = {}
         self.communication_mode = server_manager.get_communication_mode()
@@ -33,18 +33,18 @@ class SimpleLSPClient(AbstractAsyncLSPClient):
 
     async def start(self) -> bool:
         """Mock start implementation."""
-        self.state = AsyncLSPClientState.INITIALIZED
+        self._state = AsyncLSPClientState.INITIALIZED
         return True
 
     async def stop(self) -> bool:
         """Mock stop implementation."""
-        self.state = AsyncLSPClientState.DISCONNECTED
+        self._state = AsyncLSPClientState.DISCONNECTED
         self.server_process = None
         return True
 
     def is_initialized(self) -> bool:
         """Check if client is initialized."""
-        return self.state == AsyncLSPClientState.INITIALIZED
+        return self._state == AsyncLSPClientState.INITIALIZED
 
     def get_server_capabilities(self) -> dict[str, Any]:
         """Get server capabilities."""
@@ -61,19 +61,19 @@ class SimpleLSPClient(AbstractAsyncLSPClient):
     # State management methods for tests
     def _set_state_connecting(self) -> None:
         """Mock state transition."""
-        self.state = AsyncLSPClientState.CONNECTING
+        self._state = AsyncLSPClientState.CONNECTING
 
     def _set_state_initialized(self) -> None:
         """Mock state transition."""
-        self.state = AsyncLSPClientState.INITIALIZED
+        self._state = AsyncLSPClientState.INITIALIZED
 
     def _set_state_error(self, error: str) -> None:
         """Mock state transition."""
-        self.state = AsyncLSPClientState.ERROR
+        self._state = AsyncLSPClientState.ERROR
 
     def _set_state_disconnected(self) -> None:
         """Mock state transition."""
-        self.state = AsyncLSPClientState.DISCONNECTED
+        self._state = AsyncLSPClientState.DISCONNECTED
 
     async def get_definition(self, uri, line, character):
         return None
@@ -86,6 +86,16 @@ class SimpleLSPClient(AbstractAsyncLSPClient):
 
     async def get_document_symbols(self, uri):
         return None
+
+    @property
+    def state(self) -> AsyncLSPClientState:
+        """Get the current client state."""
+        return self._state
+
+    @state.setter
+    def state(self, value: AsyncLSPClientState) -> None:
+        """Set the current client state."""
+        self._state = value
 
 
 class MockServerManager(LSPServerManager):

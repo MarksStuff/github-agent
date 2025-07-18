@@ -17,6 +17,7 @@ import pytest
 import codebase_tools
 import mcp_master
 from async_lsp_client import AbstractAsyncLSPClient, AsyncLSPClientState
+from lsp_constants import LSPServerType
 from python_symbol_extractor import AbstractSymbolExtractor, PythonSymbolExtractor
 from repository_indexer import (
     AbstractRepositoryIndexer,
@@ -73,7 +74,7 @@ class MockLSPClient(AbstractAsyncLSPClient):
     ):
         # Don't call super().__init__ to avoid needing server_manager
         self.workspace_root = workspace_root
-        self.state = state
+        self._state = state
         self.logger = logging.getLogger(__name__)
 
         # Mock responses that can be set by tests
@@ -154,6 +155,16 @@ class MockLSPClient(AbstractAsyncLSPClient):
         """Set the result for start method calls."""
         self._start_result = result
 
+    @property
+    def state(self) -> AsyncLSPClientState:
+        """Get the current client state."""
+        return self._state
+
+    @state.setter
+    def state(self, value: AsyncLSPClientState) -> None:
+        """Set the current client state."""
+        self._state = value
+
 
 @pytest.fixture(scope="session")
 def temp_dir():
@@ -169,7 +180,7 @@ def mock_repository_manager():
 
 
 def mock_lsp_client_provider(
-    workspace_root: str, python_path: str, server_type: str = "pylsp"
+    workspace_root: str, python_path: str, server_type: LSPServerType = LSPServerType.PYLSP
 ) -> MockLSPClient:
     """Provider function to create mock LSP clients for dependency injection."""
     return MockLSPClient(workspace_root=workspace_root)
