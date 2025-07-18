@@ -74,7 +74,7 @@ class TestClass:
 
         shutil.rmtree(self.temp_dir)
 
-    async def test_lsp_server_lifecycle(self):
+    async def _test_lsp_server_lifecycle(self):
         """Test complete LSP server lifecycle: start -> use -> stop."""
 
         # Use mock LSP client for testing to avoid pyright dependencies
@@ -209,7 +209,7 @@ class TestClass:
         """Sync wrapper for the async test."""
         # Use asyncio.run with proper cleanup
         try:
-            asyncio.run(self.test_lsp_server_lifecycle())
+            asyncio.run(self._test_lsp_server_lifecycle())
         except Exception as e:
             # Clean up any remaining async resources
             import gc

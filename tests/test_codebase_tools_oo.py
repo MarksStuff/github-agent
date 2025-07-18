@@ -261,7 +261,7 @@ class TestClass:
         tools_list = self.tools.get_tools("test-repo", self.test_repo_path)
 
         self.assertIsInstance(tools_list, list)
-        self.assertEqual(len(tools_list), 4)  # 4 tools defined
+        self.assertEqual(len(tools_list), 5)  # 5 tools defined
 
         tool_names = [tool["name"] for tool in tools_list]
         expected_tools = [
@@ -269,6 +269,7 @@ class TestClass:
             "search_symbols",
             "find_definition",
             "find_references",
+            "find_hover",
         ]
 
         for expected_tool in expected_tools:
