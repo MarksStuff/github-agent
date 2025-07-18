@@ -742,7 +742,14 @@ class AsyncLSPClient:
 
         try:
             response = await self._send_request("textDocument/definition", params)
-            return response.result
+            result = response.result
+            if result is None:
+                return None
+            # Ensure we always return a list
+            if isinstance(result, list):
+                return result
+            else:
+                return [result]
         except Exception as e:
             self.logger.error(f"❌ Definition request failed: {e}")
             return None
@@ -762,7 +769,14 @@ class AsyncLSPClient:
 
         try:
             response = await self._send_request("textDocument/references", params)
-            return response.result
+            result = response.result
+            if result is None:
+                return None
+            # Ensure we always return a list
+            if isinstance(result, list):
+                return result
+            else:
+                return [result]
         except Exception as e:
             self.logger.error(f"❌ References request failed: {e}")
             return None
@@ -795,7 +809,14 @@ class AsyncLSPClient:
 
         try:
             response = await self._send_request("textDocument/documentSymbol", params)
-            return response.result
+            result = response.result
+            if result is None:
+                return None
+            # Ensure we always return a list
+            if isinstance(result, list):
+                return result
+            else:
+                return [result]
         except Exception as e:
             self.logger.error(f"❌ Document symbols request failed: {e}")
             return None

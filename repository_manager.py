@@ -19,9 +19,15 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from git import InvalidGitRepositoryError, Repo
+
+if TYPE_CHECKING:
+    from async_lsp_client import AsyncLSPClient
+else:
+    # Runtime import to avoid circular imports
+    AsyncLSPClient = None
 
 from constants import (
     GITHUB_HTTPS_PREFIX,
@@ -36,7 +42,7 @@ from lsp_client import AbstractLSPClient, LSPClientState
 # Removed direct import of PyrightLSPManager - now using factory pattern
 
 # Type for LSP client provider
-LSPClientProvider = Callable[[str, str], AbstractLSPClient]
+LSPClientProvider = Callable[[str, str, str], "AsyncLSPClient"]
 
 
 class AbstractRepositoryManager(abc.ABC):
@@ -460,7 +466,7 @@ class RepositoryManager(AbstractRepositoryManager):
         )
 
         # LSP server management
-        self._lsp_clients: dict[str, AbstractLSPClient] = {}
+        self._lsp_clients: dict[str, AbstractLSPClient | AsyncLSPClient] = {}
         # Removed _lsp_managers - now managed internally by LSP clients
         self._lsp_lock = threading.Lock()
 
@@ -470,16 +476,16 @@ class RepositoryManager(AbstractRepositoryManager):
 
     def _default_lsp_client_provider(
         self, workspace_root: str, python_path: str, server_type: str = "pylsp"
-    ) -> AbstractLSPClient:
-        """Default LSP client provider that creates AsyncCodebaseLSPClient instances."""
+    ) -> "AsyncLSPClient":
+        """Default LSP client provider that creates AsyncLSPClient instances."""
         # Import here to avoid circular imports
-        from async_codebase_lsp_client import AsyncCodebaseLSPClient
+        from async_lsp_client import AsyncLSPClient
+        from lsp_server_factory import LSPServerFactory
 
-        return AsyncCodebaseLSPClient(
-            workspace_root=workspace_root,
-            python_path=python_path,
-            server_type=server_type,
+        server_manager = LSPServerFactory.create_server_manager(
+            server_type, workspace_root, python_path
         )
+        return AsyncLSPClient(server_manager, workspace_root)
 
     @classmethod
     def create_from_config(cls, config_path: str) -> "RepositoryManager":
@@ -948,9 +954,10 @@ class RepositoryManager(AbstractRepositoryManager):
                 )
                 return False
 
-        return self.start_lsp_server(repo_name)
+        result = self.start_lsp_server(repo_name)
+        return result if result is not None else False
 
-    def get_lsp_client(self, repo_name: str) -> AbstractLSPClient | None:
+    def get_lsp_client(self, repo_name: str) -> AbstractLSPClient | AsyncLSPClient | None:
         """
         Get LSP client for a repository.
 

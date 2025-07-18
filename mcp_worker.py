@@ -30,7 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 import github_tools
-from codebase_tools import CodebaseLSPClient, CodebaseTools
+from codebase_tools import CodebaseTools, create_async_lsp_client
 from constants import DATA_DIR, LOGS_DIR, SYMBOLS_DB_PATH, Language
 from github_tools import (
     GitHubAPIContext,
@@ -189,7 +189,7 @@ class MCPWorker:
             self.codebase_tools_instance = CodebaseTools(
                 repository_manager=github_temp_repo_manager,
                 symbol_storage=default_symbol_storage,
-                lsp_client_factory=CodebaseLSPClient,
+                lsp_client_factory=create_async_lsp_client,
             )
             self.logger.debug("CodebaseTools instance created successfully")
         except Exception as e:

@@ -118,7 +118,7 @@ class TestClass:
 
             # Step 6a: Test find_definition and find_references if LSP server is actually running
             if lsp_client.state == LSPClientState.INITIALIZED:
-                from codebase_tools import CodebaseLSPClient, CodebaseTools
+                from codebase_tools import CodebaseTools, create_async_lsp_client
                 from symbol_storage import SQLiteSymbolStorage
 
                 # Create codebase tools instance to test find_definition/find_references
@@ -126,7 +126,7 @@ class TestClass:
                 codebase_tools = CodebaseTools(
                     repository_manager=repository_manager,
                     symbol_storage=symbol_storage,
-                    lsp_client_factory=CodebaseLSPClient,
+                    lsp_client_factory=create_async_lsp_client,
                 )
 
                 # Test find_definition for TestClass (line 5, column 7 in our test file)

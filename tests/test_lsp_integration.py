@@ -50,6 +50,18 @@ class MockServerManager(LSPServerManager):
     def validate_server_response(self, response):
         return "capabilities" in response
 
+    def validate_configuration(self) -> bool:
+        """Mock validate configuration."""
+        return True
+
+    def prepare_workspace(self) -> bool:
+        """Mock prepare workspace."""
+        return True
+
+    def cleanup_workspace(self) -> bool:
+        """Mock cleanup workspace."""
+        return True
+
 
 class TestLSPIntegration:
     """Simple smoke tests for LSP integration."""

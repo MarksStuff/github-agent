@@ -676,10 +676,10 @@ def mcp_master_factory():
         health_monitor = SimpleHealthMonitor(test_logger)
 
         # Create CodebaseTools instance
-        from codebase_tools import CodebaseLSPClient
+        from codebase_tools import create_async_lsp_client
 
         def mock_lsp_client_factory(workspace: str, python_path: str):
-            return CodebaseLSPClient(workspace, python_path)
+            return create_async_lsp_client(workspace, python_path)
 
         from codebase_tools import CodebaseTools
 
@@ -757,12 +757,10 @@ def lsp_client_factory_factory():
             return mock_lsp_client_factory
         else:
             # Use real LSP client factory for testing
-            from codebase_tools import CodebaseLSPClient
+            from codebase_tools import create_async_lsp_client
 
-            def real_lsp_client_factory(
-                workspace_root: str, python_path: str
-            ) -> CodebaseLSPClient:
-                return CodebaseLSPClient(
+            def real_lsp_client_factory(workspace_root: str, python_path: str):
+                return create_async_lsp_client(
                     workspace_root=workspace_root, python_path=python_path
                 )
 

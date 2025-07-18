@@ -176,7 +176,7 @@ class PyrightLSPManager(LSPServerManager):
 
         return [{"uri": workspace_uri, "name": workspace_name}]
 
-    def prepare_workspace(self) -> None:
+    def prepare_workspace(self) -> bool:
         """Prepare the workspace for pyright analysis."""
         self.logger.debug(f"Preparing workspace: {self.workspace_path}")
 
@@ -188,10 +188,12 @@ class PyrightLSPManager(LSPServerManager):
             self.logger.warning(
                 f"Workspace {self.workspace_path} may not be a valid Python project"
             )
+            return False
         else:
             self.logger.debug(
                 f"Workspace {self.workspace_path} is a valid Python project"
             )
+            return True
 
     def _create_pyright_config(self) -> None:
         """Create or update pyrightconfig.json for the workspace."""

@@ -46,6 +46,18 @@ class MockLSPServerManager(LSPServerManager):
     def validate_server_response(self, response):
         return True
 
+    def validate_configuration(self) -> bool:
+        """Mock validate configuration."""
+        return True
+
+    def prepare_workspace(self) -> bool:
+        """Mock prepare workspace."""
+        return True
+
+    def cleanup_workspace(self) -> bool:
+        """Mock cleanup workspace."""
+        return True
+
 
 class MockLSPClient(AbstractLSPClient):
     """Mock implementation of AbstractLSPClient for testing."""

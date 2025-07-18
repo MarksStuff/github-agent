@@ -14,9 +14,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar
 
+from async_lsp_client import AsyncLSPClient, AsyncLSPClientState
 from constants import Language
-from lsp_client import AbstractLSPClient, LSPClientState
-from lsp_constants import LSPMethod
 from repository_manager import AbstractRepositoryManager
 from symbol_storage import AbstractSymbolStorage
 
@@ -24,109 +23,18 @@ logger = logging.getLogger(__name__)
 
 
 # Type for LSP client factory
-LSPClientFactory = Callable[[str, str], AbstractLSPClient]
+LSPClientFactory = Callable[[str, str], AsyncLSPClient]
 
 
-# LSP Tools Implementation
-class CodebaseLSPClient(AbstractLSPClient):
-    """Concrete LSP client implementation for codebase tools."""
+def create_async_lsp_client(workspace_root: str, python_path: str) -> AsyncLSPClient:
+    """Factory function to create AsyncLSPClient instances."""
+    from lsp_server_factory import create_default_python_lsp_manager
 
-    def __init__(
-        self, workspace_root: str, python_path: str, server_type: str | None = None
-    ):
-        """Initialize the LSP client for codebase operations.
+    server_manager = create_default_python_lsp_manager(workspace_root, python_path)
+    return AsyncLSPClient(server_manager, workspace_root)
 
-        Args:
-            workspace_root: Path to the workspace root
-            python_path: Path to the Python interpreter
-            server_type: LSP server type to use (defaults to pylsp)
-        """
-        from lsp_server_factory import (
-            LSPServerFactory,
-            create_default_python_lsp_manager,
-        )
 
-        if server_type:
-            server_manager = LSPServerFactory.create_server_manager(
-                server_type, workspace_root, python_path
-            )
-        else:
-            # Use default (pylsp) for better reliability
-            server_manager = create_default_python_lsp_manager(
-                workspace_root, python_path
-            )
-
-        super().__init__(
-            server_manager=server_manager,
-            workspace_root=workspace_root,
-            logger=logger,
-        )
-
-    async def get_definition(
-        self, uri: str, line: int, character: int
-    ) -> list[dict[str, Any]] | None:
-        """Get definition for a symbol using LSP."""
-        definition_params = {
-            "textDocument": {"uri": uri},
-            "position": {"line": line, "character": character},
-        }
-        request = self.protocol.create_request(LSPMethod.DEFINITION, definition_params)
-        response = await self._send_request(request, timeout=10.0)
-        return response.get("result") if response else None
-
-    async def get_references(
-        self, uri: str, line: int, character: int, include_declaration: bool = True
-    ) -> list[dict[str, Any]] | None:
-        """Get references for a symbol using LSP."""
-        references_params = {
-            "textDocument": {"uri": uri},
-            "position": {"line": line, "character": character},
-            "context": {"includeDeclaration": include_declaration},
-        }
-        request = self.protocol.create_request(LSPMethod.REFERENCES, references_params)
-        response = await self._send_request(request, timeout=15.0)
-        return response.get("result") if response else None
-
-    async def get_hover(
-        self, uri: str, line: int, character: int
-    ) -> dict[str, Any] | None:
-        """Get hover information for a symbol using LSP."""
-        hover_params = {
-            "textDocument": {"uri": uri},
-            "position": {"line": line, "character": character},
-        }
-        request = self.protocol.create_request(LSPMethod.HOVER, hover_params)
-        response = await self._send_request(request, timeout=5.0)
-        return response.get("result") if response else None
-
-    async def get_document_symbols(self, uri: str) -> list[dict[str, Any]] | None:
-        """Get document symbols using LSP."""
-        symbols_params = {"textDocument": {"uri": uri}}
-        request = self.protocol.create_request(
-            LSPMethod.DOCUMENT_SYMBOLS, symbols_params
-        )
-        response = await self._send_request(request, timeout=10.0)
-        return response.get("result") if response else None
-
-    async def connect(self) -> bool:
-        """Connect to the LSP server."""
-        try:
-            if not await self._start_server():
-                return False
-
-            self._start_reader_thread()
-
-            if not await self._initialize_connection():
-                return False
-
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to connect to LSP server: {e}")
-            return False
-
-    async def disconnect(self) -> None:
-        """Disconnect from the LSP server."""
-        await self.stop()
+# LSP Tools Implementation - Now using AsyncLSPClient directly
 
 
 class CodebaseTools:
@@ -162,7 +70,7 @@ class CodebaseTools:
 
         # Thread safety for LSP client cache
         self._lsp_lock = threading.Lock()
-        self._lsp_clients: dict[str, AbstractLSPClient] = {}
+        self._lsp_clients: dict[str, AsyncLSPClient] = {}
 
     def _user_friendly_to_lsp_position(self, line: int, column: int) -> dict:
         """Convert user-friendly (1-based) coordinates to LSP (0-based) coordinates."""
@@ -874,7 +782,7 @@ class CodebaseTools:
                 }
             )
 
-    async def _get_lsp_client(self, repository_id: str) -> AbstractLSPClient | None:
+    async def _get_lsp_client(self, repository_id: str) -> AsyncLSPClient | None:
         """Get LSP client for a repository from the repository manager."""
         self.logger.debug(f"Getting LSP client for repository '{repository_id}'")
 
@@ -903,7 +811,7 @@ class CodebaseTools:
                 self.logger.debug(
                     f"Found existing LSP client with state: {existing_client.state}"
                 )
-                if existing_client.state == LSPClientState.INITIALIZED:
+                if existing_client.state == AsyncLSPClientState.INITIALIZED:
                     self.logger.debug("Returning existing healthy LSP client")
                     return existing_client
                 else:
@@ -933,7 +841,7 @@ class CodebaseTools:
             try:
                 self.logger.debug("Creating new LSP client using factory")
                 # Create new LSP client using the factory
-                new_client: AbstractLSPClient = self.lsp_client_factory(
+                new_client: AsyncLSPClient = self.lsp_client_factory(
                     repo_config.workspace,
                     repo_config.python_path,
                 )
