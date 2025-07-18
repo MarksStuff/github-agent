@@ -254,6 +254,7 @@ class TestAsyncLSPClientBasics(unittest.IsolatedAsyncioTestCase):
         message, remaining = result
 
         self.assertIsNotNone(message)
+        assert message is not None  # Help mypy with type narrowing
         self.assertEqual(message.method, "test")
         self.assertEqual(remaining, b"")
 
@@ -274,6 +275,7 @@ class TestAsyncLSPClientBasics(unittest.IsolatedAsyncioTestCase):
         message, remaining = result
 
         self.assertIsNotNone(message)
+        assert message is not None  # Help mypy with type narrowing
         self.assertEqual(message.method, "test1")
 
         # Remaining should contain second message
@@ -342,7 +344,7 @@ class TestAsyncLSPClientMessageHandling(unittest.IsolatedAsyncioTestCase):
         """Test response handling."""
         # Set up pending request
         request_id = "test-123"
-        future = asyncio.Future()
+        future: asyncio.Future[LSPMessage] = asyncio.Future()
         self.client._pending_requests[request_id] = future
 
         # Create response message
@@ -377,45 +379,43 @@ class TestAsyncLSPClientMessageHandling(unittest.IsolatedAsyncioTestCase):
     async def test_handle_request_workspace_configuration(self):
         """Test handling workspace/configuration request."""
         # Mock _send_message
-        self.client._send_message = AsyncMock()
+        with patch.object(self.client, '_send_message', new_callable=AsyncMock) as mock_send:
+            request_content = {
+                "jsonrpc": "2.0",
+                "id": "config-123",
+                "method": "workspace/configuration",
+                "params": {},
+            }
+            request_message = LSPMessage(request_content)
 
-        request_content = {
-            "jsonrpc": "2.0",
-            "id": "config-123",
-            "method": "workspace/configuration",
-            "params": {},
-        }
-        request_message = LSPMessage(request_content)
+            await self.client._handle_request(request_message)
 
-        await self.client._handle_request(request_message)
-
-        # Should send response
-        self.client._send_message.assert_called_once()
-        sent_response = self.client._send_message.call_args[0][0]
-        self.assertEqual(sent_response["id"], "config-123")
-        self.assertEqual(sent_response["result"], {})
+            # Should send response
+            mock_send.assert_called_once()
+            sent_response = mock_send.call_args[0][0]
+            self.assertEqual(sent_response["id"], "config-123")
+            self.assertEqual(sent_response["result"], {})
 
     async def test_handle_request_unknown_method(self):
         """Test handling unknown request method."""
         # Mock _send_message
-        self.client._send_message = AsyncMock()
+        with patch.object(self.client, '_send_message', new_callable=AsyncMock) as mock_send:
+            request_content = {
+                "jsonrpc": "2.0",
+                "id": "unknown-123",
+                "method": "unknown/method",
+                "params": {},
+            }
+            request_message = LSPMessage(request_content)
 
-        request_content = {
-            "jsonrpc": "2.0",
-            "id": "unknown-123",
-            "method": "unknown/method",
-            "params": {},
-        }
-        request_message = LSPMessage(request_content)
+            await self.client._handle_request(request_message)
 
-        await self.client._handle_request(request_message)
-
-        # Should send error response
-        self.client._send_message.assert_called_once()
-        sent_response = self.client._send_message.call_args[0][0]
-        self.assertEqual(sent_response["id"], "unknown-123")
-        self.assertIn("error", sent_response)
-        self.assertEqual(sent_response["error"]["code"], -32601)
+            # Should send error response
+            mock_send.assert_called_once()
+            sent_response = mock_send.call_args[0][0]
+            self.assertEqual(sent_response["id"], "unknown-123")
+            self.assertIn("error", sent_response)
+            self.assertEqual(sent_response["error"]["code"], -32601)
 
     async def test_handle_notification_show_message(self):
         """Test handling window/showMessage notification."""
@@ -545,12 +545,11 @@ class TestAsyncLSPClientIntegration(unittest.IsolatedAsyncioTestCase):
                 future = client._pending_requests[request_id]
                 future.set_result(error_response)
 
-        client._send_message = mock_send_message
+        with patch.object(client, '_send_message', side_effect=mock_send_message):
+            with self.assertRaises(RuntimeError) as cm:
+                await client._send_request("test/method")
 
-        with self.assertRaises(RuntimeError) as cm:
-            await client._send_request("test/method")
-
-        self.assertIn("Invalid params", str(cm.exception))
+            self.assertIn("Invalid params", str(cm.exception))
 
 
 if __name__ == "__main__":

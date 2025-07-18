@@ -302,11 +302,11 @@ def find_max(numbers: List[int]) -> Optional[int]:
         self.assertIsNotNone(manager.get_lsp_client("repo2"))
 
         # Stop all LSP servers
-        results = manager.stop_all_lsp_servers()
+        stop_results: dict[str, bool] = manager.stop_all_lsp_servers()
 
-        self.assertEqual(len(results), 2)
-        self.assertTrue(results["repo1"])
-        self.assertTrue(results["repo2"])
+        self.assertEqual(len(stop_results), 2)
+        self.assertTrue(stop_results["repo1"])
+        self.assertTrue(stop_results["repo2"])
 
     def test_lsp_error_handling(self):
         """Test LSP error handling for various failure scenarios"""

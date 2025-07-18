@@ -103,8 +103,8 @@ class TestClass:
         # Step 2: Start LSP servers (this should work without errors)
         lsp_results = {}
         for repo_name in repository_manager.repositories:
-            success = await repository_manager.start_lsp_server_async(repo_name)
-            lsp_results[repo_name] = success
+            lsp_success: bool | None = await repository_manager.start_lsp_server_async(repo_name)
+            lsp_results[repo_name] = lsp_success if lsp_success is not None else False
 
         # Step 3: Verify LSP server started successfully
         self.assertTrue(
