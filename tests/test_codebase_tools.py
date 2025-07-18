@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from codebase_tools import CodebaseTools
-from lsp_client import AbstractLSPClient
+from async_lsp_client import AbstractAsyncLSPClient
 from repository_manager import AbstractRepositoryManager
 from symbol_storage import AbstractSymbolStorage, Symbol, SymbolKind
 
@@ -109,7 +109,7 @@ class MockSymbolStorage(AbstractSymbolStorage):
         return self.symbols.get(repo_name, [])
 
 
-class MockLSPClient(AbstractLSPClient):
+class MockLSPClient(AbstractAsyncLSPClient):
     """Mock LSP client for testing"""
 
     def __init__(self, workspace: str, python_path: str):
@@ -139,7 +139,7 @@ class MockLSPClient(AbstractLSPClient):
         return []
 
 
-def mock_lsp_client_factory(workspace: str, python_path: str) -> AbstractLSPClient:
+def mock_lsp_client_factory(workspace: str, python_path: str) -> AbstractAsyncLSPClient:
     """Mock LSP client factory"""
     return MockLSPClient(workspace, python_path)
 

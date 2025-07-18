@@ -10,10 +10,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from lsp_client import (
-    AbstractLSPClient,
-    LSPClientState,
-)
+from async_lsp_client import AbstractAsyncLSPClient, AsyncLSPClientState
+from lsp_client import LSPClientState
 from lsp_constants import LSPMethod
 from lsp_server_manager import LSPCommunicationMode, LSPServerManager
 
@@ -59,8 +57,33 @@ class MockLSPServerManager(LSPServerManager):
         return True
 
 
-class MockLSPClient(AbstractLSPClient):
-    """Mock implementation of AbstractLSPClient for testing."""
+class MockLSPClient(AbstractAsyncLSPClient):
+    """Mock implementation of AbstractAsyncLSPClient for testing."""
+
+    def __init__(self, server_manager, workspace_root, logger):
+        """Initialize mock LSP client."""
+        self.server_manager = server_manager
+        self.workspace_root = workspace_root
+        self.logger = logger
+        self.state = AsyncLSPClientState.DISCONNECTED
+        self.server_process = None
+        self.server_capabilities = {}
+        self.communication_mode = server_manager.get_communication_mode()
+
+    async def start(self) -> bool:
+        """Mock start implementation."""
+        self.state = AsyncLSPClientState.INITIALIZED
+        return True
+
+    async def stop(self) -> bool:
+        """Mock stop implementation."""
+        self.state = AsyncLSPClientState.DISCONNECTED
+        self.server_process = None
+        return True
+
+    def is_initialized(self) -> bool:
+        """Check if client is initialized."""
+        return self.state == AsyncLSPClientState.INITIALIZED
 
     async def get_definition(self, uri, line, character):
         """Mock implementation."""
@@ -111,8 +134,8 @@ class TestLSPServerManager:
         assert manager.validate_server_response({}) is True
 
 
-class TestAbstractLSPClient:
-    """Test abstract LSP client implementation."""
+class TestAbstractAsyncLSPClient:
+    """Test abstract async LSP client implementation."""
 
     def setup_method(self):
         """Set up test fixtures."""
@@ -130,7 +153,7 @@ class TestAbstractLSPClient:
         assert self.client.server_manager == self.server_manager
         assert self.client.workspace_root == self.workspace_root
         assert self.client.logger == self.logger
-        assert self.client.state == LSPClientState.DISCONNECTED
+        assert self.client.state == AsyncLSPClientState.DISCONNECTED
         assert self.client.server_process is None
         assert self.client.server_capabilities == {}
         assert self.client.communication_mode == LSPCommunicationMode.STDIO
@@ -147,7 +170,7 @@ class TestAbstractLSPClient:
         """Test is_initialized method."""
         assert not self.client.is_initialized()
 
-        self.client.state = LSPClientState.INITIALIZED
+        self.client.state = AsyncLSPClientState.INITIALIZED
         assert self.client.is_initialized()
 
     def test_get_server_capabilities(self):
@@ -489,7 +512,7 @@ class TestAbstractLSPClient:
 
         # Set up client state
         self.client.server_process = mock_process
-        self.client.state = LSPClientState.INITIALIZED
+        self.client.state = AsyncLSPClientState.INITIALIZED
         self.client._stop_event = threading.Event()
 
         # Mock _send_message
@@ -497,7 +520,7 @@ class TestAbstractLSPClient:
 
         await self.client.stop()
 
-        assert self.client.state == LSPClientState.DISCONNECTED
+        assert self.client.state == AsyncLSPClientState.DISCONNECTED
         assert self.client.server_process is None
         self.client._send_message.assert_called()  # Should send exit notification
 
@@ -513,7 +536,7 @@ class TestAbstractLSPClient:
 
         # Set up client state
         self.client.server_process = mock_process
-        self.client.state = LSPClientState.INITIALIZED
+        self.client.state = AsyncLSPClientState.INITIALIZED
         self.client._stop_event = threading.Event()
 
         # Mock _send_message
@@ -521,7 +544,7 @@ class TestAbstractLSPClient:
 
         await self.client.stop()
 
-        assert self.client.state == LSPClientState.DISCONNECTED
+        assert self.client.state == AsyncLSPClientState.DISCONNECTED
         assert self.client.server_process is None
         mock_process.terminate.assert_called_once()
 
@@ -537,7 +560,7 @@ class TestAbstractLSPClient:
 
         # Set up client state
         self.client.server_process = mock_process
-        self.client.state = LSPClientState.INITIALIZED
+        self.client.state = AsyncLSPClientState.INITIALIZED
         self.client._stop_event = threading.Event()
 
         # Mock _send_message
@@ -545,7 +568,7 @@ class TestAbstractLSPClient:
 
         await self.client.stop()
 
-        assert self.client.state == LSPClientState.DISCONNECTED
+        assert self.client.state == AsyncLSPClientState.DISCONNECTED
         assert self.client.server_process is None
         mock_process.terminate.assert_called_once()
         mock_process.kill.assert_called_once()

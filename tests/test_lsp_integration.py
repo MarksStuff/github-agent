@@ -8,12 +8,12 @@ correctly without requiring a full mock server setup.
 import tempfile
 from unittest.mock import Mock
 
-from lsp_client import AbstractLSPClient, LSPClientState
+from async_lsp_client import AbstractAsyncLSPClient, AsyncLSPClientState
 from lsp_server_manager import LSPCommunicationMode, LSPServerManager
 from pyright_lsp_manager import PyrightLSPManager
 
 
-class SimpleLSPClient(AbstractLSPClient):
+class SimpleLSPClient(AbstractAsyncLSPClient):
     """Minimal LSP client implementation for smoke testing."""
 
     async def get_definition(self, uri, line, character):
@@ -79,7 +79,7 @@ class TestLSPIntegration:
             assert client.server_manager is server_manager
             assert client.workspace_root == temp_dir
             assert client.logger is logger
-            assert client.state == LSPClientState.DISCONNECTED
+            assert client.state == AsyncLSPClientState.DISCONNECTED
             assert not client.is_initialized()
 
     def test_pyright_manager_creation(self):
@@ -161,21 +161,21 @@ class TestLSPIntegration:
             )
 
             # Test initial state
-            assert client.state == LSPClientState.DISCONNECTED
+            assert client.state == AsyncLSPClientState.DISCONNECTED
             assert not client.is_initialized()
 
             # Test state transitions (without actually starting server)
             client._set_state_connecting()
-            assert client.state == LSPClientState.CONNECTING
+            assert client.state == AsyncLSPClientState.CONNECTING
 
             client._set_state_initialized()
-            assert client.state == LSPClientState.INITIALIZED
+            assert client.state == AsyncLSPClientState.INITIALIZED
             assert client.is_initialized()
 
             client._set_state_error("Test error")
-            assert client.state == LSPClientState.ERROR
+            assert client.state == AsyncLSPClientState.ERROR
             assert not client.is_initialized()
 
             client._set_state_disconnected()
-            assert client.state == LSPClientState.DISCONNECTED
+            assert client.state == AsyncLSPClientState.DISCONNECTED
             assert not client.is_initialized()
