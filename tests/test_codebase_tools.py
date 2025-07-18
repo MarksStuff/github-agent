@@ -198,7 +198,7 @@ class TestCodebaseTools:
         tools = codebase_tools.get_tools(repo_name, repo_path)
 
         assert isinstance(tools, list)
-        assert len(tools) == 4  # Updated to include new LSP tools
+        assert len(tools) == 5  # Updated to include new LSP tools
 
         # Test health check tool
         health_check_tool = tools[0]
@@ -590,7 +590,7 @@ class TestCodebaseTools:
             "search_symbols",
             "find_definition",
             "find_references",
-            "get_hover",
+            "find_hover",
         ]
         for tool_name in expected_tools:
             assert hasattr(codebase_tools, tool_name)

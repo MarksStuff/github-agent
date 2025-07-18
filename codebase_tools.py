@@ -43,7 +43,7 @@ class CodebaseTools:
         "search_symbols": "search_symbols",
         "find_definition": "find_definition",
         "find_references": "find_references",
-        "get_hover": "get_hover",
+        "find_hover": "find_hover",
     }
 
     def __init__(
@@ -219,6 +219,39 @@ class CodebaseTools:
                         "file_path",
                         "line",
                         "column",
+                    ],
+                },
+            },
+            {
+                "name": "find_hover",
+                "description": f"Find hover information for a symbol at a specific position in the {repo_name} repository using LSP. Returns detailed information about the symbol including documentation and type information.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "repository_id": {
+                            "type": "string",
+                            "description": "Repository identifier",
+                        },
+                        "file_path": {
+                            "type": "string",
+                            "description": "File path containing the symbol (relative to repository root or absolute)",
+                        },
+                        "line": {
+                            "type": "integer",
+                            "description": "Line number where the symbol appears (1-based)",
+                            "minimum": 1,
+                        },
+                        "character": {
+                            "type": "integer",
+                            "description": "Character position where the symbol appears (1-based)",
+                            "minimum": 1,
+                        },
+                    },
+                    "required": [
+                        "repository_id",
+                        "file_path",
+                        "line",
+                        "character",
                     ],
                 },
             },
@@ -710,16 +743,16 @@ class CodebaseTools:
                 }
             )
 
-    async def get_hover(
+    async def find_hover(
         self, repository_id: str, file_path: str, line: int, character: int
     ) -> str:
-        """Get hover information for a symbol at a specific position.
+        """Find hover information for a symbol at a specific position.
 
         Args:
             repository_id: The repository identifier
             file_path: Path to the file relative to repository root
-            line: Line number (0-based)
-            character: Character position (0-based)
+            line: Line number (1-based)
+            character: Character position (1-based)
 
         Returns:
             JSON string containing hover information or error details
@@ -728,6 +761,18 @@ class CodebaseTools:
             self.logger.debug(
                 f"Getting hover info for {repository_id}:{file_path}:{line}:{character}"
             )
+
+            # Get repository config
+            repo_config = self.repository_manager.get_repository(repository_id)
+            if not repo_config:
+                return json.dumps(
+                    {
+                        "error": f"Repository '{repository_id}' not found",
+                        "file_path": file_path,
+                        "line": line,
+                        "character": character,
+                    }
+                )
 
             # Get LSP client
             client = await self._get_lsp_client(repository_id)
@@ -741,8 +786,12 @@ class CodebaseTools:
                     }
                 )
 
-            # Get hover information
-            hover_info = await client.get_hover(file_path, line, character)
+            # Resolve file path and convert to URI
+            resolved_path = self._resolve_file_path(file_path, repo_config.workspace)
+            file_uri = Path(resolved_path).as_uri()
+
+            # Get hover information (convert 1-based to 0-based coordinates)
+            hover_info = await client.get_hover(file_uri, line - 1, character - 1)
 
             if not hover_info:
                 return json.dumps(

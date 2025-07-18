@@ -159,7 +159,7 @@ async def execute_tool_command(
             "search_symbols",
             "find_definition",
             "find_references",
-            "get_hover",
+            "find_hover",
         }
 
         # Route to appropriate tool module

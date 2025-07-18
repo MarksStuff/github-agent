@@ -650,7 +650,7 @@ class MCPWorker:
                             "codebase_health_check",
                             "find_definition",
                             "find_references",
-                            "get_hover",
+                            "find_hover",
                         }
 
                         if tool_name in codebase_tool_handlers:
