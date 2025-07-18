@@ -844,9 +844,11 @@ class CodebaseTools:
             try:
                 self.logger.debug("Creating new LSP client using factory")
                 # Create new LSP client using the factory
-                new_client: AsyncLSPClient | AbstractLSPClient = self.lsp_client_factory(
-                    repo_config.workspace,
-                    repo_config.python_path,
+                new_client: AsyncLSPClient | AbstractLSPClient = (
+                    self.lsp_client_factory(
+                        repo_config.workspace,
+                        repo_config.python_path,
+                    )
                 )
 
                 self.logger.debug(
