@@ -48,7 +48,9 @@ class LSPServerFactory:
             from pyright_lsp_manager import PyrightLSPManager
 
             logger.info(f"Creating pyright manager for workspace: {workspace_path}")
-            pyright_manager: LSPServerManager = PyrightLSPManager(workspace_path, python_path)
+            pyright_manager: LSPServerManager = PyrightLSPManager(
+                workspace_path, python_path
+            )
             # Availability check is performed during manager initialization
             return pyright_manager
 

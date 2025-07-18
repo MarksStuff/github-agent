@@ -180,7 +180,9 @@ def mock_repository_manager():
 
 
 def mock_lsp_client_provider(
-    workspace_root: str, python_path: str, server_type: LSPServerType = LSPServerType.PYLSP
+    workspace_root: str,
+    python_path: str,
+    server_type: LSPServerType = LSPServerType.PYLSP,
 ) -> MockLSPClient:
     """Provider function to create mock LSP clients for dependency injection."""
     return MockLSPClient(workspace_root=workspace_root)
