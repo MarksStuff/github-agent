@@ -379,7 +379,9 @@ class TestAsyncLSPClientMessageHandling(unittest.IsolatedAsyncioTestCase):
     async def test_handle_request_workspace_configuration(self):
         """Test handling workspace/configuration request."""
         # Mock _send_message
-        with patch.object(self.client, '_send_message', new_callable=AsyncMock) as mock_send:
+        with patch.object(
+            self.client, "_send_message", new_callable=AsyncMock
+        ) as mock_send:
             request_content = {
                 "jsonrpc": "2.0",
                 "id": "config-123",
@@ -399,7 +401,9 @@ class TestAsyncLSPClientMessageHandling(unittest.IsolatedAsyncioTestCase):
     async def test_handle_request_unknown_method(self):
         """Test handling unknown request method."""
         # Mock _send_message
-        with patch.object(self.client, '_send_message', new_callable=AsyncMock) as mock_send:
+        with patch.object(
+            self.client, "_send_message", new_callable=AsyncMock
+        ) as mock_send:
             request_content = {
                 "jsonrpc": "2.0",
                 "id": "unknown-123",
@@ -545,7 +549,7 @@ class TestAsyncLSPClientIntegration(unittest.IsolatedAsyncioTestCase):
                 future = client._pending_requests[request_id]
                 future.set_result(error_response)
 
-        with patch.object(client, '_send_message', side_effect=mock_send_message):
+        with patch.object(client, "_send_message", side_effect=mock_send_message):
             with self.assertRaises(RuntimeError) as cm:
                 await client._send_request("test/method")
 
