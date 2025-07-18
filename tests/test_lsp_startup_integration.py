@@ -103,6 +103,8 @@ class TestClass:
         # Step 5: Verify LSP client is in correct state
         from lsp_client import LSPClientState
 
+        self.assertIsNotNone(lsp_client, "LSP client should not be None")
+        assert lsp_client is not None  # Help mypy with type narrowing
         self.assertEqual(
             lsp_client.state,
             LSPClientState.INITIALIZED,
@@ -117,7 +119,7 @@ class TestClass:
             self.assertTrue(file_uri.startswith("file://"))
 
             # Step 6a: Test find_definition and find_references if LSP server is actually running
-            if lsp_client.state == LSPClientState.INITIALIZED:
+            if lsp_client and lsp_client.state == LSPClientState.INITIALIZED:
                 from codebase_tools import CodebaseTools, create_async_lsp_client
                 from symbol_storage import SQLiteSymbolStorage
 

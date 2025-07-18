@@ -12,9 +12,10 @@ import subprocess
 import threading
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Union
 
-from async_lsp_client import AsyncLSPClient, AsyncLSPClientState
+from async_lsp_client import AsyncLSPClient, AsyncLSPClientState  
+from lsp_client import AbstractLSPClient
 from constants import Language
 from repository_manager import AbstractRepositoryManager
 from symbol_storage import AbstractSymbolStorage
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 # Type for LSP client factory
-LSPClientFactory = Callable[[str, str], AsyncLSPClient]
+LSPClientFactory = Callable[[str, str], Union[AsyncLSPClient, AbstractLSPClient]]
 
 
 def create_async_lsp_client(workspace_root: str, python_path: str) -> AsyncLSPClient:
@@ -70,7 +71,7 @@ class CodebaseTools:
 
         # Thread safety for LSP client cache
         self._lsp_lock = threading.Lock()
-        self._lsp_clients: dict[str, AsyncLSPClient] = {}
+        self._lsp_clients: dict[str, Union[AsyncLSPClient, AbstractLSPClient]] = {}
 
     def _user_friendly_to_lsp_position(self, line: int, column: int) -> dict:
         """Convert user-friendly (1-based) coordinates to LSP (0-based) coordinates."""
@@ -782,7 +783,7 @@ class CodebaseTools:
                 }
             )
 
-    async def _get_lsp_client(self, repository_id: str) -> AsyncLSPClient | None:
+    async def _get_lsp_client(self, repository_id: str) -> Union[AsyncLSPClient, AbstractLSPClient, None]:
         """Get LSP client for a repository from the repository manager."""
         self.logger.debug(f"Getting LSP client for repository '{repository_id}'")
 
@@ -841,7 +842,7 @@ class CodebaseTools:
             try:
                 self.logger.debug("Creating new LSP client using factory")
                 # Create new LSP client using the factory
-                new_client: AsyncLSPClient = self.lsp_client_factory(
+                new_client: Union[AsyncLSPClient, AbstractLSPClient] = self.lsp_client_factory(
                     repo_config.workspace,
                     repo_config.python_path,
                 )

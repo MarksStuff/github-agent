@@ -19,7 +19,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Union
 
 from git import InvalidGitRepositoryError, Repo
 
@@ -42,7 +42,7 @@ from lsp_client import AbstractLSPClient, LSPClientState
 # Removed direct import of PyrightLSPManager - now using factory pattern
 
 # Type for LSP client provider
-LSPClientProvider = Callable[[str, str, str], "AsyncLSPClient"]
+LSPClientProvider = Callable[[str, str, str], Union["AsyncLSPClient", "AbstractLSPClient"]]
 
 
 class AbstractRepositoryManager(abc.ABC):
@@ -466,7 +466,7 @@ class RepositoryManager(AbstractRepositoryManager):
         )
 
         # LSP server management
-        self._lsp_clients: dict[str, AbstractLSPClient | AsyncLSPClient] = {}
+        self._lsp_clients: dict[str, Union[AbstractLSPClient, "AsyncLSPClient"]] = {}
         # Removed _lsp_managers - now managed internally by LSP clients
         self._lsp_lock = threading.Lock()
 
@@ -959,7 +959,7 @@ class RepositoryManager(AbstractRepositoryManager):
 
     def get_lsp_client(
         self, repo_name: str
-    ) -> AbstractLSPClient | AsyncLSPClient | None:
+    ) -> Union[AbstractLSPClient, "AsyncLSPClient", None]:
         """
         Get LSP client for a repository.
 
