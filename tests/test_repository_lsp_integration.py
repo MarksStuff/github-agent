@@ -13,7 +13,8 @@ import tempfile
 import threading
 import unittest
 
-from lsp_client import LSPClientState
+from async_lsp_client import AsyncLSPClientState
+from lsp_constants import LSPServerType
 from repository_manager import RepositoryManager
 
 
@@ -152,10 +153,10 @@ def find_max(numbers: List[int]) -> Optional[int]:
         from tests.conftest import MockLSPClient
 
         def unhealthy_client_provider(
-            workspace_root: str, python_path: str, server_type: str = "pylsp"
+            workspace_root: str, python_path: str, server_type: LSPServerType = LSPServerType.PYLSP
         ):
             mock_client = MockLSPClient(workspace_root=workspace_root)
-            mock_client.state = LSPClientState.ERROR
+            mock_client.state = AsyncLSPClientState.ERROR
             return mock_client
 
         manager = RepositoryManager(

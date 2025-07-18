@@ -16,6 +16,7 @@ from typing import cast
 from unittest.mock import patch
 
 from constants import Language
+from lsp_constants import LSPServerType
 from repository_manager import (
     RepositoryConfig,
     RepositoryManager,
@@ -873,7 +874,7 @@ class TestRepositoryManagerLSPIntegration(unittest.TestCase):
 
         # Create failing mock client provider
         def failing_client_provider(
-            workspace_root: str, python_path: str, server_type: str = "pylsp"
+            workspace_root: str, python_path: str, server_type: LSPServerType = LSPServerType.PYLSP
         ):
             from tests.conftest import MockLSPClient
 

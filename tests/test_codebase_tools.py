@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from async_lsp_client import AbstractAsyncLSPClient
+from async_lsp_client import AbstractAsyncLSPClient, AsyncLSPClientState
 from codebase_tools import CodebaseTools
 from repository_manager import AbstractRepositoryManager
 from symbol_storage import AbstractSymbolStorage, Symbol, SymbolKind
@@ -115,6 +115,7 @@ class MockLSPClient(AbstractAsyncLSPClient):
     def __init__(self, workspace: str, python_path: str):
         self.workspace = workspace
         self.python_path = python_path
+        self._state = AsyncLSPClientState.INITIALIZED
 
     async def start(self) -> bool:
         return True
@@ -149,6 +150,16 @@ class MockLSPClient(AbstractAsyncLSPClient):
 
     async def get_document_symbols(self, uri: str) -> list[dict] | None:
         return []
+
+    @property
+    def state(self) -> AsyncLSPClientState:
+        """Get the current client state."""
+        return self._state
+
+    @state.setter
+    def state(self, value: AsyncLSPClientState) -> None:
+        """Set the current client state."""
+        self._state = value
 
 
 def mock_lsp_client_factory(workspace: str, python_path: str) -> AbstractAsyncLSPClient:

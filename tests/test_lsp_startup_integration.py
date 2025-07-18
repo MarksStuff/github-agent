@@ -15,6 +15,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from lsp_constants import LSPServerType
 from repository_manager import RepositoryManager
 
 
@@ -80,7 +81,7 @@ class TestClass:
         from tests.conftest import MockLSPClient
 
         def mock_lsp_client_provider(
-            workspace_root: str, python_path: str, server_type: str = "pylsp"
+            workspace_root: str, python_path: str, server_type: LSPServerType = LSPServerType.PYLSP
         ):
             mock_client = MockLSPClient(workspace_root=workspace_root)
             mock_client.set_start_result(True)  # Configure to succeed

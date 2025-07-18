@@ -67,7 +67,7 @@ class MockLSPClient(AbstractAsyncLSPClient):
         self.server_manager = server_manager
         self.workspace_root = workspace_root
         self.logger = logger
-        self.state = AsyncLSPClientState.DISCONNECTED
+        self._state = AsyncLSPClientState.DISCONNECTED
         self.server_process = None
         self.server_capabilities = {}
         self.communication_mode = server_manager.get_communication_mode()
@@ -171,7 +171,7 @@ class MockLSPClient(AbstractAsyncLSPClient):
             if hasattr(subprocess, "Popen") and hasattr(
                 subprocess.Popen, "return_value"
             ):
-                process = subprocess.Popen()
+                process = subprocess.Popen(["echo", "mock"])
                 if process.poll() is not None and process.poll() != 0:
                     self.logger.error("Server failed to start")
                     return False
@@ -277,7 +277,7 @@ class MockLSPClient(AbstractAsyncLSPClient):
         else:
             # Send error response for unknown methods
             error_response = JSONRPCResponse.create_error(
-                message_id=message.get("id"),
+                message_id=message.get("id", "unknown"),
                 code=LSPErrorCode.METHOD_NOT_FOUND,
                 message="Method not found",
             )
@@ -352,6 +352,16 @@ class MockLSPClient(AbstractAsyncLSPClient):
     async def get_document_symbols(self, uri):
         """Mock implementation."""
         return [{"name": "mock_symbol", "kind": 12}]
+
+    @property
+    def state(self) -> AsyncLSPClientState:
+        """Get the current client state."""
+        return self._state
+
+    @state.setter
+    def state(self, value: AsyncLSPClientState) -> None:
+        """Set the current client state."""
+        self._state = value
 
 
 class TestLSPClientState:
