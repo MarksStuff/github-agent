@@ -16,6 +16,30 @@ from pyright_lsp_manager import PyrightLSPManager
 class SimpleLSPClient(AbstractAsyncLSPClient):
     """Minimal LSP client implementation for smoke testing."""
 
+    def __init__(self, server_manager, workspace_root, logger):
+        """Initialize simple LSP client."""
+        self.server_manager = server_manager
+        self.workspace_root = workspace_root
+        self.logger = logger
+        self.state = AsyncLSPClientState.DISCONNECTED
+        self.server_process = None
+        self.server_capabilities = {}
+
+    async def start(self) -> bool:
+        """Mock start implementation."""
+        self.state = AsyncLSPClientState.INITIALIZED
+        return True
+
+    async def stop(self) -> bool:
+        """Mock stop implementation."""
+        self.state = AsyncLSPClientState.DISCONNECTED
+        self.server_process = None
+        return True
+
+    def is_initialized(self) -> bool:
+        """Check if client is initialized."""
+        return self.state == AsyncLSPClientState.INITIALIZED
+
     async def get_definition(self, uri, line, character):
         return None
 

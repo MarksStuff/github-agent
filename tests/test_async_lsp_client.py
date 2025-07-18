@@ -209,8 +209,10 @@ class TestAsyncLSPClientBasics(unittest.IsolatedAsyncioTestCase):
         self.workspace = Path(self.temp_dir)
         self.server_manager = MockLSPServerManager(str(self.workspace))
         self.logger = logging.getLogger("test")
+        from async_lsp_client import LSPProtocol
+        self.protocol = LSPProtocol(self.logger)
         self.client = AsyncLSPClient(
-            self.server_manager, str(self.workspace), self.logger
+            self.server_manager, str(self.workspace), self.logger, self.protocol
         )
 
     def tearDown(self):
@@ -331,8 +333,10 @@ class TestAsyncLSPClientMessageHandling(unittest.IsolatedAsyncioTestCase):
         self.workspace = Path(self.temp_dir)
         self.server_manager = MockLSPServerManager(str(self.workspace))
         self.logger = logging.getLogger("test")
+        from async_lsp_client import LSPProtocol
+        self.protocol = LSPProtocol(self.logger)
         self.client = AsyncLSPClient(
-            self.server_manager, str(self.workspace), self.logger
+            self.server_manager, str(self.workspace), self.logger, self.protocol
         )
 
     def tearDown(self):
@@ -473,7 +477,9 @@ class TestAsyncLSPClientIntegration(unittest.IsolatedAsyncioTestCase):
         mock_process.pid = 12345
         mock_subprocess.return_value = mock_process
 
-        client = AsyncLSPClient(self.server_manager, str(self.workspace), self.logger)
+        from async_lsp_client import LSPProtocol
+        protocol = LSPProtocol(self.logger)
+        client = AsyncLSPClient(self.server_manager, str(self.workspace), self.logger, protocol)
 
         result = await client._start_server_process()
 
@@ -486,7 +492,9 @@ class TestAsyncLSPClientIntegration(unittest.IsolatedAsyncioTestCase):
         """Test server process start failure."""
         mock_subprocess.side_effect = OSError("Command not found")
 
-        client = AsyncLSPClient(self.server_manager, str(self.workspace), self.logger)
+        from async_lsp_client import LSPProtocol
+        protocol = LSPProtocol(self.logger)
+        client = AsyncLSPClient(self.server_manager, str(self.workspace), self.logger, protocol)
 
         with self.assertLogs(client.logger, level="ERROR"):
             result = await client._start_server_process()
@@ -496,7 +504,9 @@ class TestAsyncLSPClientIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def test_establish_streams_no_process(self):
         """Test establishing streams without server process."""
-        client = AsyncLSPClient(self.server_manager, str(self.workspace), self.logger)
+        from async_lsp_client import LSPProtocol
+        protocol = LSPProtocol(self.logger)
+        client = AsyncLSPClient(self.server_manager, str(self.workspace), self.logger, protocol)
 
         with self.assertLogs(client.logger, level="ERROR"):
             result = await client._establish_streams()
@@ -510,7 +520,9 @@ class TestAsyncLSPClientIntegration(unittest.IsolatedAsyncioTestCase):
         mock_process.stdout = MagicMock()
         mock_process.stdin = MagicMock()
 
-        client = AsyncLSPClient(self.server_manager, str(self.workspace), self.logger)
+        from async_lsp_client import LSPProtocol
+        protocol = LSPProtocol(self.logger)
+        client = AsyncLSPClient(self.server_manager, str(self.workspace), self.logger, protocol)
         client._server_process = mock_process
 
         result = await client._establish_streams()
@@ -522,7 +534,9 @@ class TestAsyncLSPClientIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def test_send_request_timeout(self):
         """Test request timeout handling."""
-        client = AsyncLSPClient(self.server_manager, str(self.workspace), self.logger)
+        from async_lsp_client import LSPProtocol
+        protocol = LSPProtocol(self.logger)
+        client = AsyncLSPClient(self.server_manager, str(self.workspace), self.logger, protocol)
         client._writer = AsyncMock()
 
         with self.assertRaises(asyncio.TimeoutError):
@@ -530,7 +544,9 @@ class TestAsyncLSPClientIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def test_send_request_with_error_response(self):
         """Test request with error response."""
-        client = AsyncLSPClient(self.server_manager, str(self.workspace), self.logger)
+        from async_lsp_client import LSPProtocol
+        protocol = LSPProtocol(self.logger)
+        client = AsyncLSPClient(self.server_manager, str(self.workspace), self.logger, protocol)
         client._writer = AsyncMock()
 
         # Create error response
