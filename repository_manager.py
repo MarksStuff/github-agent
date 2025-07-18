@@ -957,7 +957,9 @@ class RepositoryManager(AbstractRepositoryManager):
         result = self.start_lsp_server(repo_name)
         return result if result is not None else False
 
-    def get_lsp_client(self, repo_name: str) -> AbstractLSPClient | AsyncLSPClient | None:
+    def get_lsp_client(
+        self, repo_name: str
+    ) -> AbstractLSPClient | AsyncLSPClient | None:
         """
         Get LSP client for a repository.
 
