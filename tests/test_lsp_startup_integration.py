@@ -46,11 +46,12 @@ class TestClass:
 
         # Create test repositories.json
         self.config_file = Path(self.temp_dir) / "repositories.json"
-        
+
         # Use sys.executable to get the current Python interpreter path
         import sys
+
         python_path = sys.executable
-        
+
         # Create config data as dict and then serialize to avoid path escaping issues
         config_data = {
             "repositories": {
@@ -59,11 +60,11 @@ class TestClass:
                     "port": 8090,
                     "description": "Test repository",
                     "language": "python",
-                    "python_path": str(python_path)
+                    "python_path": str(python_path),
                 }
             }
         }
-        
+
         self.config_file.write_text(json.dumps(config_data, indent=2))
 
     def tearDown(self):
@@ -89,12 +90,14 @@ class TestClass:
         repository_manager = RepositoryManager(
             str(self.config_file), lsp_client_provider=mock_lsp_client_provider
         )
-        
+
         # Load configuration with better error reporting
         success = repository_manager.load_configuration()
         if not success:
-            self.fail(f"Failed to load configuration from {self.config_file}. Config file exists: {self.config_file.exists()}, Test repo exists: {self.test_repo_path.exists()}")
-        
+            self.fail(
+                f"Failed to load configuration from {self.config_file}. Config file exists: {self.config_file.exists()}, Test repo exists: {self.test_repo_path.exists()}"
+            )
+
         self.assertIn("test-repo", repository_manager.repositories)
 
         # Step 2: Start LSP servers (this should work without errors)
@@ -205,6 +208,7 @@ class TestClass:
         except Exception as e:
             # Clean up any remaining async resources
             import gc
+
             gc.collect()
             raise e
 
