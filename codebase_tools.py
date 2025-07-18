@@ -14,9 +14,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar
 
-from async_lsp_client import AsyncLSPClient, AsyncLSPClientState
+from async_lsp_client import AbstractAsyncLSPClient, AsyncLSPClient, AsyncLSPClientState
 from constants import Language
-from async_lsp_client import AbstractAsyncLSPClient
 from repository_manager import AbstractRepositoryManager
 from symbol_storage import AbstractSymbolStorage
 
@@ -841,11 +840,9 @@ class CodebaseTools:
             try:
                 self.logger.debug("Creating new LSP client using factory")
                 # Create new LSP client using the factory
-                new_client: AbstractAsyncLSPClient = (
-                    self.lsp_client_factory(
-                        repo_config.workspace,
-                        repo_config.python_path,
-                    )
+                new_client: AbstractAsyncLSPClient = self.lsp_client_factory(
+                    repo_config.workspace,
+                    repo_config.python_path,
                 )
 
                 self.logger.debug(

@@ -6,6 +6,7 @@ correctly without requiring a full mock server setup.
 """
 
 import tempfile
+from typing import Any
 from unittest.mock import Mock
 
 from async_lsp_client import AbstractAsyncLSPClient, AsyncLSPClientState
@@ -24,6 +25,11 @@ class SimpleLSPClient(AbstractAsyncLSPClient):
         self.state = AsyncLSPClientState.DISCONNECTED
         self.server_process = None
         self.server_capabilities = {}
+        self.communication_mode = server_manager.get_communication_mode()
+
+        # Mock internal state for tests
+        self._notification_handlers = {}
+        self._stop_event = None
 
     async def start(self) -> bool:
         """Mock start implementation."""
@@ -39,6 +45,35 @@ class SimpleLSPClient(AbstractAsyncLSPClient):
     def is_initialized(self) -> bool:
         """Check if client is initialized."""
         return self.state == AsyncLSPClientState.INITIALIZED
+
+    def get_server_capabilities(self) -> dict[str, Any]:
+        """Get server capabilities."""
+        return self.server_capabilities
+
+    def add_notification_handler(self, method: str, handler: Any) -> None:
+        """Add a notification handler."""
+        self._notification_handlers[method] = handler
+
+    def remove_notification_handler(self, method: str) -> None:
+        """Remove a notification handler."""
+        self._notification_handlers.pop(method, None)
+
+    # State management methods for tests
+    def _set_state_connecting(self) -> None:
+        """Mock state transition."""
+        self.state = AsyncLSPClientState.CONNECTING
+
+    def _set_state_initialized(self) -> None:
+        """Mock state transition."""
+        self.state = AsyncLSPClientState.INITIALIZED
+
+    def _set_state_error(self, error: str) -> None:
+        """Mock state transition."""
+        self.state = AsyncLSPClientState.ERROR
+
+    def _set_state_disconnected(self) -> None:
+        """Mock state transition."""
+        self.state = AsyncLSPClientState.DISCONNECTED
 
     async def get_definition(self, uri, line, character):
         return None

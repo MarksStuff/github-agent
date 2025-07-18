@@ -150,6 +150,26 @@ class AbstractAsyncLSPClient(ABC):
         pass
 
     @abstractmethod
+    def is_initialized(self) -> bool:
+        """Check if the client is initialized."""
+        pass
+
+    @abstractmethod
+    def get_server_capabilities(self) -> dict[str, Any]:
+        """Get server capabilities."""
+        pass
+
+    @abstractmethod
+    def add_notification_handler(self, method: str, handler: Any) -> None:
+        """Add a notification handler."""
+        pass
+
+    @abstractmethod
+    def remove_notification_handler(self, method: str) -> None:
+        """Remove a notification handler."""
+        pass
+
+    @abstractmethod
     async def get_definition(
         self, uri: str, line: int, character: int
     ) -> list[dict[str, Any]] | None:
@@ -234,6 +254,9 @@ class AsyncLSPClient(AbstractAsyncLSPClient):
         # Message processing
         self._reader_task: asyncio.Task | None = None
         self._shutdown_event = asyncio.Event()
+
+        # Notification handlers
+        self._notification_handlers: dict[str, Any] = {}
 
         # Statistics for debugging
         self._stats = {
@@ -794,6 +817,24 @@ class AsyncLSPClient(AbstractAsyncLSPClient):
 
         self._set_state(AsyncLSPClientState.DISCONNECTED)
         self.logger.info("✅ Cleanup complete")
+
+    # Public interface methods
+
+    def is_initialized(self) -> bool:
+        """Check if the client is initialized."""
+        return self.state == AsyncLSPClientState.INITIALIZED
+
+    def get_server_capabilities(self) -> dict[str, Any]:
+        """Get server capabilities."""
+        return self.server_capabilities
+
+    def add_notification_handler(self, method: str, handler: Any) -> None:
+        """Add a notification handler."""
+        self._notification_handlers[method] = handler
+
+    def remove_notification_handler(self, method: str) -> None:
+        """Remove a notification handler."""
+        self._notification_handlers.pop(method, None)
 
     # Public API methods for LSP operations
 

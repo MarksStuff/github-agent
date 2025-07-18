@@ -19,7 +19,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any
 
 from git import InvalidGitRepositoryError, Repo
 
@@ -29,6 +29,7 @@ else:
     # Runtime import to avoid circular imports
     AsyncLSPClient = None
 
+from async_lsp_client import AbstractAsyncLSPClient, AsyncLSPClientState
 from constants import (
     GITHUB_HTTPS_PREFIX,
     GITHUB_SSH_PREFIX,
@@ -37,15 +38,12 @@ from constants import (
     MINIMUM_PYTHON_VERSION,
     Language,
 )
-from async_lsp_client import AbstractAsyncLSPClient, AsyncLSPClientState
 from lsp_constants import DEFAULT_LSP_SERVER_TYPE, LSPServerType
 
 # Removed direct import of PyrightLSPManager - now using factory pattern
 
 # Type for LSP client provider
-LSPClientProvider = Callable[
-    [str, str, str], "AbstractAsyncLSPClient"
-]
+LSPClientProvider = Callable[[str, str, str], "AbstractAsyncLSPClient"]
 
 
 class AbstractRepositoryManager(abc.ABC):
@@ -491,7 +489,7 @@ class RepositoryManager(AbstractRepositoryManager):
         server_manager = LSPServerFactory.create_server_manager(
             server_type.value, workspace_root, python_path
         )
-        return AsyncLSPClient(server_manager, workspace_root)
+        return AsyncLSPClient.create(workspace_root, python_path)
 
     @classmethod
     def create_from_config(cls, config_path: str) -> "RepositoryManager":
@@ -963,9 +961,7 @@ class RepositoryManager(AbstractRepositoryManager):
         result = self.start_lsp_server(repo_name)
         return result if result is not None else False
 
-    def get_lsp_client(
-        self, repo_name: str
-    ) -> AbstractAsyncLSPClient | None:
+    def get_lsp_client(self, repo_name: str) -> AbstractAsyncLSPClient | None:
         """
         Get LSP client for a repository.
 

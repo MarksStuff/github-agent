@@ -16,6 +16,7 @@ import unittest
 from pathlib import Path
 
 from repository_manager import RepositoryManager
+from async_lsp_client import AsyncLSPClientState
 
 
 class TestLSPStartupIntegration(unittest.TestCase):
@@ -191,7 +192,7 @@ class TestClass:
         if lsp_client_after_stop:
             self.assertNotEqual(
                 lsp_client_after_stop.state,
-                LSPClientState.INITIALIZED,
+                AsyncLSPClientState.INITIALIZED,
                 "LSP client should not be initialized after stop",
             )
 

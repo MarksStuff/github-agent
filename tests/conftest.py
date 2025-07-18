@@ -111,15 +111,32 @@ class MockLSPClient(AbstractAsyncLSPClient):
         """Mock disconnect method."""
         pass
 
-    async def stop(self) -> None:
+    async def stop(self) -> bool:
         """Mock stop method."""
-        pass
+        self.state = AsyncLSPClientState.DISCONNECTED
+        return True
 
     async def start(self) -> bool:
         """Mock start method."""
         if self._start_result:
             self.state = AsyncLSPClientState.INITIALIZED
         return self._start_result
+
+    def is_initialized(self) -> bool:
+        """Check if client is initialized."""
+        return self.state == AsyncLSPClientState.INITIALIZED
+    
+    def get_server_capabilities(self) -> dict[str, Any]:
+        """Get server capabilities."""
+        return {}
+    
+    def add_notification_handler(self, method: str, handler: Any) -> None:
+        """Add a notification handler."""
+        pass
+    
+    def remove_notification_handler(self, method: str) -> None:
+        """Remove a notification handler."""
+        pass
 
     def shutdown(self) -> None:
         """Mock shutdown method."""

@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 
-from codebase_tools import CodebaseTools
 from async_lsp_client import AbstractAsyncLSPClient
+from codebase_tools import CodebaseTools
 from repository_manager import AbstractRepositoryManager
 from symbol_storage import AbstractSymbolStorage, Symbol, SymbolKind
 
@@ -119,7 +119,19 @@ class MockLSPClient(AbstractAsyncLSPClient):
     async def start(self) -> bool:
         return True
 
-    async def stop(self) -> None:
+    async def stop(self) -> bool:
+        return True
+    
+    def is_initialized(self) -> bool:
+        return True
+    
+    def get_server_capabilities(self) -> dict[str, Any]:
+        return {}
+    
+    def add_notification_handler(self, method: str, handler: Any) -> None:
+        pass
+    
+    def remove_notification_handler(self, method: str) -> None:
         pass
 
     async def get_definition(
