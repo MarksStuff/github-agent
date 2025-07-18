@@ -257,7 +257,7 @@ deploy_file "lsp_constants.py"
 deploy_file "lsp_jsonrpc.py"
 deploy_file "lsp_server_manager.py"
 deploy_file "pyright_lsp_manager.py"
-deploy_file "async_codebase_lsp_client.py"
+# Removed async_codebase_lsp_client.py - adapter layer eliminated in favor of direct AsyncLSPClient usage
 deploy_file "async_lsp_client.py"
 deploy_file "lsp_server_factory.py"
 deploy_file "pylsp_manager.py"

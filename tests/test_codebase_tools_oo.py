@@ -239,10 +239,10 @@ class TestClass:
         )
 
         # Create CodebaseTools instance
-        def mock_lsp_client_factory(workspace: str, python_path: str):
-            from codebase_tools import CodebaseLSPClient
+        def mock_lsp_client_factory(workspace: str, python_path: str, server_type: str = "pylsp"):
+            from codebase_tools import create_async_lsp_client
 
-            return CodebaseLSPClient(workspace, python_path)
+            return create_async_lsp_client(workspace, python_path, server_type)
 
         self.tools = CodebaseTools(
             repository_manager=self.mock_repo_manager,
