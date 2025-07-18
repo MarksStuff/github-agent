@@ -12,7 +12,7 @@ import subprocess
 import threading
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, ClassVar, Union
+from typing import Any, ClassVar
 
 from async_lsp_client import AsyncLSPClient, AsyncLSPClientState
 from constants import Language
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 # Type for LSP client factory
-LSPClientFactory = Callable[[str, str], Union[AsyncLSPClient, AbstractLSPClient]]
+LSPClientFactory = Callable[[str, str], AsyncLSPClient | AbstractLSPClient]
 
 
 def create_async_lsp_client(workspace_root: str, python_path: str) -> AsyncLSPClient:
@@ -71,7 +71,7 @@ class CodebaseTools:
 
         # Thread safety for LSP client cache
         self._lsp_lock = threading.Lock()
-        self._lsp_clients: dict[str, Union[AsyncLSPClient, AbstractLSPClient]] = {}
+        self._lsp_clients: dict[str, AsyncLSPClient | AbstractLSPClient] = {}
 
     def _user_friendly_to_lsp_position(self, line: int, column: int) -> dict:
         """Convert user-friendly (1-based) coordinates to LSP (0-based) coordinates."""
@@ -785,7 +785,7 @@ class CodebaseTools:
 
     async def _get_lsp_client(
         self, repository_id: str
-    ) -> Union[AsyncLSPClient, AbstractLSPClient, None]:
+    ) -> AsyncLSPClient | AbstractLSPClient | None:
         """Get LSP client for a repository from the repository manager."""
         self.logger.debug(f"Getting LSP client for repository '{repository_id}'")
 
@@ -844,9 +844,7 @@ class CodebaseTools:
             try:
                 self.logger.debug("Creating new LSP client using factory")
                 # Create new LSP client using the factory
-                new_client: Union[
-                    AsyncLSPClient, AbstractLSPClient
-                ] = self.lsp_client_factory(
+                new_client: AsyncLSPClient | AbstractLSPClient = self.lsp_client_factory(
                     repo_config.workspace,
                     repo_config.python_path,
                 )

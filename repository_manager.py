@@ -468,7 +468,7 @@ class RepositoryManager(AbstractRepositoryManager):
         )
 
         # LSP server management
-        self._lsp_clients: dict[str, Union[AbstractLSPClient, "AsyncLSPClient"]] = {}
+        self._lsp_clients: dict[str, AbstractLSPClient | AsyncLSPClient] = {}
         # Removed _lsp_managers - now managed internally by LSP clients
         self._lsp_lock = threading.Lock()
 
