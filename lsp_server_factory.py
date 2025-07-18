@@ -8,14 +8,8 @@ enabling easy switching between different LSP server implementations.
 import logging
 from typing import Any
 
+from lsp_constants import LSPServerType
 from lsp_server_manager import LSPServerManager
-
-
-class LSPServerType:
-    """LSP server type constants."""
-
-    PYLSP = "pylsp"
-    PYRIGHT = "pyright"
 
 
 class LSPServerFactory:
@@ -42,20 +36,24 @@ class LSPServerFactory:
         """
         logger = logging.getLogger(__name__)
 
-        if server_type == LSPServerType.PYLSP:
+        if server_type == LSPServerType.PYLSP.value:
             from pylsp_manager import PylspManager
 
             logger.info(f"Creating pylsp manager for workspace: {workspace_path}")
-            return PylspManager(workspace_path, python_path)
+            manager = PylspManager(workspace_path, python_path)
+            # Availability check is performed during manager initialization
+            return manager
 
-        elif server_type == LSPServerType.PYRIGHT:
+        elif server_type == LSPServerType.PYRIGHT.value:
             from pyright_lsp_manager import PyrightLSPManager
 
             logger.info(f"Creating pyright manager for workspace: {workspace_path}")
-            return PyrightLSPManager(workspace_path, python_path)
+            manager = PyrightLSPManager(workspace_path, python_path)
+            # Availability check is performed during manager initialization
+            return manager
 
         else:
-            supported_types = [LSPServerType.PYLSP, LSPServerType.PYRIGHT]
+            supported_types = [LSPServerType.PYLSP.value, LSPServerType.PYRIGHT.value]
             raise ValueError(
                 f"Unsupported LSP server type: {server_type}. "
                 f"Supported types: {supported_types}"
@@ -65,12 +63,12 @@ class LSPServerFactory:
     def get_default_server_type() -> str:
         """Get the default LSP server type for Python projects."""
         # Use pylsp as default due to better reliability
-        return LSPServerType.PYLSP
+        return LSPServerType.PYLSP.value
 
     @staticmethod
     def get_supported_server_types() -> list[str]:
         """Get list of supported LSP server types."""
-        return [LSPServerType.PYLSP, LSPServerType.PYRIGHT]
+        return [LSPServerType.PYLSP.value, LSPServerType.PYRIGHT.value]
 
 
 def create_default_python_lsp_manager(

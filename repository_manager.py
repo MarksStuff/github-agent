@@ -38,6 +38,7 @@ from constants import (
     Language,
 )
 from lsp_client import AbstractLSPClient, LSPClientState
+from lsp_constants import DEFAULT_LSP_SERVER_TYPE, LSPServerType
 
 # Removed direct import of PyrightLSPManager - now using factory pattern
 
@@ -89,7 +90,7 @@ class RepositoryConfig:
     github_owner: str
     github_repo: str
     lsp_enabled: bool = True  # Whether LSP is enabled for this repository
-    lsp_server: str = "pylsp"  # LSP server type to use (pylsp, pyright)
+    lsp_server: LSPServerType = DEFAULT_LSP_SERVER_TYPE  # LSP server type to use
 
     def __post_init__(self):
         """Validate configuration after initialization - basic validation only"""
@@ -477,7 +478,10 @@ class RepositoryManager(AbstractRepositoryManager):
         self._reload_callbacks: list[Callable[[], None]] = []
 
     def _default_lsp_client_provider(
-        self, workspace_root: str, python_path: str, server_type: str = "pylsp"
+        self,
+        workspace_root: str,
+        python_path: str,
+        server_type: LSPServerType = DEFAULT_LSP_SERVER_TYPE,
     ) -> "AsyncLSPClient":
         """Default LSP client provider that creates AsyncLSPClient instances."""
         # Import here to avoid circular imports
@@ -485,7 +489,7 @@ class RepositoryManager(AbstractRepositoryManager):
         from lsp_server_factory import LSPServerFactory
 
         server_manager = LSPServerFactory.create_server_manager(
-            server_type, workspace_root, python_path
+            server_type.value, workspace_root, python_path
         )
         return AsyncLSPClient(server_manager, workspace_root)
 

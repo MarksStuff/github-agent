@@ -29,10 +29,7 @@ LSPClientFactory = Callable[[str, str], AsyncLSPClient | AbstractLSPClient]
 
 def create_async_lsp_client(workspace_root: str, python_path: str) -> AsyncLSPClient:
     """Factory function to create AsyncLSPClient instances."""
-    from lsp_server_factory import create_default_python_lsp_manager
-
-    server_manager = create_default_python_lsp_manager(workspace_root, python_path)
-    return AsyncLSPClient(server_manager, workspace_root)
+    return AsyncLSPClient.create(workspace_root, python_path)
 
 
 # LSP Tools Implementation - Now using AsyncLSPClient directly

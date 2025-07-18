@@ -22,6 +22,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from lsp_client import AbstractLSPClient
 from lsp_constants import LSPMethod
 from lsp_server_manager import LSPServerManager
 
@@ -43,19 +44,31 @@ class LSPMessage:
     """Represents an LSP message with proper typing."""
 
     content: dict[str, Any]
-    id: str | None = None
-    method: str | None = None
-    params: dict[str, Any] | None = None
-    result: dict[str, Any] | None = None
-    error: dict[str, Any] | None = None
 
-    def __post_init__(self):
-        """Extract message fields from content after initialization."""
-        self.id = self.content.get("id")
-        self.method = self.content.get("method")
-        self.params = self.content.get("params")
-        self.result = self.content.get("result")
-        self.error = self.content.get("error")
+    @property
+    def id(self) -> str | None:
+        """Get message ID."""
+        return self.content.get("id")
+
+    @property
+    def method(self) -> str | None:
+        """Get message method."""
+        return self.content.get("method")
+
+    @property
+    def params(self) -> dict[str, Any] | None:
+        """Get message params."""
+        return self.content.get("params")
+
+    @property
+    def result(self) -> dict[str, Any] | None:
+        """Get message result."""
+        return self.content.get("result")
+
+    @property
+    def error(self) -> dict[str, Any] | None:
+        """Get message error."""
+        return self.content.get("error")
 
     @property
     def is_request(self) -> bool:
@@ -73,6 +86,10 @@ class LSPMessage:
     def is_notification(self) -> bool:
         """Check if this is a notification message."""
         return self.method is not None and self.id is None
+
+    def asdict(self) -> dict[str, Any]:
+        """Convert message to dictionary."""
+        return self.content
 
 
 class LSPProtocol:
@@ -119,13 +136,21 @@ class LSPProtocol:
         return notification
 
 
-class AsyncLSPClient:
+class AsyncLSPClient(AbstractLSPClient):
     """
     Async-native LSP client implementation.
 
     This client uses asyncio streams for communication and avoids threading
     to eliminate the timeout issues present in the original implementation.
     """
+
+    @classmethod
+    def create(cls, workspace_root: str, python_path: str) -> "AsyncLSPClient":
+        """Factory method to create AsyncLSPClient instances."""
+        from lsp_server_factory import create_default_python_lsp_manager
+
+        server_manager = create_default_python_lsp_manager(workspace_root, python_path)
+        return cls(server_manager, workspace_root)
 
     def __init__(
         self,
@@ -143,19 +168,23 @@ class AsyncLSPClient:
             logger: Logger instance (creates one if not provided)
             protocol: LSP protocol handler (creates one if not provided)
         """
-        self.server_manager = server_manager
-        self.workspace_root = Path(workspace_root)
-        self.logger = logger or logging.getLogger(
-            f"{__name__}.{self.workspace_root.name}"
+        # Create logger and protocol if not provided
+        resolved_logger = logger or logging.getLogger(
+            f"{__name__}.{Path(workspace_root).name}"
         )
 
-        # Connection state
+        # Call parent constructor
+        super().__init__(server_manager, workspace_root, resolved_logger)
+
+        self.workspace_root = Path(workspace_root)
+
+        # Connection state (override parent's state with async version)
         self.state = AsyncLSPClientState.DISCONNECTED
         self._server_process: asyncio.subprocess.Process | None = None
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
 
-        # Protocol handling
+        # Protocol handling (override parent's JSONRPCProtocol with LSPProtocol)
         self.protocol = protocol or LSPProtocol(self.logger)
 
         # Request/response tracking

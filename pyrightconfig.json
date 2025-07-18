@@ -7,10 +7,6 @@
     "**/__pycache__/**",
     "**/.venv/**",
     "**/venv/**",
-    "tests/**",
-    "setup/**",
-    "scripts/**",
-    "improvements/**",
     "**/htmlcov/**"
   ],
   "typeCheckingMode": "off",
