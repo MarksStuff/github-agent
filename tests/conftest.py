@@ -125,15 +125,15 @@ class MockLSPClient(AbstractAsyncLSPClient):
     def is_initialized(self) -> bool:
         """Check if client is initialized."""
         return self.state == AsyncLSPClientState.INITIALIZED
-    
+
     def get_server_capabilities(self) -> dict[str, Any]:
         """Get server capabilities."""
         return {}
-    
+
     def add_notification_handler(self, method: str, handler: Any) -> None:
         """Add a notification handler."""
         pass
-    
+
     def remove_notification_handler(self, method: str) -> None:
         """Remove a notification handler."""
         pass
@@ -344,14 +344,14 @@ def assert_clean_shutdown(shutdown_result, exit_code_manager, expected_exit_code
 
     if expected_exit_code:
         actual_exit_code = exit_code_manager.determine_exit_code("test")
-        assert actual_exit_code == expected_exit_code, (
-            f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
-        )
+        assert (
+            actual_exit_code == expected_exit_code
+        ), f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
 
     summary = exit_code_manager.get_exit_summary()
-    assert summary["total_problems"] == 0, (
-        f"Expected clean shutdown but found problems: {summary}"
-    )
+    assert (
+        summary["total_problems"] == 0
+    ), f"Expected clean shutdown but found problems: {summary}"
 
 
 def assert_shutdown_with_issues(
@@ -362,15 +362,15 @@ def assert_shutdown_with_issues(
     if shutdown_result is False:
         # Failed shutdown should have critical issues
         summary = exit_code_manager.get_exit_summary()
-        assert summary["total_problems"] > 0, (
-            "Failed shutdown should have reported problems"
-        )
+        assert (
+            summary["total_problems"] > 0
+        ), "Failed shutdown should have reported problems"
 
     if expected_problems:
         summary = exit_code_manager.get_exit_summary()
-        assert summary["total_problems"] >= expected_problems, (
-            f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
-        )
+        assert (
+            summary["total_problems"] >= expected_problems
+        ), f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
 
 
 # Add to pytest namespace for easy import

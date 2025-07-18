@@ -121,16 +121,16 @@ class MockLSPClient(AbstractAsyncLSPClient):
 
     async def stop(self) -> bool:
         return True
-    
+
     def is_initialized(self) -> bool:
         return True
-    
+
     def get_server_capabilities(self) -> dict[str, Any]:
         return {}
-    
+
     def add_notification_handler(self, method: str, handler: Any) -> None:
         pass
-    
+
     def remove_notification_handler(self, method: str) -> None:
         pass
 

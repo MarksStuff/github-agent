@@ -84,19 +84,19 @@ class MockLSPClient(AbstractAsyncLSPClient):
     def _setup_builtin_handlers(self):
         """Set up built-in handlers that tests expect."""
         # Notification handlers
-        self._notification_handlers[LSPMethod.PUBLISH_DIAGNOSTICS] = (
-            self._handle_publish_diagnostics
-        )
+        self._notification_handlers[
+            LSPMethod.PUBLISH_DIAGNOSTICS
+        ] = self._handle_publish_diagnostics
         self._notification_handlers[LSPMethod.SHOW_MESSAGE] = self._handle_show_message
         self._notification_handlers[LSPMethod.LOG_MESSAGE] = self._handle_log_message
 
         # Request handlers
-        self._message_handlers["workspace/configuration"] = (
-            self._handle_workspace_configuration
-        )
-        self._message_handlers["window/showMessageRequest"] = (
-            self._handle_show_message_request
-        )
+        self._message_handlers[
+            "workspace/configuration"
+        ] = self._handle_workspace_configuration
+        self._message_handlers[
+            "window/showMessageRequest"
+        ] = self._handle_show_message_request
 
     async def start(self) -> bool:
         """Mock start implementation."""

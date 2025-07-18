@@ -16,7 +16,6 @@ import unittest
 from pathlib import Path
 
 from repository_manager import RepositoryManager
-from async_lsp_client import AsyncLSPClientState
 
 
 class TestLSPStartupIntegration(unittest.TestCase):
