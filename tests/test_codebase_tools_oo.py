@@ -239,7 +239,9 @@ class TestClass:
         )
 
         # Create CodebaseTools instance
-        def mock_lsp_client_factory(workspace: str, python_path: str, server_type: str = "pylsp"):
+        def mock_lsp_client_factory(
+            workspace: str, python_path: str, server_type: str = "pylsp"
+        ):
             from codebase_tools import create_async_lsp_client
 
             return create_async_lsp_client(workspace, python_path, server_type)
