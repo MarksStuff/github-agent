@@ -37,14 +37,14 @@ from constants import (
     MINIMUM_PYTHON_VERSION,
     Language,
 )
-from lsp_client import AbstractLSPClient, LSPClientState
+from async_lsp_client import AbstractAsyncLSPClient, AsyncLSPClientState
 from lsp_constants import DEFAULT_LSP_SERVER_TYPE, LSPServerType
 
 # Removed direct import of PyrightLSPManager - now using factory pattern
 
 # Type for LSP client provider
 LSPClientProvider = Callable[
-    [str, str, str], Union["AsyncLSPClient", "AbstractLSPClient"]
+    [str, str, str], "AbstractAsyncLSPClient"
 ]
 
 
@@ -469,7 +469,7 @@ class RepositoryManager(AbstractRepositoryManager):
         )
 
         # LSP server management
-        self._lsp_clients: dict[str, AbstractLSPClient | AsyncLSPClient] = {}
+        self._lsp_clients: dict[str, AbstractAsyncLSPClient] = {}
         # Removed _lsp_managers - now managed internally by LSP clients
         self._lsp_lock = threading.Lock()
 
@@ -482,7 +482,7 @@ class RepositoryManager(AbstractRepositoryManager):
         workspace_root: str,
         python_path: str,
         server_type: LSPServerType = DEFAULT_LSP_SERVER_TYPE,
-    ) -> "AsyncLSPClient":
+    ) -> AbstractAsyncLSPClient:
         """Default LSP client provider that creates AsyncLSPClient instances."""
         # Import here to avoid circular imports
         from async_lsp_client import AsyncLSPClient
@@ -821,7 +821,7 @@ class RepositoryManager(AbstractRepositoryManager):
             # Check if already running
             if repo_name in self._lsp_clients:
                 client = self._lsp_clients[repo_name]
-                if client.state == LSPClientState.INITIALIZED:
+                if client.state == AsyncLSPClientState.INITIALIZED:
                     self.logger.info(
                         f"LSP server already running for repository '{repo_name}' - skipping"
                     )
@@ -965,7 +965,7 @@ class RepositoryManager(AbstractRepositoryManager):
 
     def get_lsp_client(
         self, repo_name: str
-    ) -> Union[AbstractLSPClient, "AsyncLSPClient", None]:
+    ) -> AbstractAsyncLSPClient | None:
         """
         Get LSP client for a repository.
 
@@ -1006,7 +1006,7 @@ class RepositoryManager(AbstractRepositoryManager):
                     {
                         "running": True,
                         "state": client.state.value,
-                        "healthy": client.state == LSPClientState.INITIALIZED,
+                        "healthy": client.state == AsyncLSPClientState.INITIALIZED,
                     }
                 )
 
@@ -1056,7 +1056,7 @@ class RepositoryManager(AbstractRepositoryManager):
             # Check if already running
             if repo_name in self._lsp_clients:
                 client = self._lsp_clients[repo_name]
-                if client.state == LSPClientState.INITIALIZED:
+                if client.state == AsyncLSPClientState.INITIALIZED:
                     self.logger.info(
                         f"LSP server already running for repository '{repo_name}' - skipping"
                     )
@@ -1151,8 +1151,8 @@ class RepositoryManager(AbstractRepositoryManager):
             for repo_name, client in list(self._lsp_clients.items()):
                 try:
                     if (
-                        client.state == LSPClientState.ERROR
-                        or client.state == LSPClientState.DISCONNECTED
+                        client.state == AsyncLSPClientState.ERROR
+                        or client.state == AsyncLSPClientState.DISCONNECTED
                     ):
                         self.logger.warning(
                             f"LSP server for '{repo_name}' is unhealthy, restarting"

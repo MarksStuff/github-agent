@@ -17,12 +17,12 @@ import json
 import logging
 import os
 import uuid
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from lsp_client import AbstractLSPClient
 from lsp_constants import LSPMethod
 from lsp_server_manager import LSPServerManager
 
@@ -136,7 +136,47 @@ class LSPProtocol:
         return notification
 
 
-class AsyncLSPClient(AbstractLSPClient):
+class AbstractAsyncLSPClient(ABC):
+    """Abstract base class for async LSP client implementations."""
+
+    @abstractmethod
+    async def start(self) -> bool:
+        """Start the LSP client."""
+        pass
+
+    @abstractmethod
+    async def stop(self) -> bool:
+        """Stop the LSP client."""
+        pass
+
+    @abstractmethod
+    async def get_definition(
+        self, uri: str, line: int, character: int
+    ) -> list[dict[str, Any]] | None:
+        """Get definition for a symbol."""
+        pass
+
+    @abstractmethod
+    async def get_references(
+        self, uri: str, line: int, character: int, include_declaration: bool = True
+    ) -> list[dict[str, Any]] | None:
+        """Get references for a symbol."""
+        pass
+
+    @abstractmethod
+    async def get_hover(
+        self, uri: str, line: int, character: int
+    ) -> dict[str, Any] | None:
+        """Get hover information for a symbol."""
+        pass
+
+    @abstractmethod
+    async def get_document_symbols(self, uri: str) -> list[dict[str, Any]] | None:
+        """Get document symbols."""
+        pass
+
+
+class AsyncLSPClient(AbstractAsyncLSPClient):
     """
     Async-native LSP client implementation.
 
@@ -150,14 +190,16 @@ class AsyncLSPClient(AbstractLSPClient):
         from lsp_server_factory import create_default_python_lsp_manager
 
         server_manager = create_default_python_lsp_manager(workspace_root, python_path)
-        return cls(server_manager, workspace_root)
+        logger = logging.getLogger(f"{__name__}.{Path(workspace_root).name}")
+        protocol = LSPProtocol(logger)
+        return cls(server_manager, workspace_root, logger, protocol)
 
     def __init__(
         self,
         server_manager: LSPServerManager,
         workspace_root: str,
-        logger: logging.Logger | None = None,
-        protocol: LSPProtocol | None = None,
+        logger: logging.Logger,
+        protocol: LSPProtocol,
     ):
         """
         Initialize the async LSP client.
@@ -165,27 +207,25 @@ class AsyncLSPClient(AbstractLSPClient):
         Args:
             server_manager: LSP server manager for server-specific configuration
             workspace_root: Root directory of the workspace
-            logger: Logger instance (creates one if not provided)
-            protocol: LSP protocol handler (creates one if not provided)
+            logger: Logger instance (required)
+            protocol: LSP protocol handler (required)
         """
-        # Create logger and protocol if not provided
-        resolved_logger = logger or logging.getLogger(
-            f"{__name__}.{Path(workspace_root).name}"
-        )
-
-        # Call parent constructor
-        super().__init__(server_manager, workspace_root, resolved_logger)
-
+        # Initialize instance variables
+        self.server_manager = server_manager
         self.workspace_root = Path(workspace_root)
+        self.logger = logger
 
-        # Connection state (override parent's state with async version)
+        # Server capabilities
+        self.server_capabilities: dict[str, Any] = {}
+
+        # Connection state
         self.state = AsyncLSPClientState.DISCONNECTED
         self._server_process: asyncio.subprocess.Process | None = None
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
 
         # Protocol handling (override parent's JSONRPCProtocol with LSPProtocol)
-        self.protocol = protocol or LSPProtocol(self.logger)
+        self.protocol = protocol
 
         # Request/response tracking
         self._pending_requests: dict[str, asyncio.Future] = {}

@@ -16,7 +16,7 @@ import pytest
 
 import codebase_tools
 import mcp_master
-from lsp_client import AbstractLSPClient, LSPClientState
+from async_lsp_client import AbstractAsyncLSPClient, AsyncLSPClientState
 from python_symbol_extractor import AbstractSymbolExtractor, PythonSymbolExtractor
 from repository_indexer import (
     AbstractRepositoryIndexer,
@@ -63,13 +63,13 @@ def find_free_port(start_port: int = 8081, max_attempts: int = 100) -> int:
     )
 
 
-class MockLSPClient(AbstractLSPClient):
+class MockLSPClient(AbstractAsyncLSPClient):
     """Mock LSP client for testing."""
 
     def __init__(
         self,
         workspace_root: str = "/test",
-        state: LSPClientState = LSPClientState.INITIALIZED,
+        state: AsyncLSPClientState = AsyncLSPClientState.INITIALIZED,
     ):
         # Don't call super().__init__ to avoid needing server_manager
         self.workspace_root = workspace_root
@@ -118,12 +118,12 @@ class MockLSPClient(AbstractLSPClient):
     async def start(self) -> bool:
         """Mock start method."""
         if self._start_result:
-            self.state = LSPClientState.INITIALIZED
+            self.state = AsyncLSPClientState.INITIALIZED
         return self._start_result
 
     def shutdown(self) -> None:
         """Mock shutdown method."""
-        self.state = LSPClientState.DISCONNECTED
+        self.state = AsyncLSPClientState.DISCONNECTED
 
     def set_definition_response(self, response: list[dict]):
         """Set the response for get_definition calls."""
