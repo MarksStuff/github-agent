@@ -14,9 +14,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar, Union
 
-from async_lsp_client import AsyncLSPClient, AsyncLSPClientState  
-from lsp_client import AbstractLSPClient
+from async_lsp_client import AsyncLSPClient, AsyncLSPClientState
 from constants import Language
+from lsp_client import AbstractLSPClient
 from repository_manager import AbstractRepositoryManager
 from symbol_storage import AbstractSymbolStorage
 
@@ -783,7 +783,9 @@ class CodebaseTools:
                 }
             )
 
-    async def _get_lsp_client(self, repository_id: str) -> Union[AsyncLSPClient, AbstractLSPClient, None]:
+    async def _get_lsp_client(
+        self, repository_id: str
+    ) -> Union[AsyncLSPClient, AbstractLSPClient, None]:
         """Get LSP client for a repository from the repository manager."""
         self.logger.debug(f"Getting LSP client for repository '{repository_id}'")
 
@@ -842,7 +844,9 @@ class CodebaseTools:
             try:
                 self.logger.debug("Creating new LSP client using factory")
                 # Create new LSP client using the factory
-                new_client: Union[AsyncLSPClient, AbstractLSPClient] = self.lsp_client_factory(
+                new_client: Union[
+                    AsyncLSPClient, AbstractLSPClient
+                ] = self.lsp_client_factory(
                     repo_config.workspace,
                     repo_config.python_path,
                 )

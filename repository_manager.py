@@ -42,7 +42,9 @@ from lsp_client import AbstractLSPClient, LSPClientState
 # Removed direct import of PyrightLSPManager - now using factory pattern
 
 # Type for LSP client provider
-LSPClientProvider = Callable[[str, str, str], Union["AsyncLSPClient", "AbstractLSPClient"]]
+LSPClientProvider = Callable[
+    [str, str, str], Union["AsyncLSPClient", "AbstractLSPClient"]
+]
 
 
 class AbstractRepositoryManager(abc.ABC):
