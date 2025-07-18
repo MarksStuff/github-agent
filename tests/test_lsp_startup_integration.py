@@ -10,6 +10,7 @@ This test verifies that:
 """
 
 import asyncio
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -45,19 +46,25 @@ class TestClass:
 
         # Create test repositories.json
         self.config_file = Path(self.temp_dir) / "repositories.json"
-        self.config_file.write_text(
-            f"""{{
-  "repositories": {{
-    "test-repo": {{
-      "workspace": "{self.test_repo_path}",
-      "port": 8090,
-      "description": "Test repository",
-      "language": "python",
-      "python_path": "{Path.cwd() / ".venv" / "bin" / "python"}"
-    }}
-  }}
-}}"""
-        )
+        
+        # Use sys.executable to get the current Python interpreter path
+        import sys
+        python_path = sys.executable
+        
+        # Create config data as dict and then serialize to avoid path escaping issues
+        config_data = {
+            "repositories": {
+                "test-repo": {
+                    "workspace": str(self.test_repo_path),
+                    "port": 8090,
+                    "description": "Test repository",
+                    "language": "python",
+                    "python_path": str(python_path)
+                }
+            }
+        }
+        
+        self.config_file.write_text(json.dumps(config_data, indent=2))
 
     def tearDown(self):
         """Clean up test environment."""
@@ -82,7 +89,12 @@ class TestClass:
         repository_manager = RepositoryManager(
             str(self.config_file), lsp_client_provider=mock_lsp_client_provider
         )
-        self.assertTrue(repository_manager.load_configuration())
+        
+        # Load configuration with better error reporting
+        success = repository_manager.load_configuration()
+        if not success:
+            self.fail(f"Failed to load configuration from {self.config_file}. Config file exists: {self.config_file.exists()}, Test repo exists: {self.test_repo_path.exists()}")
+        
         self.assertIn("test-repo", repository_manager.repositories)
 
         # Step 2: Start LSP servers (this should work without errors)
@@ -178,9 +190,23 @@ class TestClass:
                 "LSP client should not be initialized after stop",
             )
 
+        # Step 9: Clean up resources properly
+        try:
+            # Give any remaining async tasks a chance to complete
+            await asyncio.sleep(0.1)
+        except Exception:
+            pass
+
     def test_lsp_startup_integration_sync_wrapper(self):
         """Sync wrapper for the async test."""
-        asyncio.run(self.test_lsp_server_lifecycle())
+        # Use asyncio.run with proper cleanup
+        try:
+            asyncio.run(self.test_lsp_server_lifecycle())
+        except Exception as e:
+            # Clean up any remaining async resources
+            import gc
+            gc.collect()
+            raise e
 
 
 if __name__ == "__main__":
