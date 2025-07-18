@@ -98,6 +98,10 @@ class TestRepositoryAwareTools(unittest.TestCase):
         os.system(
             f"cd {repo_path} && git remote add origin https://github.com/test/test-repo.git"
         )
+        
+        # Create a sample Python file for validation
+        test_file = repo_path / "test.py"
+        test_file.write_text('print("Hello, World!")\n')
         os.system(
             f"cd {repo_path} && touch README.md && git add . && git commit -m 'Initial commit' --quiet"
         )

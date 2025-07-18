@@ -242,6 +242,11 @@ class AsyncLSPClient(AbstractAsyncLSPClient):
             logger: Logger instance (required)
             protocol: LSP protocol handler (required)
         """
+        # Debug: Write to a file we can easily check
+        with open("/tmp/async_lsp_debug.log", "a") as f:
+            f.write(f"🔥 AsyncLSPClient.__init__() called for workspace: {workspace_root}\n")
+            f.flush()
+        
         # Initialize instance variables
         self.server_manager = server_manager
         self.workspace_root = Path(workspace_root)
@@ -665,24 +670,44 @@ class AsyncLSPClient(AbstractAsyncLSPClient):
             asyncio.TimeoutError: If request times out
             RuntimeError: If request fails
         """
+        # Debug: Write to a file we can easily check
+        with open("/tmp/async_lsp_debug.log", "a") as f:
+            f.write(f"🔥 ASYNC_LSP_CLIENT._send_request() CALLED: method={method}, timeout={timeout}\n")
+            f.flush()
+        
         if timeout is None:
             timeout = self._request_timeout
 
         request = self.protocol.create_request(method, params)
-        request_id = request["id"]
+        
+        # Handle both dict and JSONRPCRequest object
+        if hasattr(request, 'to_dict') and callable(getattr(request, 'to_dict')):
+            # JSONRPCRequest object
+            request_id = request.id
+            request_dict = request.to_dict()
+        else:
+            # Plain dict
+            request_id = request["id"]
+            request_dict = request
 
         # Create future for response
         response_future: asyncio.Future[LSPMessage] = asyncio.Future()
         self._pending_requests[request_id] = response_future
 
         try:
-            self.logger.debug(f"📤 Sending request: {method} (ID: {request_id})")
-            await self._send_message(request)
+            self.logger.debug(f"📤 Sending request: {method} (ID: {request_id}) with params: {params}")
+            await self._send_message(request_dict)
+            self.logger.debug(f"✅ Request sent successfully, waiting for response (timeout: {timeout}s)")
 
             # Wait for response
             response = await asyncio.wait_for(response_future, timeout=timeout)
 
             self.logger.debug(f"📥 Received response for: {method} (ID: {request_id})")
+            
+            # Debug: Log the actual response content
+            with open("/tmp/async_lsp_debug.log", "a") as f:
+                f.write(f"🔥 ASYNC_LSP_CLIENT._send_request() RESPONSE: method={method}, response.result={response.result}, response.error={response.error}\n")
+                f.flush()
 
             if response.error:
                 error_msg = f"LSP error: {response.error}"
@@ -695,6 +720,8 @@ class AsyncLSPClient(AbstractAsyncLSPClient):
             self._pending_requests.pop(request_id, None)
             error_msg = f"Request timeout: {method} (ID: {request_id}) after {timeout}s"
             self.logger.error(f"⏰ {error_msg}")
+            self.logger.error(f"⏰ Pending requests count: {len(self._pending_requests)}")
+            self.logger.error(f"⏰ LSP client state: {self.state}")
             raise TimeoutError(error_msg) from None
         except Exception as e:
             self._pending_requests.pop(request_id, None)
@@ -752,9 +779,12 @@ class AsyncLSPClient(AbstractAsyncLSPClient):
             self.logger.info("✅ Initialize request successful")
 
             # Send initialized notification
-            await self._send_message(
-                self.protocol.create_notification("initialized", {})
-            )
+            notification = self.protocol.create_notification("initialized", {})
+            if hasattr(notification, 'to_dict') and callable(getattr(notification, 'to_dict')):
+                notification_dict = notification.to_dict()
+            else:
+                notification_dict = notification
+            await self._send_message(notification_dict)
             self.logger.info("📤 Sent initialized notification")
 
             self._set_state(AsyncLSPClientState.INITIALIZED)
@@ -773,7 +803,12 @@ class AsyncLSPClient(AbstractAsyncLSPClient):
             await self._send_request(LSPMethod.SHUTDOWN, timeout=5.0)
 
             # Send exit notification
-            await self._send_message(self.protocol.create_notification("exit"))
+            exit_notification = self.protocol.create_notification("exit")
+            if hasattr(exit_notification, 'to_dict') and callable(getattr(exit_notification, 'to_dict')):
+                exit_dict = exit_notification.to_dict()
+            else:
+                exit_dict = exit_notification
+            await self._send_message(exit_dict)
             self.logger.info("📤 Sent exit notification")
 
         except Exception as e:
@@ -854,6 +889,11 @@ class AsyncLSPClient(AbstractAsyncLSPClient):
         self, uri: str, line: int, character: int
     ) -> list[dict[str, Any]] | None:
         """Get definition for a symbol."""
+        # Debug: Write to a file we can easily check
+        with open("/tmp/async_lsp_debug.log", "a") as f:
+            f.write(f"🔥 ASYNC_LSP_CLIENT.get_definition() CALLED: {uri} at line={line}, character={character}\n")
+            f.flush()
+        
         if self.state != AsyncLSPClientState.INITIALIZED:
             raise RuntimeError(f"Client not initialized (state: {self.state})")
 
@@ -862,15 +902,29 @@ class AsyncLSPClient(AbstractAsyncLSPClient):
             "position": {"line": line, "character": character},
         }
 
+        self.logger.info(f"🔍 ASYNC_LSP_CLIENT: Requesting definition for {uri} at line={line}, character={character}")
+        self.logger.debug(f"🔍 Requesting definition for {uri} at line={line}, character={character}")
+        
         try:
             response = await self._send_request("textDocument/definition", params)
+            self.logger.debug(f"📥 Definition response received: {response}")
             result = response.result
+            self.logger.debug(f"📋 Definition result: {result}")
+            
+            # Debug: Log the actual result content
+            with open("/tmp/async_lsp_debug.log", "a") as f:
+                f.write(f"🔥 ASYNC_LSP_CLIENT.get_definition() RESULT: result={result}, type={type(result)}\n")
+                f.flush()
+                
             if result is None:
+                self.logger.debug("❌ Definition result is None")
                 return None
             # Ensure we always return a list
             if isinstance(result, list):
+                self.logger.debug(f"✅ Returning definition list with {len(result)} items")
                 return result
             else:
+                self.logger.debug("✅ Converting single definition to list")
                 return [result]
         except Exception as e:
             self.logger.error(f"❌ Definition request failed: {e}")

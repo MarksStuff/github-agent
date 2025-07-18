@@ -784,11 +784,17 @@ class MCPWorker:
             self.logger.error(f"Failed to create uvicorn server: {e}")
             raise
 
-        # Set up signal handlers
+        # Set up signal handlers (only works in main thread)
         self.logger.debug("Setting up signal handlers...")
-        signal.signal(signal.SIGTERM, self.signal_handler)
-        signal.signal(signal.SIGINT, self.signal_handler)
-        self.logger.debug("Signal handlers configured")
+        try:
+            signal.signal(signal.SIGTERM, self.signal_handler)
+            signal.signal(signal.SIGINT, self.signal_handler)
+            self.logger.debug("Signal handlers configured")
+        except ValueError as e:
+            # signal.signal() raises ValueError if not in main thread
+            self.logger.debug(f"Skipping signal handlers (not in main thread): {e}")
+        except Exception as e:
+            self.logger.warning(f"Failed to set up signal handlers: {e}")
 
         self.logger.info(f"Starting uvicorn server on port {self.port}...")
         try:

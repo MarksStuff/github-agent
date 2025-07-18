@@ -844,6 +844,7 @@ class CodebaseTools:
                 self.logger.debug(
                     f"Repository manager returned LSP client with state: {client.state}"
                 )
+                self.logger.info(f"LSP client type: {type(client)} - {client.__class__.__module__}.{client.__class__.__name__}")
             else:
                 self.logger.debug("Repository manager returned no LSP client")
             return client
