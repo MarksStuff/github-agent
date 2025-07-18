@@ -255,7 +255,7 @@ class MCPWorker:
 
     def cleanup(self) -> None:
         """Clean up resources when worker is done."""
-        if hasattr(self, 'symbol_storage') and self.symbol_storage:
+        if hasattr(self, "symbol_storage") and self.symbol_storage:
             self.symbol_storage.close()
             self.symbol_storage = None
 

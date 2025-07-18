@@ -56,15 +56,15 @@ def mock_subprocess():
 def mcp_worker_factory(temp_repo, mock_github_token, mock_subprocess):
     """Factory for creating MCPWorker instances with automatic cleanup"""
     workers = []
-    
+
     def _create(repo_config):
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
             worker = MCPWorker(repo_config)
             workers.append(worker)
             return worker
-    
+
     yield _create
-    
+
     # Cleanup all workers
     for worker in workers:
         worker.cleanup()
@@ -86,7 +86,7 @@ class TestMCPWorker:
             python_path="/usr/bin/python3",
         )
         worker = mcp_worker_factory(repo_config)
-        
+
         assert worker.repo_name == "test-repo"
         assert worker.repo_path == temp_repo
         assert worker.port == 8080

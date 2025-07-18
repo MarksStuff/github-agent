@@ -172,7 +172,9 @@ class TestCodebaseStartupOrchestrator:
         assert len(result.indexing_statuses) == 0
 
     @pytest.mark.asyncio
-    async def test_initialize_repositories_no_python_repos(self, in_memory_symbol_storage):
+    async def test_initialize_repositories_no_python_repos(
+        self, in_memory_symbol_storage
+    ):
         """Test initialization with no Python repositories."""
         storage = in_memory_symbol_storage
         extractor = PythonSymbolExtractor()
@@ -243,7 +245,9 @@ class TestCodebaseStartupOrchestrator:
             ]
 
     @pytest.mark.asyncio
-    async def test_initialize_repositories_with_indexing_failure(self, in_memory_symbol_storage):
+    async def test_initialize_repositories_with_indexing_failure(
+        self, in_memory_symbol_storage
+    ):
         """Test initialization with indexing failure."""
         storage = in_memory_symbol_storage
         extractor = PythonSymbolExtractor()

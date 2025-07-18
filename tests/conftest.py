@@ -533,15 +533,15 @@ def temp_symbol_storage(tmp_path):
 
 class SymbolStorageCloser:
     """Context manager to ensure SQLiteSymbolStorage is properly closed."""
-    
+
     def __init__(self, db_path):
         self.db_path = db_path
         self.storage = None
-    
+
     def __enter__(self):
         self.storage = SQLiteSymbolStorage(str(self.db_path))
         return self.storage
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.storage:
             self.storage.close()
