@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from constants import Language
+from github_tools import MockGitHubAPIContext
 from mcp_worker import MCPWorker
 
 
@@ -58,10 +59,16 @@ def mcp_worker_factory(temp_repo, mock_github_token, mock_subprocess):
     workers = []
 
     def _create(repo_config):
-        with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            worker = MCPWorker(repo_config)
-            workers.append(worker)
-            return worker
+        # Create mock GitHub context for dependency injection
+        mock_github_context = MockGitHubAPIContext(
+            repo_name="test/test-repo",
+            github_token="fake_token_for_testing"
+        )
+        
+        # Use dependency injection instead of patching
+        worker = MCPWorker(repo_config, github_context=mock_github_context)
+        workers.append(worker)
+        return worker
 
     yield _create
 
@@ -153,275 +160,317 @@ class TestMCPWorker:
 
     def test_health_endpoint(self, temp_repo, mock_github_token, mock_subprocess):
         """Test the health check endpoint"""
-        with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            from repository_manager import RepositoryConfig
+        from repository_manager import RepositoryConfig
 
-            repo_config = RepositoryConfig.create_repository_config(
-                name="test-repo",
-                workspace=temp_repo,
-                description="Test repository",
-                language=Language.PYTHON,
-                port=8080,
-                python_path="/usr/bin/python3",
-            )
-            worker = MCPWorker(repo_config)
+        repo_config = RepositoryConfig.create_repository_config(
+            name="test-repo",
+            workspace=temp_repo,
+            description="Test repository",
+            language=Language.PYTHON,
+            port=8080,
+            python_path="/usr/bin/python3",
+        )
+        
+        # Create mock GitHub context for dependency injection
+        mock_github_context = MockGitHubAPIContext(
+            repo_name="test/test-repo",
+            github_token="fake_token_for_testing"
+        )
+        
+        worker = MCPWorker(repo_config, github_context=mock_github_context)
 
-            client = TestClient(worker.app)
+        client = TestClient(worker.app)
 
-            response = client.get("/health")
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "healthy"
-            assert data["repository"] == "test-repo"
-            assert data["github_configured"] is True
-            assert data["repo_path_exists"] is True
-            assert "github" in data["tool_categories"]
-            assert "codebase" in data["tool_categories"]
+        response = client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
+        assert data["repository"] == "test-repo"
+        assert data["github_configured"] is True
+        assert data["repo_path_exists"] is True
+        assert "github" in data["tool_categories"]
+        assert "codebase" in data["tool_categories"]
 
     def test_mcp_initialize(self, temp_repo, mock_github_token, mock_subprocess):
         """Test MCP initialize method"""
-        with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            from repository_manager import RepositoryConfig
+        from repository_manager import RepositoryConfig
 
-            repo_config = RepositoryConfig.create_repository_config(
-                name="test-repo",
-                workspace=temp_repo,
-                description="Test repository",
-                language=Language.PYTHON,
-                port=8080,
-                python_path="/usr/bin/python3",
-            )
-            worker = MCPWorker(repo_config)
+        repo_config = RepositoryConfig.create_repository_config(
+            name="test-repo",
+            workspace=temp_repo,
+            description="Test repository",
+            language=Language.PYTHON,
+            port=8080,
+            python_path="/usr/bin/python3",
+        )
+        
+        # Create mock GitHub context for dependency injection
+        mock_github_context = MockGitHubAPIContext(
+            repo_name="test/test-repo",
+            github_token="fake_token_for_testing"
+        )
+        
+        worker = MCPWorker(repo_config, github_context=mock_github_context)
 
-            client = TestClient(worker.app)
+        client = TestClient(worker.app)
 
-            # Test MCP initialize
-            initialize_request = {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {},
-            }
+        # Test MCP initialize
+        initialize_request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {},
+        }
 
-            response = client.post("/mcp/", json=initialize_request)
-            assert response.status_code == 200
-            assert response.json()["status"] == "queued"
+        response = client.post("/mcp/", json=initialize_request)
+        assert response.status_code == 200
+        assert response.json()["status"] == "queued"
 
-            # Check that response was queued
-            assert not worker.message_queue.empty()
-            queued_response = worker.message_queue.get()
-            assert (
-                queued_response["result"]["serverInfo"]["name"] == "mcp-agent-test-repo"
-            )
+        # Check that response was queued
+        assert not worker.message_queue.empty()
+        queued_response = worker.message_queue.get()
+        assert (
+            queued_response["result"]["serverInfo"]["name"] == "mcp-agent-test-repo"
+        )
 
     def test_mcp_tools_list(self, temp_repo, mock_github_token, mock_subprocess):
         """Test MCP tools/list method"""
-        with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            from repository_manager import RepositoryConfig
+        from repository_manager import RepositoryConfig
 
-            repo_config = RepositoryConfig.create_repository_config(
-                name="test-repo",
-                workspace=temp_repo,
-                description="Test repository",
-                language=Language.PYTHON,
-                port=8080,
-                python_path="/usr/bin/python3",
-            )
-            worker = MCPWorker(repo_config)
+        repo_config = RepositoryConfig.create_repository_config(
+            name="test-repo",
+            workspace=temp_repo,
+            description="Test repository",
+            language=Language.PYTHON,
+            port=8080,
+            python_path="/usr/bin/python3",
+        )
+        
+        # Create mock GitHub context for dependency injection
+        mock_github_context = MockGitHubAPIContext(
+            repo_name="test/test-repo",
+            github_token="fake_token_for_testing"
+        )
+        
+        worker = MCPWorker(repo_config, github_context=mock_github_context)
 
-            client = TestClient(worker.app)
+        client = TestClient(worker.app)
 
-            # Test tools/list
-            tools_request = {
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "tools/list",
-                "params": {},
-            }
+        # Test tools/list
+        tools_request = {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/list",
+            "params": {},
+        }
 
-            response = client.post("/mcp/", json=tools_request)
-            assert response.status_code == 200
-            assert response.json()["status"] == "queued"
+        response = client.post("/mcp/", json=tools_request)
+        assert response.status_code == 200
+        assert response.json()["status"] == "queued"
 
-            # Check that response was queued
-            assert not worker.message_queue.empty()
-            queued_response = worker.message_queue.get()
-            tools = queued_response["result"]["tools"]
+        # Check that response was queued
+        assert not worker.message_queue.empty()
+        queued_response = worker.message_queue.get()
+        tools = queued_response["result"]["tools"]
 
-            # Should have both GitHub and codebase tools
-            tool_names = [tool["name"] for tool in tools]
+        # Should have both GitHub and codebase tools
+        tool_names = [tool["name"] for tool in tools]
 
-            # Check for GitHub tools
-            assert "git_get_current_branch" in tool_names
-            assert "git_get_current_commit" in tool_names
-            assert "github_find_pr_for_branch" in tool_names
-            assert "github_get_pr_comments" in tool_names
-            assert "github_post_pr_reply" in tool_names
-            assert "github_check_ci_build_and_test_errors_not_local" in tool_names
-            assert "github_check_ci_lint_errors_not_local" in tool_names
-            assert "github_get_build_status" in tool_names
+        # Check for GitHub tools
+        assert "git_get_current_branch" in tool_names
+        assert "git_get_current_commit" in tool_names
+        assert "github_find_pr_for_branch" in tool_names
+        assert "github_get_pr_comments" in tool_names
+        assert "github_post_pr_reply" in tool_names
+        assert "github_check_ci_build_and_test_errors_not_local" in tool_names
+        assert "github_check_ci_lint_errors_not_local" in tool_names
+        assert "github_get_build_status" in tool_names
 
-            # Check for codebase tools
-            assert "codebase_health_check" in tool_names
+        # Check for codebase tools
+        assert "codebase_health_check" in tool_names
 
     @pytest.mark.asyncio
     async def test_mcp_tool_call_codebase_health_check(
         self, temp_repo, mock_github_token, mock_subprocess
     ):
         """Test MCP tool call for codebase health check"""
-        with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            from repository_manager import RepositoryConfig
+        from repository_manager import RepositoryConfig
 
-            repo_config = RepositoryConfig.create_repository_config(
-                name="test-repo",
-                workspace=temp_repo,
-                description="Test repository",
-                language=Language.PYTHON,
-                port=8080,
-                python_path="/usr/bin/python3",
-            )
-            worker = MCPWorker(repo_config)
+        repo_config = RepositoryConfig.create_repository_config(
+            name="test-repo",
+            workspace=temp_repo,
+            description="Test repository",
+            language=Language.PYTHON,
+            port=8080,
+            python_path="/usr/bin/python3",
+        )
+        
+        # Create mock GitHub context for dependency injection
+        mock_github_context = MockGitHubAPIContext(
+            repo_name="test/test-repo",
+            github_token="fake_token_for_testing"
+        )
+        
+        worker = MCPWorker(repo_config, github_context=mock_github_context)
 
-            client = TestClient(worker.app)
+        client = TestClient(worker.app)
 
-            # Test codebase health check tool call
-            tool_call_request = {
-                "jsonrpc": "2.0",
-                "id": 3,
-                "method": "tools/call",
-                "params": {"name": "codebase_health_check", "arguments": {}},
-            }
+        # Test codebase health check tool call
+        tool_call_request = {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "codebase_health_check", "arguments": {}},
+        }
 
-            response = client.post("/mcp/", json=tool_call_request)
-            assert response.status_code == 200
-            assert response.json()["status"] == "queued"
+        response = client.post("/mcp/", json=tool_call_request)
+        assert response.status_code == 200
+        assert response.json()["status"] == "queued"
 
-            # Check that response was queued
-            assert not worker.message_queue.empty()
-            queued_response = worker.message_queue.get()
-            result_text = queued_response["result"]["content"][0]["text"]
-            assert (
-                '"status":' in result_text
-            )  # Accept any status (healthy, warning, etc.)
-            assert '"repo": "test-repo"' in result_text
+        # Check that response was queued
+        assert not worker.message_queue.empty()
+        queued_response = worker.message_queue.get()
+        result_text = queued_response["result"]["content"][0]["text"]
+        assert (
+            '"status":' in result_text
+        )  # Accept any status (healthy, warning, etc.)
+        assert '"repo": "test-repo"' in result_text
 
-            # This is now an integration test - the actual health check runs
+        # This is now an integration test - the actual health check runs
 
     @pytest.mark.asyncio
     async def test_mcp_tool_call_find_references_no_duplicate_args(
         self, temp_repo, mock_github_token, mock_subprocess
     ):
         """Test MCP tool call for find_references to prevent duplicate repository_id argument regression"""
-        with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            from repository_manager import RepositoryConfig
+        from repository_manager import RepositoryConfig
 
-            repo_config = RepositoryConfig.create_repository_config(
-                name="test-repo",
-                workspace=temp_repo,
-                description="Test repository",
-                language=Language.PYTHON,
-                port=8080,
-                python_path="/usr/bin/python3",
-            )
-            worker = MCPWorker(repo_config)
+        repo_config = RepositoryConfig.create_repository_config(
+            name="test-repo",
+            workspace=temp_repo,
+            description="Test repository",
+            language=Language.PYTHON,
+            port=8080,
+            python_path="/usr/bin/python3",
+        )
+        
+        # Create mock GitHub context for dependency injection
+        mock_github_context = MockGitHubAPIContext(
+            repo_name="test/test-repo",
+            github_token="fake_token_for_testing"
+        )
+        
+        worker = MCPWorker(repo_config, github_context=mock_github_context)
 
-            client = TestClient(worker.app)
+        client = TestClient(worker.app)
 
-            # Test find_references tool call with repository_id argument
-            # This specifically tests the fix for duplicate repository_id argument issue
-            tool_call_request = {
-                "jsonrpc": "2.0",
-                "id": 4,
-                "method": "tools/call",
-                "params": {
-                    "name": "find_references",
-                    "arguments": {
-                        "repository_id": "test-repo",
-                        "symbol": "test_symbol",
-                        "file_path": "main.py",
-                        "line": 1,
-                        "column": 1,
-                    },
+        # Test find_references tool call with repository_id argument
+        # This specifically tests the fix for duplicate repository_id argument issue
+        tool_call_request = {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {
+                "name": "find_references",
+                "arguments": {
+                    "repository_id": "test-repo",
+                    "symbol": "test_symbol",
+                    "file_path": "main.py",
+                    "line": 1,
+                    "column": 1,
                 },
-            }
+            },
+        }
 
-            response = client.post("/mcp/", json=tool_call_request)
-            assert response.status_code == 200
-            assert response.json()["status"] == "queued"
+        response = client.post("/mcp/", json=tool_call_request)
+        assert response.status_code == 200
+        assert response.json()["status"] == "queued"
 
-            # Check that response was queued (should not fail with duplicate argument error)
-            assert not worker.message_queue.empty()
-            queued_response = worker.message_queue.get()
-            result_text = queued_response["result"]["content"][0]["text"]
+        # Check that response was queued (should not fail with duplicate argument error)
+        assert not worker.message_queue.empty()
+        queued_response = worker.message_queue.get()
+        result_text = queued_response["result"]["content"][0]["text"]
 
-            # Should not contain the specific duplicate argument error
-            assert (
-                "got multiple values for keyword argument 'repository_id'"
-                not in result_text
-            )
-            # Should contain either a valid response or an LSP-related error (not argument error)
-            assert '"error"' in result_text or '"symbol"' in result_text
+        # Should not contain the specific duplicate argument error
+        assert (
+            "got multiple values for keyword argument 'repository_id'"
+            not in result_text
+        )
+        # Should contain either a valid response or an LSP-related error (not argument error)
+        assert '"error"' in result_text or '"symbol"' in result_text
 
     def test_mcp_unknown_tool(self, temp_repo, mock_github_token, mock_subprocess):
         """Test MCP tool call for unknown tool"""
-        with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            from repository_manager import RepositoryConfig
+        from repository_manager import RepositoryConfig
 
-            repo_config = RepositoryConfig.create_repository_config(
-                name="test-repo",
-                workspace=temp_repo,
-                description="Test repository",
-                language=Language.PYTHON,
-                port=8080,
-                python_path="/usr/bin/python3",
-            )
-            worker = MCPWorker(repo_config)
+        repo_config = RepositoryConfig.create_repository_config(
+            name="test-repo",
+            workspace=temp_repo,
+            description="Test repository",
+            language=Language.PYTHON,
+            port=8080,
+            python_path="/usr/bin/python3",
+        )
+        
+        # Create mock GitHub context for dependency injection
+        mock_github_context = MockGitHubAPIContext(
+            repo_name="test/test-repo",
+            github_token="fake_token_for_testing"
+        )
+        
+        worker = MCPWorker(repo_config, github_context=mock_github_context)
 
-            client = TestClient(worker.app)
+        client = TestClient(worker.app)
 
-            # Test unknown tool call
-            tool_call_request = {
-                "jsonrpc": "2.0",
-                "id": 4,
-                "method": "tools/call",
-                "params": {"name": "unknown_tool", "arguments": {}},
-            }
+        # Test unknown tool call
+        tool_call_request = {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {"name": "unknown_tool", "arguments": {}},
+        }
 
-            response = client.post("/mcp/", json=tool_call_request)
-            assert response.status_code == 200
-            assert response.json()["status"] == "queued"
+        response = client.post("/mcp/", json=tool_call_request)
+        assert response.status_code == 200
+        assert response.json()["status"] == "queued"
 
-            # Check that error response was queued
-            assert not worker.message_queue.empty()
-            queued_response = worker.message_queue.get()
-            result_text = queued_response["result"]["content"][0]["text"]
-            assert '"error"' in result_text
-            assert "not implemented" in result_text
+        # Check that error response was queued
+        assert not worker.message_queue.empty()
+        queued_response = worker.message_queue.get()
+        result_text = queued_response["result"]["content"][0]["text"]
+        assert '"error"' in result_text
+        assert "not implemented" in result_text
 
     def test_shutdown_endpoint(self, temp_repo, mock_github_token, mock_subprocess):
         """Test the shutdown endpoint"""
-        with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            from repository_manager import RepositoryConfig
+        from repository_manager import RepositoryConfig
 
-            repo_config = RepositoryConfig.create_repository_config(
-                name="test-repo",
-                workspace=temp_repo,
-                description="Test repository",
-                language=Language.PYTHON,
-                port=8080,
-                python_path="/usr/bin/python3",
-            )
-            worker = MCPWorker(repo_config)
+        repo_config = RepositoryConfig.create_repository_config(
+            name="test-repo",
+            workspace=temp_repo,
+            description="Test repository",
+            language=Language.PYTHON,
+            port=8080,
+            python_path="/usr/bin/python3",
+        )
+        
+        # Create mock GitHub context for dependency injection
+        mock_github_context = MockGitHubAPIContext(
+            repo_name="test/test-repo",
+            github_token="fake_token_for_testing"
+        )
+        
+        worker = MCPWorker(repo_config, github_context=mock_github_context)
 
-            client = TestClient(worker.app)
+        client = TestClient(worker.app)
 
-            response = client.post("/shutdown")
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "shutdown_initiated"
+        response = client.post("/shutdown")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "shutdown_initiated"
 
-            # Check that shutdown event is set
-            assert worker.shutdown_event.is_set()
+        # Check that shutdown event is set
+        assert worker.shutdown_event.is_set()
 
 
 if __name__ == "__main__":

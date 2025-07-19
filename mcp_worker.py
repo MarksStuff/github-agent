@@ -33,6 +33,7 @@ import github_tools
 from codebase_tools import CodebaseTools, create_simple_lsp_client
 from constants import DATA_DIR, LOGS_DIR, SYMBOLS_DB_PATH, Language
 from github_tools import (
+    AbstractGitHubAPIContext,
     GitHubAPIContext,
     execute_find_pr_for_branch,
     execute_get_build_status,
@@ -68,7 +69,7 @@ class MCPWorker:
     symbol_storage: SQLiteSymbolStorage | None
     codebase_tools_instance: CodebaseTools
 
-    def __init__(self, repository_config: RepositoryConfig, db_path: str | None = None):
+    def __init__(self, repository_config: RepositoryConfig, db_path: str | None = None, github_context: AbstractGitHubAPIContext | None = None):
         # Store repository configuration
         self.repo_config = repository_config
         self.db_path = db_path
@@ -153,13 +154,18 @@ class MCPWorker:
             self.logger.error(f"Repository path {self.repo_path} does not exist!")
             raise ValueError(f"Repository path {self.repo_path} does not exist")
 
-        self.logger.debug("Creating GitHub context...")
+        self.logger.debug("Setting up GitHub context...")
         try:
-            # Create GitHub context
-            self.github_context = GitHubAPIContext(self.repo_config)
-            self.logger.debug("GitHub context created successfully")
+            # Use injected GitHub context or create a new one
+            if github_context is not None:
+                self.github_context = github_context
+                self.logger.debug("Using injected GitHub context")
+            else:
+                # Create GitHub context using production implementation
+                self.github_context = GitHubAPIContext(self.repo_config)
+                self.logger.debug("Created new GitHub context")
         except Exception as e:
-            self.logger.error(f"Failed to create GitHub context: {e}")
+            self.logger.error(f"Failed to setup GitHub context: {e}")
             raise
 
         self.logger.debug("Setting up repository manager...")

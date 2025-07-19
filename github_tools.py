@@ -5,6 +5,7 @@ GitHub Tools for MCP Server
 Contains all GitHub-related tool implementations.
 """
 
+import abc
 import io
 import json
 import logging
@@ -151,8 +152,72 @@ def get_tools(repo_name: str, repo_path: str) -> list[dict]:
     ]
 
 
-class GitHubAPIContext:
-    """Context for GitHub API operations with repository information"""
+class AbstractGitHubAPIContext(abc.ABC):
+    """Abstract base class for GitHub API context implementations"""
+
+    @abc.abstractmethod
+    def get_repo_name(self) -> str:
+        """Get the repository name"""
+        pass
+
+    @abc.abstractmethod
+    def get_repo(self) -> Repository | None:
+        """Get the GitHub repository object"""
+        pass
+
+    @abc.abstractmethod
+    def get_github_token(self) -> str:
+        """Get the GitHub API token"""
+        pass
+
+    @abc.abstractmethod
+    def get_github_client(self) -> Github:
+        """Get the GitHub API client"""
+        pass
+
+
+class MockGitHubAPIContext(AbstractGitHubAPIContext):
+    """Mock implementation of GitHub API context for testing"""
+
+    def __init__(self, repo_name: str = "test/test-repo", github_token: str = "fake_token_for_testing"):
+        self.repo_name = repo_name
+        self.github_token = github_token
+        
+        # Create a mock GitHub client and repository for testing
+        from unittest.mock import Mock
+        self.github = Mock(spec=Github)
+        self.repo = Mock(spec=Repository)
+        
+        # Set up basic mock behavior
+        self.github.get_repo.return_value = self.repo
+        
+    def get_repo_name(self) -> str:
+        """Get the repository name"""
+        return self.repo_name
+
+    def get_repo(self) -> Repository | None:
+        """Get the GitHub repository object"""
+        return self.repo
+
+    def get_github_token(self) -> str:
+        """Get the GitHub API token"""
+        return self.github_token
+
+    def get_github_client(self) -> Github:
+        """Get the GitHub API client"""
+        return self.github
+
+    def get_current_branch(self) -> str:
+        """Get current branch name (mock implementation)"""
+        return "test-branch"
+
+    def get_current_commit(self) -> str:
+        """Get current commit hash (mock implementation)"""
+        return "abc123def456"
+
+
+class GitHubAPIContext(AbstractGitHubAPIContext):
+    """Production implementation of GitHub API context with repository information"""
 
     repo_name: str
     repo: Repository | None
@@ -263,6 +328,23 @@ class GitHubAPIContext:
             .decode()
             .strip()
         )
+
+    # Implementation of abstract methods
+    def get_repo_name(self) -> str:
+        """Get the repository name"""
+        return self.repo_name
+
+    def get_repo(self) -> Repository | None:
+        """Get the GitHub repository object"""
+        return self.repo
+
+    def get_github_token(self) -> str:
+        """Get the GitHub API token"""
+        return self.github_token
+
+    def get_github_client(self) -> Github:
+        """Get the GitHub API client"""
+        return self.github
 
 
 def get_github_context(repo_name: str) -> GitHubAPIContext:
