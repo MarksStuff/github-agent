@@ -61,10 +61,9 @@ def mcp_worker_factory(temp_repo, mock_github_token, mock_subprocess):
     def _create(repo_config):
         # Create mock GitHub context for dependency injection
         mock_github_context = MockGitHubAPIContext(
-            repo_name="test/test-repo",
-            github_token="fake_token_for_testing"
+            repo_name="test/test-repo", github_token="fake_token_for_testing"
         )
-        
+
         # Use dependency injection instead of patching
         worker = MCPWorker(repo_config, github_context=mock_github_context)
         workers.append(worker)
@@ -170,13 +169,12 @@ class TestMCPWorker:
             port=8080,
             python_path="/usr/bin/python3",
         )
-        
+
         # Create mock GitHub context for dependency injection
         mock_github_context = MockGitHubAPIContext(
-            repo_name="test/test-repo",
-            github_token="fake_token_for_testing"
+            repo_name="test/test-repo", github_token="fake_token_for_testing"
         )
-        
+
         worker = MCPWorker(repo_config, github_context=mock_github_context)
 
         client = TestClient(worker.app)
@@ -203,13 +201,12 @@ class TestMCPWorker:
             port=8080,
             python_path="/usr/bin/python3",
         )
-        
+
         # Create mock GitHub context for dependency injection
         mock_github_context = MockGitHubAPIContext(
-            repo_name="test/test-repo",
-            github_token="fake_token_for_testing"
+            repo_name="test/test-repo", github_token="fake_token_for_testing"
         )
-        
+
         worker = MCPWorker(repo_config, github_context=mock_github_context)
 
         client = TestClient(worker.app)
@@ -229,9 +226,7 @@ class TestMCPWorker:
         # Check that response was queued
         assert not worker.message_queue.empty()
         queued_response = worker.message_queue.get()
-        assert (
-            queued_response["result"]["serverInfo"]["name"] == "mcp-agent-test-repo"
-        )
+        assert queued_response["result"]["serverInfo"]["name"] == "mcp-agent-test-repo"
 
     def test_mcp_tools_list(self, temp_repo, mock_github_token, mock_subprocess):
         """Test MCP tools/list method"""
@@ -245,13 +240,12 @@ class TestMCPWorker:
             port=8080,
             python_path="/usr/bin/python3",
         )
-        
+
         # Create mock GitHub context for dependency injection
         mock_github_context = MockGitHubAPIContext(
-            repo_name="test/test-repo",
-            github_token="fake_token_for_testing"
+            repo_name="test/test-repo", github_token="fake_token_for_testing"
         )
-        
+
         worker = MCPWorker(repo_config, github_context=mock_github_context)
 
         client = TestClient(worker.app)
@@ -304,13 +298,12 @@ class TestMCPWorker:
             port=8080,
             python_path="/usr/bin/python3",
         )
-        
+
         # Create mock GitHub context for dependency injection
         mock_github_context = MockGitHubAPIContext(
-            repo_name="test/test-repo",
-            github_token="fake_token_for_testing"
+            repo_name="test/test-repo", github_token="fake_token_for_testing"
         )
-        
+
         worker = MCPWorker(repo_config, github_context=mock_github_context)
 
         client = TestClient(worker.app)
@@ -331,9 +324,7 @@ class TestMCPWorker:
         assert not worker.message_queue.empty()
         queued_response = worker.message_queue.get()
         result_text = queued_response["result"]["content"][0]["text"]
-        assert (
-            '"status":' in result_text
-        )  # Accept any status (healthy, warning, etc.)
+        assert '"status":' in result_text  # Accept any status (healthy, warning, etc.)
         assert '"repo": "test-repo"' in result_text
 
         # This is now an integration test - the actual health check runs
@@ -353,13 +344,12 @@ class TestMCPWorker:
             port=8080,
             python_path="/usr/bin/python3",
         )
-        
+
         # Create mock GitHub context for dependency injection
         mock_github_context = MockGitHubAPIContext(
-            repo_name="test/test-repo",
-            github_token="fake_token_for_testing"
+            repo_name="test/test-repo", github_token="fake_token_for_testing"
         )
-        
+
         worker = MCPWorker(repo_config, github_context=mock_github_context)
 
         client = TestClient(worker.app)
@@ -411,13 +401,12 @@ class TestMCPWorker:
             port=8080,
             python_path="/usr/bin/python3",
         )
-        
+
         # Create mock GitHub context for dependency injection
         mock_github_context = MockGitHubAPIContext(
-            repo_name="test/test-repo",
-            github_token="fake_token_for_testing"
+            repo_name="test/test-repo", github_token="fake_token_for_testing"
         )
-        
+
         worker = MCPWorker(repo_config, github_context=mock_github_context)
 
         client = TestClient(worker.app)
@@ -453,13 +442,12 @@ class TestMCPWorker:
             port=8080,
             python_path="/usr/bin/python3",
         )
-        
+
         # Create mock GitHub context for dependency injection
         mock_github_context = MockGitHubAPIContext(
-            repo_name="test/test-repo",
-            github_token="fake_token_for_testing"
+            repo_name="test/test-repo", github_token="fake_token_for_testing"
         )
-        
+
         worker = MCPWorker(repo_config, github_context=mock_github_context)
 
         client = TestClient(worker.app)

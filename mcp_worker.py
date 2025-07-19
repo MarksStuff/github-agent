@@ -69,7 +69,12 @@ class MCPWorker:
     symbol_storage: SQLiteSymbolStorage | None
     codebase_tools_instance: CodebaseTools
 
-    def __init__(self, repository_config: RepositoryConfig, db_path: str | None = None, github_context: AbstractGitHubAPIContext | None = None):
+    def __init__(
+        self,
+        repository_config: RepositoryConfig,
+        db_path: str | None = None,
+        github_context: AbstractGitHubAPIContext | None = None,
+    ):
         # Store repository configuration
         self.repo_config = repository_config
         self.db_path = db_path

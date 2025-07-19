@@ -8,13 +8,11 @@ Tests for find_hover and shutdown methods that were not covered in other test fi
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from codebase_tools import CodebaseTools
 from constants import Language
-from tests.conftest import MockLSPClient
 
 
 class TestCodebaseToolsMissingMethods:
@@ -28,12 +26,12 @@ class TestCodebaseToolsMissingMethods:
         mock_hover_response = {
             "contents": {
                 "kind": "markdown",
-                "value": "```python\ndef hello_world() -> str\n```\nA simple hello world function."
+                "value": "```python\ndef hello_world() -> str\n```\nA simple hello world function.",
             },
             "range": {
                 "start": {"line": 0, "character": 0},
-                "end": {"line": 0, "character": 11}
-            }
+                "end": {"line": 0, "character": 11},
+            },
         }
         # Configure mock to return hover response
         mock_lsp_client.get_hover = AsyncMock(return_value=mock_hover_response)
@@ -41,18 +39,18 @@ class TestCodebaseToolsMissingMethods:
         # Create temporary repository
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir)
-            
+
             # Create .git directory
             git_dir = repo_path / ".git"
             git_dir.mkdir()
-            
+
             # Create test file
             test_file = repo_path / "test.py"
             test_file.write_text("def hello_world():\n    return 'Hello, World!'\n")
 
             # Create CodebaseTools instance
             from repository_manager import RepositoryConfig
-            
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 workspace=str(repo_path),
@@ -62,17 +60,14 @@ class TestCodebaseToolsMissingMethods:
                 python_path="/usr/bin/python3",
             )
             repositories = {"test-repo": repo_config}
-            
+
             tools = codebase_tools_factory(repositories=repositories)
-            
+
             # Mock SimpleLSPClient constructor since find_hover creates it directly
-            with patch('codebase_tools.SimpleLSPClient', return_value=mock_lsp_client):
+            with patch("codebase_tools.SimpleLSPClient", return_value=mock_lsp_client):
                 # Test hover request
                 result_json = await tools.find_hover(
-                    repository_id="test-repo",
-                    file_path="test.py",
-                    line=1,
-                    character=5
+                    repository_id="test-repo", file_path="test.py", line=1, character=5
                 )
                 result = json.loads(result_json)
 
@@ -88,12 +83,9 @@ class TestCodebaseToolsMissingMethods:
     async def test_find_hover_repo_not_found(self, codebase_tools_factory):
         """Test hover request for non-existent repository."""
         tools = codebase_tools_factory(repositories={})
-        
+
         result_json = await tools.find_hover(
-            repository_id="non-existent",
-            file_path="test.py",
-            line=1,
-            character=5
+            repository_id="non-existent", file_path="test.py", line=1, character=5
         )
         result = json.loads(result_json)
 
@@ -114,18 +106,18 @@ class TestCodebaseToolsMissingMethods:
         # Create temporary repository
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir)
-            
+
             # Create .git directory
             git_dir = repo_path / ".git"
             git_dir.mkdir()
-            
+
             # Create test file
             test_file = repo_path / "test.py"
             test_file.write_text("# Empty comment line\n")
 
             # Create CodebaseTools instance
             from repository_manager import RepositoryConfig
-            
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 workspace=str(repo_path),
@@ -135,17 +127,14 @@ class TestCodebaseToolsMissingMethods:
                 python_path="/usr/bin/python3",
             )
             repositories = {"test-repo": repo_config}
-            
+
             tools = codebase_tools_factory(repositories=repositories)
-            
+
             # Mock SimpleLSPClient constructor since find_hover creates it directly
-            with patch('codebase_tools.SimpleLSPClient', return_value=mock_lsp_client):
+            with patch("codebase_tools.SimpleLSPClient", return_value=mock_lsp_client):
                 # Test hover request
                 result_json = await tools.find_hover(
-                    repository_id="test-repo",
-                    file_path="test.py",
-                    line=1,
-                    character=1
+                    repository_id="test-repo", file_path="test.py", line=1, character=1
                 )
                 result = json.loads(result_json)
 
@@ -162,14 +151,14 @@ class TestCodebaseToolsMissingMethods:
         # Create temporary repository without the test file
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir)
-            
+
             # Create .git directory
             git_dir = repo_path / ".git"
             git_dir.mkdir()
 
             # Create CodebaseTools instance
             from repository_manager import RepositoryConfig
-            
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 workspace=str(repo_path),
@@ -179,7 +168,7 @@ class TestCodebaseToolsMissingMethods:
                 python_path="/usr/bin/python3",
             )
             repositories = {"test-repo": repo_config}
-            
+
             tools = codebase_tools_factory(repositories=repositories)
 
             # Test hover request for non-existent file
@@ -187,7 +176,7 @@ class TestCodebaseToolsMissingMethods:
                 repository_id="test-repo",
                 file_path="nonexistent.py",
                 line=1,
-                character=1
+                character=1,
             )
             result = json.loads(result_json)
 
@@ -203,23 +192,25 @@ class TestCodebaseToolsMissingMethods:
         """Test hover request when LSP client raises an error."""
         # Create mock LSP client that raises an exception
         mock_lsp_client = Mock()
-        mock_lsp_client.get_hover = AsyncMock(side_effect=Exception("LSP communication error"))
+        mock_lsp_client.get_hover = AsyncMock(
+            side_effect=Exception("LSP communication error")
+        )
 
         # Create temporary repository
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir)
-            
+
             # Create .git directory
             git_dir = repo_path / ".git"
             git_dir.mkdir()
-            
+
             # Create test file
             test_file = repo_path / "test.py"
             test_file.write_text("def hello_world():\n    return 'Hello, World!'\n")
 
             # Create CodebaseTools instance
             from repository_manager import RepositoryConfig
-            
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 workspace=str(repo_path),
@@ -229,17 +220,14 @@ class TestCodebaseToolsMissingMethods:
                 python_path="/usr/bin/python3",
             )
             repositories = {"test-repo": repo_config}
-            
+
             tools = codebase_tools_factory(repositories=repositories)
-            
+
             # Mock SimpleLSPClient constructor since find_hover creates it directly
-            with patch('codebase_tools.SimpleLSPClient', return_value=mock_lsp_client):
+            with patch("codebase_tools.SimpleLSPClient", return_value=mock_lsp_client):
                 # Test hover request
                 result_json = await tools.find_hover(
-                    repository_id="test-repo",
-                    file_path="test.py",
-                    line=1,
-                    character=5
+                    repository_id="test-repo", file_path="test.py", line=1, character=5
                 )
                 result = json.loads(result_json)
 
@@ -252,7 +240,7 @@ class TestCodebaseToolsMissingMethods:
     async def test_shutdown_success(self, codebase_tools_factory):
         """Test successful CodebaseTools shutdown."""
         tools = codebase_tools_factory(repositories={})
-        
+
         # Verify shutdown completes without error
         try:
             await tools.shutdown()
@@ -265,15 +253,14 @@ class TestCodebaseToolsMissingMethods:
     async def test_shutdown_logs_message(self, codebase_tools_factory, caplog):
         """Test that shutdown logs appropriate message."""
         tools = codebase_tools_factory(repositories={})
-        
+
         # Capture log output
         with caplog.at_level("INFO"):
             await tools.shutdown()
-        
+
         # Verify log message
         assert any(
-            "CodebaseTools shutdown" in record.message
-            for record in caplog.records
+            "CodebaseTools shutdown" in record.message for record in caplog.records
         )
         assert any(
             "SimpleLSPClient instances are stateless" in record.message
@@ -284,7 +271,7 @@ class TestCodebaseToolsMissingMethods:
     async def test_shutdown_multiple_calls(self, codebase_tools_factory):
         """Test that multiple shutdown calls are safe."""
         tools = codebase_tools_factory(repositories={})
-        
+
         # Call shutdown multiple times - should not raise errors
         try:
             await tools.shutdown()
@@ -301,8 +288,8 @@ class TestCodebaseToolsMissingMethods:
         mock_lsp_client = Mock()
         mock_hover_response = {
             "contents": {
-                "kind": "markdown", 
-                "value": "```python\ndef test_func() -> None\n```\nTest function."
+                "kind": "markdown",
+                "value": "```python\ndef test_func() -> None\n```\nTest function.",
             }
         }
         mock_lsp_client.get_hover = AsyncMock(return_value=mock_hover_response)
@@ -310,18 +297,18 @@ class TestCodebaseToolsMissingMethods:
         # Create temporary repository
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir)
-            
+
             # Create .git directory
             git_dir = repo_path / ".git"
             git_dir.mkdir()
-            
+
             # Create test file
             test_file = repo_path / "test.py"
             test_file.write_text("def test_func():\n    pass\n")
 
             # Create CodebaseTools instance
             from repository_manager import RepositoryConfig
-            
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 workspace=str(repo_path),
@@ -331,18 +318,18 @@ class TestCodebaseToolsMissingMethods:
                 python_path="/usr/bin/python3",
             )
             repositories = {"test-repo": repo_config}
-            
+
             tools = codebase_tools_factory(repositories=repositories)
-            
+
             # Mock SimpleLSPClient constructor since find_hover creates it directly
-            with patch('codebase_tools.SimpleLSPClient', return_value=mock_lsp_client):
+            with patch("codebase_tools.SimpleLSPClient", return_value=mock_lsp_client):
                 # Test executing find_hover through execute_tool
                 result_json = await tools.execute_tool(
                     "find_hover",
                     repository_id="test-repo",
                     file_path="test.py",
                     line=1,
-                    character=5
+                    character=5,
                 )
                 result = json.loads(result_json)
 

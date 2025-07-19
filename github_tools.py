@@ -179,18 +179,23 @@ class AbstractGitHubAPIContext(abc.ABC):
 class MockGitHubAPIContext(AbstractGitHubAPIContext):
     """Mock implementation of GitHub API context for testing"""
 
-    def __init__(self, repo_name: str = "test/test-repo", github_token: str = "fake_token_for_testing"):
+    def __init__(
+        self,
+        repo_name: str = "test/test-repo",
+        github_token: str = "fake_token_for_testing",
+    ):
         self.repo_name = repo_name
         self.github_token = github_token
-        
+
         # Create a mock GitHub client and repository for testing
         from unittest.mock import Mock
+
         self.github = Mock(spec=Github)
         self.repo = Mock(spec=Repository)
-        
+
         # Set up basic mock behavior
         self.github.get_repo.return_value = self.repo
-        
+
     def get_repo_name(self) -> str:
         """Get the repository name"""
         return self.repo_name
