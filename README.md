@@ -119,6 +119,152 @@ Each repository gets its own endpoint and is automatically configured in VSCode:
 
 ---
 
+## 🤖 Claude Code Integration
+
+### Prerequisites
+- GitHub repository checked out locally
+- Python 3.8+ and dependencies installed via `pip install -r requirements.txt`
+- Claude Code freshly installed from https://claude.ai/code
+- GitHub token with `repo` scope permissions
+
+### Step 1: Start the MCP Server
+
+```bash
+# Navigate to your github-agent directory
+cd /path/to/github-agent
+
+# Set your GitHub token
+export GITHUB_TOKEN=your_github_token_here
+
+# Create a basic repository configuration
+python3 repository_cli.py init --example
+python3 repository_cli.py add my-repo /path/to/your/project --description="My project"
+python3 repository_cli.py assign-ports --start-port=8081
+
+# Start the MCP server
+python3 mcp_master.py
+```
+
+The server will start and show output like:
+```
+🚀 GitHub MCP Master starting up...
+✅ Worker for 'my-repo' started on port 8081
+🎯 Master server is running. Workers are active.
+```
+
+### Step 2: Configure Claude Code
+
+Create or edit your Claude Code MCP configuration file:
+
+**macOS**: `~/.config/claude-code/mcp_servers.json`  
+**Linux**: `~/.config/claude-code/mcp_servers.json`  
+**Windows**: `%APPDATA%\claude-code\mcp_servers.json`
+
+Add your MCP server configuration:
+
+```json
+{
+  "mcpServers": {
+    "github-agent": {
+      "command": "node",
+      "args": ["-e", "require('http').createServer((req,res)=>{require('http').request('http://localhost:8081/mcp'+req.url,{method:req.method,headers:req.headers},(r)=>{res.writeHead(r.statusCode,r.headers);r.pipe(res)}).end(req.method==='POST'?JSON.stringify(req.body):'')}).listen(process.argv[2]||0,()=>console.log('Proxy started'))"],
+      "env": {}
+    }
+  }
+}
+```
+
+Or, for a simpler HTTP-based approach, use the direct URL method:
+
+```json
+{
+  "mcpServers": {
+    "github-agent": {
+      "url": "http://localhost:8081/mcp/"
+    }
+  }
+}
+```
+
+### Step 3: Verify Connection
+
+1. **Restart Claude Code** to load the new MCP configuration
+2. **Open a project** in the directory you configured (`/path/to/your/project`)
+3. **Test the connection** by asking Claude Code something like:
+
+```
+Can you check the current Git branch and find any associated pull requests?
+```
+
+Claude Code should now be able to use tools like:
+- `git_get_current_branch` - Get current Git branch
+- `github_find_pr_for_branch` - Find PR for the current branch  
+- `github_get_pr_comments` - Get PR comments
+- `github_post_pr_reply` - Reply to PR comments
+- `github_get_build_status` - Get CI build status
+- And more...
+
+### Step 4: Multiple Repositories (Optional)
+
+To work with multiple repositories in Claude Code:
+
+```bash
+# Add more repositories
+python3 repository_cli.py add frontend /path/to/frontend --description="Frontend app"
+python3 repository_cli.py add backend /path/to/backend --description="Backend API"
+python3 repository_cli.py assign-ports --start-port=8081
+
+# Restart the MCP server
+python3 mcp_master.py
+```
+
+Then update your `mcp_servers.json` to include multiple servers:
+
+```json
+{
+  "mcpServers": {
+    "github-frontend": {
+      "url": "http://localhost:8081/mcp/"
+    },
+    "github-backend": {
+      "url": "http://localhost:8082/mcp/"
+    },
+    "github-mobile": {
+      "url": "http://localhost:8083/mcp/"
+    }
+  }
+}
+```
+
+### Troubleshooting Claude Code Integration
+
+**Connection Issues:**
+```bash
+# Check if the MCP server is running
+curl http://localhost:8081/health
+
+# Check MCP endpoint
+curl http://localhost:8081/mcp/
+
+# View server logs
+tail -f ~/.local/share/github-agent/logs/master.log
+tail -f ~/.local/share/github-agent/logs/my-repo.log
+```
+
+**Claude Code Debugging:**
+1. Check Claude Code's developer tools (Help > Toggle Developer Tools)
+2. Look for MCP connection errors in the console
+3. Verify the MCP configuration file syntax is valid JSON
+4. Ensure the repository path in your configuration matches where Claude Code is opened
+
+**Common Solutions:**
+- Restart Claude Code after changing MCP configuration
+- Ensure GitHub token has proper `repo` permissions
+- Check that the repository path exists and is accessible
+- Verify no firewall is blocking localhost connections
+
+---
+
 ## ⚙️ Configuration
 
 ### Repository Configuration
