@@ -12,7 +12,7 @@ import subprocess
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Protocol
 
 from repository_manager import AbstractRepositoryManager
 from simple_lsp_client import SimpleLSPClient
@@ -21,8 +21,25 @@ from symbol_storage import AbstractSymbolStorage
 logger = logging.getLogger(__name__)
 
 
+# Protocol for LSP client interface
+class LSPClientProtocol(Protocol):
+    """Protocol defining the interface for LSP clients."""
+    
+    async def get_definition(self, uri: str, line: int, character: int) -> list[dict] | None:
+        """Get definition for symbol at position."""
+        ...
+        
+    async def get_references(self, uri: str, line: int, character: int, include_declaration: bool = True) -> list[dict] | None:
+        """Get references for symbol at position."""
+        ...
+        
+    async def get_hover(self, uri: str, line: int, character: int) -> dict | None:
+        """Get hover information for symbol at position."""
+        ...
+
+
 # Type for LSP client factory
-LSPClientFactory = Callable[[str, str], SimpleLSPClient]
+LSPClientFactory = Callable[[str, str], LSPClientProtocol]
 
 
 def create_simple_lsp_client(workspace_root: str, python_path: str) -> SimpleLSPClient:

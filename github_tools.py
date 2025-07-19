@@ -155,7 +155,7 @@ class GitHubAPIContext:
     """Context for GitHub API operations with repository information"""
 
     repo_name: str
-    repo: Repository
+    repo: Repository | None
     github_token: str
     github: Github
 
