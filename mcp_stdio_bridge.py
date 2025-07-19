@@ -80,7 +80,7 @@ class MCPStdioBridge:
         # which handles the full JSON-RPC MCP protocol
         if self.session is None:
             raise Exception("Session not initialized")
-            
+
         try:
             async with self.session.post(
                 f"{self.base_url}/mcp/",

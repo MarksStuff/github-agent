@@ -14,6 +14,6 @@ if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).parent))
 
     # Import and run the main server
-    from mcp_master import main  # noqa: E402
+    from mcp_master import main
 
     asyncio.run(main())
