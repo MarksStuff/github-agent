@@ -127,32 +127,51 @@ Each repository gets its own endpoint and is automatically configured in VSCode:
 - Claude Code freshly installed from https://claude.ai/code
 - GitHub token with `repo` scope permissions
 
-### Step 1: Start the MCP Server
+### Step 1: Configure Environment
 
 ```bash
 # Navigate to your github-agent directory
 cd /path/to/github-agent
 
-# Set your GitHub token
-export GITHUB_TOKEN=your_github_token_here
+# Create/edit .env file with your GitHub token
+echo "GITHUB_TOKEN=your_github_token_here" > .env
+# Or edit .env file manually to set your token
+```
 
-# Create a basic repository configuration
-python3 repository_cli.py init --example
-python3 repository_cli.py add my-repo /path/to/your/project --description="My project"
-python3 repository_cli.py assign-ports --start-port=8081
+### Step 2: Configure Repositories
 
-# Start the MCP server
-python3 mcp_master.py
+Edit the `repositories.json` file to configure your repositories:
+
+```json
+{
+  "repositories": {
+    "my-project": {
+      "workspace": "/path/to/your/project",
+      "port": 8081,
+      "description": "My project repository",
+      "language": "python",
+      "python_path": "/path/to/github-agent/.venv/bin/python",
+      "lsp_server": "pylsp"
+    }
+  }
+}
+```
+
+### Step 3: Start the MCP Server
+
+```bash
+# Deploy and start the server using the deployment script
+./scripts/deploy.sh
 ```
 
 The server will start and show output like:
 ```
 🚀 GitHub MCP Master starting up...
-✅ Worker for 'my-repo' started on port 8081
+✅ Worker for 'my-project' started on port 8081
 🎯 Master server is running. Workers are active.
 ```
 
-### Step 2: Configure Claude Code
+### Step 4: Configure Claude Code
 
 Create or edit your Claude Code MCP configuration file:
 
@@ -186,7 +205,7 @@ Or, for a simpler HTTP-based approach, use the direct URL method:
 }
 ```
 
-### Step 3: Verify Connection
+### Step 5: Verify Connection
 
 1. **Restart Claude Code** to load the new MCP configuration
 2. **Open a project** in the directory you configured (`/path/to/your/project`)
@@ -202,23 +221,39 @@ Claude Code should now be able to use tools like:
 - `github_get_pr_comments` - Get PR comments
 - `github_post_pr_reply` - Reply to PR comments
 - `github_get_build_status` - Get CI build status
+- `search_symbols` - Search for functions, classes, and variables
+- `find_definition` - Find symbol definitions using LSP
+- `find_references` - Find all references to a symbol
+- `find_hover` - Get detailed hover information for symbols
 - And more...
 
-### Step 4: Multiple Repositories (Optional)
+### Step 6: Multiple Repositories (Optional)
 
-To work with multiple repositories in Claude Code:
+To work with multiple repositories in Claude Code, edit your `repositories.json`:
 
-```bash
-# Add more repositories
-python3 repository_cli.py add frontend /path/to/frontend --description="Frontend app"
-python3 repository_cli.py add backend /path/to/backend --description="Backend API"
-python3 repository_cli.py assign-ports --start-port=8081
-
-# Restart the MCP server
-python3 mcp_master.py
+```json
+{
+  "repositories": {
+    "frontend": {
+      "workspace": "/path/to/frontend",
+      "port": 8081,
+      "description": "Frontend app",
+      "language": "javascript",
+      "python_path": "/path/to/github-agent/.venv/bin/python"
+    },
+    "backend": {
+      "workspace": "/path/to/backend",
+      "port": 8082,
+      "description": "Backend API",
+      "language": "python",
+      "python_path": "/path/to/github-agent/.venv/bin/python",
+      "lsp_server": "pylsp"
+    }
+  }
+}
 ```
 
-Then update your `mcp_servers.json` to include multiple servers:
+Then restart the server with `./scripts/deploy.sh` and update your `mcp_servers.json`:
 
 ```json
 {
