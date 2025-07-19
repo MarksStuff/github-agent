@@ -16,8 +16,8 @@ import pytest
 
 import codebase_tools
 import mcp_master
+
 # async_lsp_client imports removed - using SimpleLSPClient directly
-from lsp_constants import LSPServerType
 from python_symbol_extractor import AbstractSymbolExtractor, PythonSymbolExtractor
 from repository_indexer import (
     AbstractRepositoryIndexer,
@@ -67,19 +67,23 @@ def find_free_port(start_port: int = 8081, max_attempts: int = 100) -> int:
 # Minimal MockLSPClient for test compatibility
 class MockLSPClient:
     """Minimal mock LSP client for testing compatibility."""
-    
+
     def __init__(self, workspace_root: str = "/test"):
         self.workspace_root = workspace_root
         self.logger = logging.getLogger(__name__)
-        
-    async def get_definition(self, uri: str, line: int, character: int) -> list[dict] | None:
+
+    async def get_definition(
+        self, uri: str, line: int, character: int
+    ) -> list[dict] | None:
         """Mock get_definition method."""
         return []
-        
-    async def get_references(self, uri: str, line: int, character: int, include_declaration: bool = True) -> list[dict] | None:
+
+    async def get_references(
+        self, uri: str, line: int, character: int, include_declaration: bool = True
+    ) -> list[dict] | None:
         """Mock get_references method."""
         return []
-        
+
     async def get_hover(self, uri: str, line: int, character: int) -> dict | None:
         """Mock get_hover method."""
         return None
@@ -706,6 +710,7 @@ def lsp_client_factory_factory():
     def _create(mock=True):
         # SimpleLSPClient doesn't need mocking - it's simple and reliable
         from codebase_tools import create_simple_lsp_client
+
         return create_simple_lsp_client
 
     return _create

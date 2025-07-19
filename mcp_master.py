@@ -601,7 +601,9 @@ class MCPMaster:
         )
 
         # Note: LSP server shutdown no longer needed - SimpleLSPClient uses on-demand processes
-        logger.info("LSP functionality handled by SimpleLSPClient - no persistent servers to stop")
+        logger.info(
+            "LSP functionality handled by SimpleLSPClient - no persistent servers to stop"
+        )
 
         # Clean up symbol storage after all workers are shutdown
         try:

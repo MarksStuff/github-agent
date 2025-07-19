@@ -5,18 +5,15 @@ Codebase Tools for MCP Server - Object-Oriented Refactor
 Contains codebase-related tool implementations for repository analysis and management.
 """
 
-import asyncio
 import json
 import logging
 import os
 import subprocess
-import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar
 
-from constants import Language
 from repository_manager import AbstractRepositoryManager
 from simple_lsp_client import SimpleLSPClient
 from symbol_storage import AbstractSymbolStorage
@@ -24,7 +21,7 @@ from symbol_storage import AbstractSymbolStorage
 logger = logging.getLogger(__name__)
 
 
-# Type for LSP client factory  
+# Type for LSP client factory
 LSPClientFactory = Callable[[str, str], SimpleLSPClient]
 
 
@@ -533,7 +530,7 @@ class CodebaseTools:
         self.logger.info(
             f"Getting definition for symbol '{symbol}' at {file_path}:{line}:{column}"
         )
-        
+
         try:
             repo_config = self.repository_manager.get_repository(repository_id)
             if not repo_config:
@@ -556,19 +553,21 @@ class CodebaseTools:
 
             # Use SimpleLSPClient directly - it's proven to work reliably
             self.logger.info("🚀 Using SimpleLSPClient for reliable LSP communication")
-            
+
             simple_lsp = SimpleLSPClient(
                 workspace_root=repo_config.workspace,
-                python_path=repo_config.python_path
+                python_path=repo_config.python_path,
             )
-            
+
             start_time = time.time()
             definitions = await simple_lsp.get_definition(
                 file_uri, line - 1, column - 1, timeout=10.0
             )
             duration = time.time() - start_time
-            
-            self.logger.info(f"🚀 SimpleLSPClient completed in {duration:.3f}s! Got {len(definitions) if definitions else 0} definitions")
+
+            self.logger.info(
+                f"🚀 SimpleLSPClient completed in {duration:.3f}s! Got {len(definitions) if definitions else 0} definitions"
+            )
 
             if not definitions:
                 self.logger.info(
@@ -654,19 +653,21 @@ class CodebaseTools:
 
             # Use SimpleLSPClient directly for reliable LSP communication
             self.logger.info("🚀 Using SimpleLSPClient for references")
-            
+
             simple_lsp = SimpleLSPClient(
                 workspace_root=repo_config.workspace,
-                python_path=repo_config.python_path
+                python_path=repo_config.python_path,
             )
-            
+
             start_time = time.time()
             references = await simple_lsp.get_references(
                 file_uri, line - 1, column - 1, timeout=10.0
             )
             duration = time.time() - start_time
-            
-            self.logger.info(f"🚀 SimpleLSPClient references completed in {duration:.3f}s! Got {len(references) if references else 0} references")
+
+            self.logger.info(
+                f"🚀 SimpleLSPClient references completed in {duration:.3f}s! Got {len(references) if references else 0} references"
+            )
 
             self.logger.debug(
                 f"LSP returned {len(references) if references else 0} references"
@@ -759,19 +760,21 @@ class CodebaseTools:
 
             # Use SimpleLSPClient directly for reliable LSP communication
             self.logger.info("🚀 Using SimpleLSPClient for hover")
-            
+
             simple_lsp = SimpleLSPClient(
                 workspace_root=repo_config.workspace,
-                python_path=repo_config.python_path
+                python_path=repo_config.python_path,
             )
-            
+
             start_time = time.time()
             hover_info = await simple_lsp.get_hover(
                 file_uri, line - 1, character - 1, timeout=10.0
             )
             duration = time.time() - start_time
-            
-            self.logger.info(f"🚀 SimpleLSPClient hover completed in {duration:.3f}s! Got hover info: {bool(hover_info)}")
+
+            self.logger.info(
+                f"🚀 SimpleLSPClient hover completed in {duration:.3f}s! Got hover info: {bool(hover_info)}"
+            )
 
             if not hover_info:
                 return json.dumps(
@@ -807,7 +810,6 @@ class CodebaseTools:
                     "repository_id": repository_id,
                 }
             )
-
 
     def _resolve_file_path(self, file_path: str, workspace_root: str) -> str:
         """
@@ -870,8 +872,9 @@ class CodebaseTools:
 
     async def shutdown(self) -> None:
         """Shutdown - SimpleLSPClient doesn't require resource cleanup."""
-        self.logger.info("CodebaseTools shutdown - SimpleLSPClient instances are stateless")
-
+        self.logger.info(
+            "CodebaseTools shutdown - SimpleLSPClient instances are stateless"
+        )
 
 
 # End of CodebaseTools class

@@ -8,7 +8,6 @@ for the GitHub MCP server's URL-based routing system.
 """
 
 import abc
-import asyncio
 import json
 import logging
 import os
@@ -19,7 +18,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from git import InvalidGitRepositoryError, Repo
 
@@ -759,7 +758,7 @@ class RepositoryManager(AbstractRepositoryManager):
         return bool(self._repositories)
 
     # Minimal LSP server management stubs for test compatibility - SimpleLSPClient handles actual functionality
-    
+
     def start_lsp_server(self, repo_name: str) -> bool | None:
         """Stub method for test compatibility - SimpleLSPClient handles LSP directly."""
         repo_config = self.get_repository(repo_name)
@@ -769,26 +768,26 @@ class RepositoryManager(AbstractRepositoryManager):
             return None
         # SimpleLSPClient doesn't need persistent server startup
         return True
-        
+
     def start_all_lsp_servers(self) -> dict[str, bool | None]:
         """Stub method for test compatibility - SimpleLSPClient handles LSP directly."""
         results = {}
         for repo_name in self._repositories:
             results[repo_name] = self.start_lsp_server(repo_name)
         return results
-        
+
     def stop_lsp_server(self, repo_name: str) -> bool:
         """Stub method for test compatibility - SimpleLSPClient handles LSP directly."""
         # SimpleLSPClient doesn't need persistent server shutdown
         return True
-        
+
     def stop_all_lsp_servers(self) -> dict[str, bool]:
         """Stub method for test compatibility - SimpleLSPClient handles LSP directly."""
         results = {}
         for repo_name in list(self._repositories.keys()):
             results[repo_name] = self.stop_lsp_server(repo_name)
         return results
-        
+
     def get_lsp_client(self, repo_name: str) -> object | None:
         """Stub method for test compatibility - SimpleLSPClient handles LSP directly."""
         repo_config = self.get_repository(repo_name)
@@ -796,11 +795,13 @@ class RepositoryManager(AbstractRepositoryManager):
             return None
         if not repo_config.lsp_enabled or repo_config.language != Language.PYTHON:
             return None
+
         # For test compatibility, return a mock client object when LSP would be available
         # SimpleLSPClient creates clients on-demand, so this is just for test compatibility
         class MockLSPClientForTests:
             def __init__(self, workspace_root: str):
                 self.workspace_root = workspace_root
+
         return MockLSPClientForTests(repo_config.workspace)
 
     def create_default_config(self, repo_configs: list[dict]) -> None:
