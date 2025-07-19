@@ -456,8 +456,7 @@ class MCPWorker:
                             },
                         },
                     }
-                    self.message_queue.put(response)
-                    return {"status": "queued"}
+                    return response
 
                 elif body.get("method") == "notifications/initialized":
                     self.logger.info("Received initialized notification")
@@ -483,8 +482,7 @@ class MCPWorker:
                         "id": body.get("id", 1),
                         "result": {"tools": all_tools},
                     }
-                    self.message_queue.put(response)
-                    return {"status": "queued"}
+                    return response
 
                 elif body.get("method") == "tools/call":
                     # Handle tool execution for this repository
@@ -682,8 +680,7 @@ class MCPWorker:
                         "id": body.get("id", 1),
                         "result": {"content": [{"type": "text", "text": result}]},
                     }
-                    self.message_queue.put(response)
-                    return {"status": "queued"}
+                    return response
 
                 return {
                     "jsonrpc": "2.0",
