@@ -363,6 +363,9 @@ class SimpleLSPClient:
         self, proc: asyncio.subprocess.Process, message: dict[str, Any]
     ) -> None:
         """Send LSP message to process."""
+        if proc.stdin is None:
+            raise Exception("Process stdin is not available")
+
         content = json.dumps(message)
         message_bytes = f"Content-Length: {len(content)}\r\n\r\n{content}".encode()
 
@@ -373,6 +376,9 @@ class SimpleLSPClient:
 
     async def _read_response(self, proc: asyncio.subprocess.Process) -> dict[str, Any]:
         """Read LSP response from process."""
+        if proc.stdout is None:
+            raise Exception("Process stdout is not available")
+
         # Read headers
         headers = {}
         while True:

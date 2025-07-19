@@ -56,19 +56,19 @@ class TestWorkerLSPIntegration(unittest.TestCase):
                 # Terminate the worker subprocess
                 self.worker_process.terminate()
                 self.worker_process.wait(timeout=5)
-            except:
+            except Exception:
                 try:
                     # Force kill if terminate doesn't work
                     self.worker_process.kill()
                     self.worker_process.wait(timeout=2)
-                except:
+                except Exception:
                     pass
 
         if self.worker:
             try:
                 # Stop the worker (if we have a worker object)
                 self.worker.stop()
-            except:
+            except Exception:
                 pass
 
         self.temp_dir.cleanup()
@@ -193,8 +193,8 @@ class DataValidator:
         self.tools_ready = False
 
         try:
-            # Create repository configuration
-            repo_config = RepositoryConfig(
+            # Create repository configuration (used for worker script generation)
+            _repo_config = RepositoryConfig(
                 name="test-repo",
                 workspace=str(self.repo_path),
                 language=Language.PYTHON,
@@ -292,7 +292,7 @@ asyncio.run(worker.start())
                                         self.tools_ready = True
                                         print("✅ Worker tools are ready")
                                         break
-                            except:
+                            except Exception:
                                 pass
                             time.sleep(1)
                             print(f"⏳ Waiting for tools to initialize... ({j+1}/30)")
@@ -318,11 +318,11 @@ asyncio.run(worker.start())
                                         print(f"Worker stdout: {stdout}")
                                     if stderr:
                                         print(f"Worker stderr: {stderr}")
-                                except:
+                                except Exception:
                                     pass
 
                         return True
-                except:
+                except Exception:
                     pass
 
                 time.sleep(1)
@@ -335,7 +335,7 @@ asyncio.run(worker.start())
                     print(f"Worker process output: {stdout}")
                     if stderr:
                         print(f"Worker process stderr: {stderr}")
-                except:
+                except Exception:
                     pass
 
             raise RuntimeError("Worker failed to start within timeout")
