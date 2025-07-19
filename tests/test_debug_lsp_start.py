@@ -24,7 +24,7 @@ class TestDebugLSPStart(unittest.TestCase):
         # Add the github-agent repository
         from constants import Language
         from repository_manager import RepositoryConfig
-        
+
         repo_config = RepositoryConfig.create_repository_config(
             name="github-agent",
             workspace="/Volumes/Code/github-agent",
@@ -48,10 +48,10 @@ class TestDebugLSPStart(unittest.TestCase):
 
             print(f"✅ LSP client obtained: {lsp_client}")
             print(f"📊 LSP client type: {type(lsp_client)}")
-            
+
             # Note: With SimpleLSPClient architecture, LSP clients are created on-demand
             # The repository manager returns a mock client for test compatibility
-            if hasattr(lsp_client, 'workspace_root'):
+            if hasattr(lsp_client, "workspace_root"):
                 print(f"📊 LSP client workspace: {lsp_client.workspace_root}")
 
             # Check if there's a server process
