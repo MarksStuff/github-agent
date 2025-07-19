@@ -1,0 +1,16 @@
+{
+  "include": [
+    "constants.py"
+  ],
+  "exclude": [
+    "**/.git/**",
+    "**/__pycache__/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/htmlcov/**"
+  ],
+  "typeCheckingMode": "off",
+  "autoSearchPaths": false,
+  "reportMissingImports": "none",
+  "reportMissingTypeStubs": "none"
+}

@@ -10,7 +10,7 @@ import asyncio
 import json
 import unittest
 from typing import cast
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from constants import Language
 from github_tools import get_linter_errors
@@ -111,10 +111,10 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertEqual(error2["column"], 80)
         self.assertEqual(error2["rule"], "E501")
 
-    @patch("github_tools.repo_manager")
-    def test_python_mypy_errors_parsing(self, mock_repo_manager):
+    def test_python_mypy_errors_parsing(self):
         """Test parsing of mypy errors for Python repository"""
-        mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("python-repo", self.python_repo_config)
 
         result_json = asyncio.run(
             get_linter_errors(
@@ -143,10 +143,10 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertEqual(error2["line"], 25)
         self.assertEqual(error2["error_code"], "assignment")
 
-    @patch("github_tools.repo_manager")
-    def test_mixed_python_errors_parsing(self, mock_repo_manager):
+    def test_mixed_python_errors_parsing(self):
         """Test parsing of mixed ruff and mypy errors for Python repository"""
-        mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("python-repo", self.python_repo_config)
 
         result_json = asyncio.run(
             get_linter_errors(
@@ -164,10 +164,10 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertIn("ruff", error_types)
         self.assertIn("mypy", error_types)
 
-    @patch("github_tools.repo_manager")
-    def test_swift_errors_parsing(self, mock_repo_manager):
+    def test_swift_errors_parsing(self):
         """Test parsing of Swift errors for Swift repository"""
-        mock_repo_manager.repositories = {"swift-repo": self.swift_repo_config}
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("swift-repo", self.swift_repo_config)
 
         result_json = asyncio.run(
             get_linter_errors(
@@ -200,10 +200,10 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertEqual(error2["severity"], "error")
         self.assertEqual(error2["rule"], "identifier_name")
 
-    @patch("github_tools.repo_manager")
-    def test_empty_error_output(self, mock_repo_manager):
+    def test_empty_error_output(self):
         """Test handling of empty error output"""
-        mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("python-repo", self.python_repo_config)
 
         result_json = asyncio.run(
             get_linter_errors("python-repo", "", "python", mock_repo_manager)
@@ -215,10 +215,10 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertEqual(result["total_errors"], 0)
         self.assertEqual(result["errors"], [])
 
-    @patch("github_tools.repo_manager")
-    def test_whitespace_only_output(self, mock_repo_manager):
+    def test_whitespace_only_output(self):
         """Test handling of whitespace-only output"""
-        mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("python-repo", self.python_repo_config)
 
         result_json = asyncio.run(
             get_linter_errors(
@@ -230,10 +230,10 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertEqual(result["total_errors"], 0)
         self.assertEqual(result["errors"], [])
 
-    @patch("github_tools.repo_manager")
-    def test_repository_not_found(self, mock_repo_manager):
+    def test_repository_not_found(self):
         """Test handling of non-existent repository"""
-        mock_repo_manager.repositories = {}
+        mock_repo_manager = MockRepositoryManager()
+        # Don't add any repositories - leave empty
 
         result_json = asyncio.run(
             get_linter_errors(
@@ -261,13 +261,13 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertIn("error", result)
         self.assertIn("Failed to parse linter errors", result["error"])
 
-    @patch("github_tools.repo_manager")
-    def test_unsupported_language_error(self, mock_repo_manager):
+    def test_unsupported_language_error(self):
         """Test handling of unsupported language (should not happen due to validation, but test anyway)"""
         # Create a mock config with an invalid language (bypassing validation)
         invalid_config = Mock()
         invalid_config.language = "javascript"
-        mock_repo_manager.repositories = {"invalid-repo": invalid_config}
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("invalid-repo", invalid_config)
 
         result_json = asyncio.run(
             get_linter_errors(
@@ -279,10 +279,10 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertIn("error", result)
         self.assertIn("Unsupported language: javascript", result["error"])
 
-    @patch("github_tools.repo_manager")
-    def test_malformed_error_lines_ignored(self, mock_repo_manager):
+    def test_malformed_error_lines_ignored(self):
         """Test that malformed error lines are ignored gracefully"""
-        mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("python-repo", self.python_repo_config)
 
         malformed_output = """::error title=Ruff (UP045),file=/valid/file.py,line=503,col=49,endLine=503,endColumn=62::valid error
 This is not a valid error line
@@ -304,14 +304,13 @@ Another invalid line
         self.assertEqual(result["errors"][0]["file"], "/valid/file.py")
         self.assertEqual(result["errors"][1]["file"], "/another/valid/file.py")
 
-    @patch("github_tools.repo_manager")
-    def test_exception_handling(self, mock_repo_manager):
+    def test_exception_handling(self):
         """Test that exceptions are handled gracefully"""
         # Mock repo_manager to raise an exception when accessing repositories
-        mock_repo_manager.repositories = Mock()
-        mock_repo_manager.repositories.__getitem__ = Mock(
-            side_effect=Exception("Test exception")
-        )
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.set_fail_on_access(
+            True
+        )  # This will make repositories access fail
 
         result_json = asyncio.run(
             get_linter_errors(

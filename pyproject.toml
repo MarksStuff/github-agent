@@ -117,3 +117,34 @@ disallow_untyped_defs = false
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", "venv"]
 skips = ["B101", "B601"]  # Skip assert_used and shell_injection_process_args for common cases
+
+[tool.pylsp-mypy]
+enabled = false
+live_mode = false
+
+[tool.pylsp.plugins]
+# Disable expensive plugins that cause timeouts on large codebases
+autopep8.enabled = false
+flake8.enabled = false
+mccabe.enabled = false
+preload.enabled = false
+pycodestyle.enabled = false
+pydocstyle.enabled = false
+pyflakes.enabled = false
+pylint.enabled = false
+rope_autoimport.enabled = false
+rope_completion.enabled = false
+yapf.enabled = false
+
+# Keep only essential plugins
+jedi_completion.enabled = true
+jedi_completion.include_params = false
+jedi_completion.include_class_objects = false
+jedi_completion.fuzzy = false
+jedi_definition.enabled = true
+jedi_definition.follow_imports = false
+jedi_definition.follow_builtin_imports = false
+jedi_hover.enabled = true
+jedi_references.enabled = true
+jedi_signature_help.enabled = true
+jedi_symbols.enabled = true

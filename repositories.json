@@ -5,7 +5,8 @@
       "port": 8081,
       "description": "GitHub Agent repository",
       "language": "python",
-      "python_path": "/Volumes/Code/github-agent/.venv/bin/python"
+      "python_path": "/Volumes/Code/github-agent/.venv/bin/python",
+      "lsp_server": "pylsp"
     },
     "news-reader": {
       "workspace": "/Volumes/Code/news_reader",

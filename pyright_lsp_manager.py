@@ -30,26 +30,57 @@ class PyrightLSPManager(LSPServerManager):
         self.python_path = python_path
         self.logger = logging.getLogger(__name__)
 
-        # Check if pyright is available and store version
-        self.pyright_version = self._check_pyright_availability()
+        # Check if pyright is available and store version/method
+        (
+            self.pyright_version,
+            self.use_python_module,
+        ) = self._check_pyright_availability()
 
-    def _check_pyright_availability(self) -> str:
-        """Check if pyright is available in the system and return version."""
+    def _check_pyright_availability(self) -> tuple[str, bool]:
+        """Check if pyright is available in the system and return version and method.
+
+        Returns:
+            Tuple of (version_string, use_python_module)
+        """
+        # First try using the Python module (pip installed pyright)
         try:
             result = subprocess.run(
-                ["pyright", "--version"], capture_output=True, text=True, check=True
+                [self.python_path, "-m", "pyright", "--version"],
+                capture_output=True,
+                text=True,
+                check=True,
             )
             version = result.stdout.strip()
-            self.logger.info(f"Pyright version: {version}")
-            return version
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            raise RuntimeError(
-                "Pyright is not available. Please install it with: npm install -g pyright"
-            ) from e
+            self.logger.info(f"Pyright version (Python module): {version}")
+            return version, True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Fallback to global npm installation
+            try:
+                result = subprocess.run(
+                    ["pyright", "--version"], capture_output=True, text=True, check=True
+                )
+                version = result.stdout.strip()
+                self.logger.info(f"Pyright version (global npm): {version}")
+                return version, False
+            except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                raise RuntimeError(
+                    "Pyright is not available. Please install it with: pip install pyright or npm install -g pyright"
+                ) from e
 
     def get_server_command(self) -> list[str]:
         """Get the command to start the pyright LSP server."""
-        return ["pyright-langserver", "--stdio"]
+        if self.use_python_module:
+            # Use the pip-installed pyright langserver
+            import os
+
+            venv_path = os.path.dirname(
+                os.path.dirname(self.python_path)
+            )  # Go up from bin/python to venv root
+            langserver_path = os.path.join(venv_path, "bin", "pyright-langserver")
+            return [langserver_path, "--stdio"]
+        else:
+            # Use the global npm version
+            return ["pyright-langserver", "--stdio"]
 
     def get_server_args(self) -> list[str]:
         """Get additional arguments for the pyright LSP server."""
@@ -145,7 +176,7 @@ class PyrightLSPManager(LSPServerManager):
 
         return [{"uri": workspace_uri, "name": workspace_name}]
 
-    def prepare_workspace(self) -> None:
+    def prepare_workspace(self) -> bool:
         """Prepare the workspace for pyright analysis."""
         self.logger.debug(f"Preparing workspace: {self.workspace_path}")
 
@@ -157,10 +188,12 @@ class PyrightLSPManager(LSPServerManager):
             self.logger.warning(
                 f"Workspace {self.workspace_path} may not be a valid Python project"
             )
+            return False
         else:
             self.logger.debug(
                 f"Workspace {self.workspace_path} is a valid Python project"
             )
+            return True
 
     def _create_pyright_config(self) -> None:
         """Create or update pyrightconfig.json for the workspace."""
@@ -277,6 +310,11 @@ class PyrightLSPManager(LSPServerManager):
             self.logger.error(f"Invalid Python executable: {self.python_path}")
             return False
 
+        return True
+
+    def cleanup_workspace(self) -> bool:
+        """Clean up pyright-specific workspace artifacts."""
+        # pyright doesn't create persistent artifacts that need cleanup
         return True
 
     def get_server_info(self) -> dict[str, Any]:

@@ -38,15 +38,19 @@ class TestPyrightLSPManager(unittest.TestCase):
     @patch("pyright_lsp_manager.subprocess.run")
     def test_init_with_available_pyright(self, mock_run):
         """Test initialization when pyright is available."""
-        # Mock successful pyright version check
+        # Mock successful pyright version check (tries Python module first)
         mock_run.return_value = Mock(stdout="pyright 1.1.0", returncode=0)
 
         manager = PyrightLSPManager(str(self.workspace_path), self.python_path)
 
         self.assertEqual(manager.workspace_path, self.workspace_path)
         self.assertEqual(manager.python_path, self.python_path)
+        # Should try Python module first
         mock_run.assert_called_once_with(
-            ["pyright", "--version"], capture_output=True, text=True, check=True
+            [self.python_path, "-m", "pyright", "--version"],
+            capture_output=True,
+            text=True,
+            check=True,
         )
 
     @patch("pyright_lsp_manager.subprocess.run")
@@ -68,7 +72,12 @@ class TestPyrightLSPManager(unittest.TestCase):
         manager = PyrightLSPManager(str(self.workspace_path), self.python_path)
         command = manager.get_server_command()
 
-        self.assertEqual(command, ["pyright-langserver", "--stdio"])
+        # Since the Python module version is detected first, it should return the venv path
+        import os
+
+        venv_path = os.path.dirname(os.path.dirname(self.python_path))
+        expected_langserver = os.path.join(venv_path, "bin", "pyright-langserver")
+        self.assertEqual(command, [expected_langserver, "--stdio"])
 
     @patch("pyright_lsp_manager.subprocess.run")
     def test_get_communication_mode(self, mock_run):

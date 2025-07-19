@@ -30,7 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 import github_tools
-from codebase_tools import CodebaseLSPClient, CodebaseTools
+from codebase_tools import CodebaseTools, create_simple_lsp_client
 from constants import DATA_DIR, LOGS_DIR, SYMBOLS_DB_PATH, Language
 from github_tools import (
     GitHubAPIContext,
@@ -189,7 +189,7 @@ class MCPWorker:
             self.codebase_tools_instance = CodebaseTools(
                 repository_manager=github_temp_repo_manager,
                 symbol_storage=default_symbol_storage,
-                lsp_client_factory=CodebaseLSPClient,
+                lsp_client_factory=create_simple_lsp_client,
             )
             self.logger.debug("CodebaseTools instance created successfully")
         except Exception as e:
@@ -232,6 +232,9 @@ class MCPWorker:
             f"Worker initialization complete for {self.repo_name} on port {self.port}"
         )
 
+        # Note: LSP functionality now handled by SimpleLSPClient on-demand
+        # No need for persistent LSP server startup
+
     def _initialize_symbol_storage(self) -> None:
         """Initialize symbol storage for codebase tools."""
         try:
@@ -249,6 +252,14 @@ class MCPWorker:
         except Exception as e:
             self.logger.error(f"Failed to initialize symbol storage: {e}")
             raise
+
+    def cleanup(self) -> None:
+        """Clean up resources when worker is done."""
+        if hasattr(self, "symbol_storage") and self.symbol_storage:
+            self.symbol_storage.close()
+            self.symbol_storage = None
+
+    # LSP server startup removed - SimpleLSPClient handles LSP processes on-demand
 
     def _setup_repository_manager(self) -> None:
         """Set up a temporary repository manager for this worker's repository"""
@@ -606,15 +617,19 @@ class MCPWorker:
                             "codebase_health_check",
                             "find_definition",
                             "find_references",
-                            "get_hover",
+                            "find_hover",
                         }
 
                         if tool_name in codebase_tool_handlers:
                             # Use the CodebaseTools instance
+                            # Ensure repository_id from self.repo_name takes precedence
+                            codebase_args = {
+                                **tool_args,
+                                "repository_id": self.repo_name,
+                            }
                             result = await self.codebase_tools_instance.execute_tool(
                                 tool_name,
-                                repository_id=self.repo_name,
-                                **tool_args,
+                                **codebase_args,
                             )
                         else:
                             # Try to find the tool in any of the registered modules
@@ -730,11 +745,17 @@ class MCPWorker:
             self.logger.error(f"Failed to create uvicorn server: {e}")
             raise
 
-        # Set up signal handlers
+        # Set up signal handlers (only works in main thread)
         self.logger.debug("Setting up signal handlers...")
-        signal.signal(signal.SIGTERM, self.signal_handler)
-        signal.signal(signal.SIGINT, self.signal_handler)
-        self.logger.debug("Signal handlers configured")
+        try:
+            signal.signal(signal.SIGTERM, self.signal_handler)
+            signal.signal(signal.SIGINT, self.signal_handler)
+            self.logger.debug("Signal handlers configured")
+        except ValueError as e:
+            # signal.signal() raises ValueError if not in main thread
+            self.logger.debug(f"Skipping signal handlers (not in main thread): {e}")
+        except Exception as e:
+            self.logger.warning(f"Failed to set up signal handlers: {e}")
 
         self.logger.info(f"Starting uvicorn server on port {self.port}...")
         try:
