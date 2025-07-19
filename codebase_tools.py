@@ -5,33 +5,35 @@ Codebase Tools for MCP Server - Object-Oriented Refactor
 Contains codebase-related tool implementations for repository analysis and management.
 """
 
+import asyncio
 import json
 import logging
 import os
 import subprocess
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar
 
-from async_lsp_client import AbstractAsyncLSPClient, AsyncLSPClient, AsyncLSPClientState
 from constants import Language
 from repository_manager import AbstractRepositoryManager
+from simple_lsp_client import SimpleLSPClient
 from symbol_storage import AbstractSymbolStorage
 
 logger = logging.getLogger(__name__)
 
 
-# Type for LSP client factory
-LSPClientFactory = Callable[[str, str], AbstractAsyncLSPClient]
+# Type for LSP client factory  
+LSPClientFactory = Callable[[str, str], SimpleLSPClient]
 
 
-def create_async_lsp_client(workspace_root: str, python_path: str) -> AsyncLSPClient:
-    """Factory function to create AsyncLSPClient instances."""
-    return AsyncLSPClient.create(workspace_root, python_path)
+def create_simple_lsp_client(workspace_root: str, python_path: str) -> SimpleLSPClient:
+    """Factory function to create SimpleLSPClient instances."""
+    return SimpleLSPClient(workspace_root, python_path)
 
 
-# LSP Tools Implementation - Now using AsyncLSPClient directly
+# LSP Tools Implementation - Now using SimpleLSPClient directly
 
 
 class CodebaseTools:
@@ -65,9 +67,7 @@ class CodebaseTools:
         self.lsp_client_factory = lsp_client_factory
         self.logger = logging.getLogger(__name__)
 
-        # Thread safety for LSP client cache
-        self._lsp_lock = threading.Lock()
-        self._lsp_clients: dict[str, AbstractAsyncLSPClient] = {}
+        # SimpleLSPClient doesn't need caching - create fresh instances as needed
 
     def _user_friendly_to_lsp_position(self, line: int, column: int) -> dict:
         """Convert user-friendly (1-based) coordinates to LSP (0-based) coordinates."""
@@ -533,6 +533,7 @@ class CodebaseTools:
         self.logger.info(
             f"Getting definition for symbol '{symbol}' at {file_path}:{line}:{column}"
         )
+        
         try:
             repo_config = self.repository_manager.get_repository(repository_id)
             if not repo_config:
@@ -548,40 +549,26 @@ class CodebaseTools:
                 f"Repository config found: {repo_config.workspace}, language: {repo_config.language}"
             )
 
-            # Get or create LSP client for this repository
-            self.logger.debug(f"Getting LSP client for repository '{repository_id}'")
-            lsp_client = await self._get_lsp_client(repository_id)
-            if not lsp_client:
-                self.logger.error(
-                    f"LSP client not available for repository '{repository_id}'"
-                )
-                return json.dumps(
-                    {
-                        "error": f"LSP not available for repository '{repository_id}'",
-                        "symbol": symbol,
-                    }
-                )
-
-            self.logger.debug(
-                f"LSP client obtained successfully, state: {lsp_client.state}"
-            )
-
             # Resolve file path
             resolved_path = self._resolve_file_path(file_path, repo_config.workspace)
             file_uri = Path(resolved_path).as_uri()
             self.logger.debug(f"Resolved file path: {resolved_path} -> {file_uri}")
 
-            # Get definition from LSP
-            self.logger.debug(
-                f"Calling LSP get_definition with file_uri={file_uri}, line={line - 1}, column={column - 1}"
+            # Use SimpleLSPClient directly - it's proven to work reliably
+            self.logger.info("🚀 Using SimpleLSPClient for reliable LSP communication")
+            
+            simple_lsp = SimpleLSPClient(
+                workspace_root=repo_config.workspace,
+                python_path=repo_config.python_path
             )
-            definitions = await lsp_client.get_definition(
-                file_uri, line - 1, column - 1
+            
+            start_time = time.time()
+            definitions = await simple_lsp.get_definition(
+                file_uri, line - 1, column - 1, timeout=10.0
             )
-
-            self.logger.debug(
-                f"LSP returned {len(definitions) if definitions else 0} definitions"
-            )
+            duration = time.time() - start_time
+            
+            self.logger.info(f"🚀 SimpleLSPClient completed in {duration:.3f}s! Got {len(definitions) if definitions else 0} definitions")
 
             if not definitions:
                 self.logger.info(
@@ -601,11 +588,11 @@ class CodebaseTools:
             for i, defn in enumerate(definitions):
                 self.logger.debug(f"Processing definition {i + 1}: {defn}")
                 if "uri" in defn and "range" in defn:
-                    file_path = str(Path(defn["uri"].replace("file://", "")))
+                    def_file_path = str(Path(defn["uri"].replace("file://", "")))
                     start_pos = defn["range"]["start"]
                     results.append(
                         {
-                            "file": file_path,
+                            "file": def_file_path,
                             "line": start_pos["line"] + 1,  # Convert to 1-based
                             "column": start_pos["character"] + 1,
                         }
@@ -660,34 +647,26 @@ class CodebaseTools:
                 f"Repository config found: {repo_config.workspace}, language: {repo_config.language}"
             )
 
-            # Get or create LSP client for this repository
-            self.logger.debug(f"Getting LSP client for repository '{repository_id}'")
-            lsp_client = await self._get_lsp_client(repository_id)
-            if not lsp_client:
-                self.logger.error(
-                    f"LSP client not available for repository '{repository_id}'"
-                )
-                return json.dumps(
-                    {
-                        "error": f"LSP not available for repository '{repository_id}'",
-                        "symbol": symbol,
-                    }
-                )
-
-            self.logger.debug(
-                f"LSP client obtained successfully, state: {lsp_client.state}"
-            )
-
             # Resolve file path
             resolved_path = self._resolve_file_path(file_path, repo_config.workspace)
             file_uri = Path(resolved_path).as_uri()
             self.logger.debug(f"Resolved file path: {resolved_path} -> {file_uri}")
 
-            # Get references from LSP
-            self.logger.debug(
-                f"Calling LSP get_references with file_uri={file_uri}, line={line - 1}, column={column - 1}"
+            # Use SimpleLSPClient directly for reliable LSP communication
+            self.logger.info("🚀 Using SimpleLSPClient for references")
+            
+            simple_lsp = SimpleLSPClient(
+                workspace_root=repo_config.workspace,
+                python_path=repo_config.python_path
             )
-            references = await lsp_client.get_references(file_uri, line - 1, column - 1)
+            
+            start_time = time.time()
+            references = await simple_lsp.get_references(
+                file_uri, line - 1, column - 1, timeout=10.0
+            )
+            duration = time.time() - start_time
+            
+            self.logger.info(f"🚀 SimpleLSPClient references completed in {duration:.3f}s! Got {len(references) if references else 0} references")
 
             self.logger.debug(
                 f"LSP returned {len(references) if references else 0} references"
@@ -774,24 +753,25 @@ class CodebaseTools:
                     }
                 )
 
-            # Get LSP client
-            client = await self._get_lsp_client(repository_id)
-            if not client:
-                return json.dumps(
-                    {
-                        "error": f"LSP client not available for repository {repository_id}",
-                        "file_path": file_path,
-                        "line": line,
-                        "character": character,
-                    }
-                )
-
             # Resolve file path and convert to URI
             resolved_path = self._resolve_file_path(file_path, repo_config.workspace)
             file_uri = Path(resolved_path).as_uri()
 
-            # Get hover information (convert 1-based to 0-based coordinates)
-            hover_info = await client.get_hover(file_uri, line - 1, character - 1)
+            # Use SimpleLSPClient directly for reliable LSP communication
+            self.logger.info("🚀 Using SimpleLSPClient for hover")
+            
+            simple_lsp = SimpleLSPClient(
+                workspace_root=repo_config.workspace,
+                python_path=repo_config.python_path
+            )
+            
+            start_time = time.time()
+            hover_info = await simple_lsp.get_hover(
+                file_uri, line - 1, character - 1, timeout=10.0
+            )
+            duration = time.time() - start_time
+            
+            self.logger.info(f"🚀 SimpleLSPClient hover completed in {duration:.3f}s! Got hover info: {bool(hover_info)}")
 
             if not hover_info:
                 return json.dumps(
@@ -828,90 +808,6 @@ class CodebaseTools:
                 }
             )
 
-    async def _get_lsp_client(
-        self, repository_id: str
-    ) -> AbstractAsyncLSPClient | None:
-        """Get LSP client for a repository from the repository manager."""
-        self.logger.debug(f"Getting LSP client for repository '{repository_id}'")
-
-        # Delegate to repository manager's LSP client management
-        if hasattr(self.repository_manager, "get_lsp_client"):
-            self.logger.debug(
-                "Repository manager has get_lsp_client method, delegating"
-            )
-            client = self.repository_manager.get_lsp_client(repository_id)
-            if client:
-                self.logger.debug(
-                    f"Repository manager returned LSP client with state: {client.state}"
-                )
-                self.logger.info(f"LSP client type: {type(client)} - {client.__class__.__module__}.{client.__class__.__name__}")
-            else:
-                self.logger.debug("Repository manager returned no LSP client")
-            return client
-
-        # Fallback: create our own LSP client if repository manager doesn't support it
-        self.logger.debug(
-            "Repository manager doesn't support LSP clients, creating our own"
-        )
-        with self._lsp_lock:
-            # Check if we already have a client
-            if repository_id in self._lsp_clients:
-                existing_client = self._lsp_clients[repository_id]
-                self.logger.debug(
-                    f"Found existing LSP client with state: {existing_client.state}"
-                )
-                if existing_client.state == AsyncLSPClientState.INITIALIZED:
-                    self.logger.debug("Returning existing healthy LSP client")
-                    return existing_client
-                else:
-                    # Remove unhealthy client
-                    self.logger.debug(
-                        f"Removing unhealthy LSP client with state: {existing_client.state}"
-                    )
-                    del self._lsp_clients[repository_id]
-
-            # Get repository configuration
-            repo_config = self.repository_manager.get_repository(repository_id)
-            if not repo_config:
-                self.logger.error(f"Repository config not found for '{repository_id}'")
-                return None
-
-            self.logger.debug(
-                f"Repository config: workspace={repo_config.workspace}, language={repo_config.language}, python_path={repo_config.python_path}"
-            )
-
-            # Only support Python repositories for now
-            if repo_config.language != Language.PYTHON:
-                self.logger.debug(
-                    f"LSP not supported for language {repo_config.language}"
-                )
-                return None
-
-            try:
-                self.logger.debug("Creating new LSP client using factory")
-                # Create new LSP client using the factory
-                new_client: AbstractAsyncLSPClient = self.lsp_client_factory(
-                    repo_config.workspace,
-                    repo_config.python_path,
-                )
-
-                self.logger.debug(
-                    f"Starting LSP client for repository '{repository_id}'"
-                )
-                # Start the client
-                if await new_client.start():
-                    self.logger.info(
-                        f"Successfully started LSP client for repository '{repository_id}'"
-                    )
-                    self._lsp_clients[repository_id] = new_client
-                    return new_client
-                else:
-                    self.logger.error(f"Failed to start LSP client for {repository_id}")
-                    return None
-
-            except Exception as e:
-                self.logger.error(f"Error creating LSP client for {repository_id}: {e}")
-                return None
 
     def _resolve_file_path(self, file_path: str, workspace_root: str) -> str:
         """
@@ -973,19 +869,9 @@ class CodebaseTools:
             raise
 
     async def shutdown(self) -> None:
-        """Shutdown all LSP clients and clean up resources."""
-        with self._lsp_lock:
-            for repository_id, client in self._lsp_clients.items():
-                try:
-                    await client.stop()
-                except Exception as e:
-                    self.logger.error(
-                        f"Error stopping LSP client for {repository_id}: {e}"
-                    )
+        """Shutdown - SimpleLSPClient doesn't require resource cleanup."""
+        self.logger.info("CodebaseTools shutdown - SimpleLSPClient instances are stateless")
 
-            self._lsp_clients.clear()
-
-        self.logger.info("CodebaseTools shutdown complete")
 
 
 # End of CodebaseTools class

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import github_tools
-from codebase_tools import CodebaseTools, create_async_lsp_client
+from codebase_tools import CodebaseTools, create_simple_lsp_client
 from constants import DATA_DIR, SYMBOLS_DB_PATH, Language
 from repository_manager import (
     AbstractRepositoryManager,
@@ -178,7 +178,7 @@ async def execute_tool_command(
                 )
                 repo_manager.add_repository(repo_name, repo_config)
                 codebase_tools = CodebaseTools(
-                    repo_manager, symbol_storage, create_async_lsp_client
+                    repo_manager, symbol_storage, create_simple_lsp_client
                 )
 
             result = await codebase_tools.execute_tool(

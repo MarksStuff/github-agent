@@ -504,8 +504,8 @@ class MCPMaster:
         # Initialize repository indexes
         await self.initialize_repository_indexes()
 
-        # LSP servers are now started by individual workers
-        logger.info("LSP servers will be started by individual workers")
+        # LSP functionality handled by SimpleLSPClient on-demand - no server startup needed
+        logger.info("LSP functionality handled by SimpleLSPClient on-demand")
 
         # Set up signal handlers
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -600,23 +600,8 @@ class MCPMaster:
             f"Worker shutdown complete: {success_count}/{total_count} successful"
         )
 
-        # Stop LSP servers for all repositories
-        logger.info("Stopping LSP servers for all repositories...")
-        try:
-            lsp_results = self.repository_manager.stop_all_lsp_servers()
-            stopped_lsp = [repo for repo, success in lsp_results.items() if success]
-            failed_stop_lsp = [
-                repo for repo, success in lsp_results.items() if not success
-            ]
-
-            if stopped_lsp:
-                logger.info(f"✅ Stopped LSP servers for: {', '.join(stopped_lsp)}")
-            if failed_stop_lsp:
-                logger.warning(
-                    f"⚠️ Failed to stop LSP servers for: {', '.join(failed_stop_lsp)}"
-                )
-        except Exception as e:
-            logger.error(f"Error stopping LSP servers: {e}")
+        # Note: LSP server shutdown no longer needed - SimpleLSPClient uses on-demand processes
+        logger.info("LSP functionality handled by SimpleLSPClient - no persistent servers to stop")
 
         # Clean up symbol storage after all workers are shutdown
         try:
@@ -779,12 +764,12 @@ async def main() -> None:
                 )
 
                 # Create codebase tools
-                from codebase_tools import CodebaseTools, create_async_lsp_client
+                from codebase_tools import CodebaseTools, create_simple_lsp_client
 
                 codebase_tools = CodebaseTools(
                     repository_manager=repository_manager,
                     symbol_storage=symbol_storage,
-                    lsp_client_factory=create_async_lsp_client,
+                    lsp_client_factory=create_simple_lsp_client,
                 )
 
                 # Create shutdown and health monitoring components
@@ -842,12 +827,12 @@ async def main() -> None:
         )
 
         # Create codebase tools
-        from codebase_tools import CodebaseTools, create_async_lsp_client
+        from codebase_tools import CodebaseTools, create_simple_lsp_client
 
         codebase_tools = CodebaseTools(
             repository_manager=repository_manager,
             symbol_storage=symbol_storage,
-            lsp_client_factory=create_async_lsp_client,
+            lsp_client_factory=create_simple_lsp_client,
         )
 
         # Create shutdown and health monitoring components

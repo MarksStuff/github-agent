@@ -62,8 +62,42 @@ class PylspManager(LSPServerManager):
 
     def get_initialization_options(self) -> dict[str, Any] | None:
         """Get pylsp-specific initialization options."""
-        # Return None for minimal initialization
-        return None
+        # Optimize pylsp for performance by disabling expensive plugins
+        return {
+            "settings": {
+                "pylsp": {
+                    "plugins": {
+                        # Disable all expensive analysis plugins
+                        "autopep8": {"enabled": False},
+                        "flake8": {"enabled": False},
+                        "mccabe": {"enabled": False},
+                        "preload": {"enabled": False},
+                        "pycodestyle": {"enabled": False},
+                        "pydocstyle": {"enabled": False},
+                        "pyflakes": {"enabled": False},
+                        "pylint": {"enabled": False},
+                        "rope_autoimport": {"enabled": False},
+                        "rope_completion": {"enabled": False},
+                        "yapf": {"enabled": False},
+                        # Enable and optimize essential plugins for definition lookup
+                        "jedi_completion": {
+                            "enabled": True,
+                            "include_params": False,
+                            "include_class_objects": False,
+                            "fuzzy": False,
+                        },
+                        "jedi_definition": {
+                            "enabled": True,
+                            "follow_imports": False,
+                            "follow_builtin_imports": False,
+                        },
+                        "jedi_hover": {"enabled": True},
+                        "jedi_references": {"enabled": True},
+                        "jedi_symbols": {"enabled": True},
+                    }
+                }
+            }
+        }
 
     def get_server_capabilities(self) -> dict[str, Any]:
         """Return the expected server capabilities for pylsp."""

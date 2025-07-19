@@ -221,14 +221,19 @@ class GitHubAPIContext:
         )
         try:
             # Skip GitHub API access for test repositories, but still use the mocked GitHub client
-            if self.github_token == "fake_token_for_testing" or "test-" in self.repo_name:
-                logger.info(f"GitHubAPIContext.__init__: Skipping GitHub API access for test repository {self.repo_name}")
+            if (
+                self.github_token == "fake_token_for_testing"
+                or "test-" in self.repo_name
+            ):
+                logger.info(
+                    f"GitHubAPIContext.__init__: Skipping GitHub API access for test repository {self.repo_name}"
+                )
                 # For tests, try to use the mocked GitHub client if available
                 try:
                     self.repo = self.github.get_repo(self.repo_name)
                 except Exception:
                     # If no mock or mock fails, set to None
-                    self.repo = None  
+                    self.repo = None
             else:
                 self.repo = self.github.get_repo(self.repo_name)
                 logger.info(

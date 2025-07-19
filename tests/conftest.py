@@ -16,7 +16,7 @@ import pytest
 
 import codebase_tools
 import mcp_master
-from async_lsp_client import AbstractAsyncLSPClient, AsyncLSPClientState
+# async_lsp_client imports removed - using SimpleLSPClient directly
 from lsp_constants import LSPServerType
 from python_symbol_extractor import AbstractSymbolExtractor, PythonSymbolExtractor
 from repository_indexer import (
@@ -64,106 +64,25 @@ def find_free_port(start_port: int = 8081, max_attempts: int = 100) -> int:
     )
 
 
-class MockLSPClient(AbstractAsyncLSPClient):
-    """Mock LSP client for testing."""
-
-    def __init__(
-        self,
-        workspace_root: str = "/test",
-        state: AsyncLSPClientState = AsyncLSPClientState.INITIALIZED,
-    ):
-        # Don't call super().__init__ to avoid needing server_manager
+# Minimal MockLSPClient for test compatibility
+class MockLSPClient:
+    """Minimal mock LSP client for testing compatibility."""
+    
+    def __init__(self, workspace_root: str = "/test"):
         self.workspace_root = workspace_root
-        self._state = state
         self.logger = logging.getLogger(__name__)
-
-        # Mock responses that can be set by tests
-        self._definition_response: list[dict] = []
-        self._references_response: list[dict] = []
-        self._hover_response = None
-        self._document_symbols_response: list[dict] = []
-        self._start_result = True  # Default to successful start
-
-    async def get_definition(
-        self, uri: str, line: int, character: int
-    ) -> list[dict] | None:
+        
+    async def get_definition(self, uri: str, line: int, character: int) -> list[dict] | None:
         """Mock get_definition method."""
-        return self._definition_response
-
-    async def get_references(
-        self, uri: str, line: int, character: int, include_declaration: bool = True
-    ) -> list[dict] | None:
+        return []
+        
+    async def get_references(self, uri: str, line: int, character: int, include_declaration: bool = True) -> list[dict] | None:
         """Mock get_references method."""
-        return self._references_response
-
+        return []
+        
     async def get_hover(self, uri: str, line: int, character: int) -> dict | None:
         """Mock get_hover method."""
-        return self._hover_response
-
-    async def get_document_symbols(self, uri: str) -> list[dict] | None:
-        """Mock get_document_symbols method."""
-        return self._document_symbols_response
-
-    async def connect(self) -> bool:
-        """Mock connect method."""
-        return True
-
-    async def disconnect(self) -> None:
-        """Mock disconnect method."""
-        pass
-
-    async def stop(self) -> bool:
-        """Mock stop method."""
-        self.state = AsyncLSPClientState.DISCONNECTED
-        return True
-
-    async def start(self) -> bool:
-        """Mock start method."""
-        if self._start_result:
-            self.state = AsyncLSPClientState.INITIALIZED
-        return self._start_result
-
-    def is_initialized(self) -> bool:
-        """Check if client is initialized."""
-        return self.state == AsyncLSPClientState.INITIALIZED
-
-    def get_server_capabilities(self) -> dict[str, Any]:
-        """Get server capabilities."""
-        return {}
-
-    def add_notification_handler(self, method: str, handler: Any) -> None:
-        """Add a notification handler."""
-        pass
-
-    def remove_notification_handler(self, method: str) -> None:
-        """Remove a notification handler."""
-        pass
-
-    def shutdown(self) -> None:
-        """Mock shutdown method."""
-        self.state = AsyncLSPClientState.DISCONNECTED
-
-    def set_definition_response(self, response: list[dict]):
-        """Set the response for get_definition calls."""
-        self._definition_response = response
-
-    def set_references_response(self, response: list[dict]):
-        """Set the response for get_references calls."""
-        self._references_response = response
-
-    def set_start_result(self, result: bool):
-        """Set the result for start method calls."""
-        self._start_result = result
-
-    @property
-    def state(self) -> AsyncLSPClientState:
-        """Get the current client state."""
-        return self._state
-
-    @state.setter
-    def state(self, value: AsyncLSPClientState) -> None:
-        """Set the current client state."""
-        self._state = value
+        return None
 
 
 @pytest.fixture(scope="session")
@@ -179,19 +98,7 @@ def mock_repository_manager():
     return MockRepositoryManager()
 
 
-def mock_lsp_client_provider(
-    workspace_root: str,
-    python_path: str,
-    server_type: LSPServerType = LSPServerType.PYLSP,
-) -> MockLSPClient:
-    """Provider function to create mock LSP clients for dependency injection."""
-    return MockLSPClient(workspace_root=workspace_root)
-
-
-@pytest.fixture
-def mock_lsp_client():
-    """Create a mock LSP client for testing."""
-    return MockLSPClient()
+# LSP client provider functions removed - SimpleLSPClient used directly
 
 
 @pytest.fixture
@@ -731,17 +638,12 @@ def mcp_master_factory():
         health_monitor = SimpleHealthMonitor(test_logger)
 
         # Create CodebaseTools instance
-        from codebase_tools import create_async_lsp_client
-
-        def mock_lsp_client_factory(workspace: str, python_path: str):
-            return create_async_lsp_client(workspace, python_path)
-
-        from codebase_tools import CodebaseTools
+        from codebase_tools import CodebaseTools, create_simple_lsp_client
 
         codebase_tools = CodebaseTools(
             repository_manager=repository_manager,
             symbol_storage=symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory,
+            lsp_client_factory=create_simple_lsp_client,
         )
 
         return mcp_master.MCPMaster(
@@ -802,24 +704,9 @@ def lsp_client_factory_factory():
     """Factory for creating LSP client factory functions."""
 
     def _create(mock=True):
-        if mock:
-
-            def mock_lsp_client_factory(
-                workspace_root: str, python_path: str
-            ) -> MockLSPClient:
-                return MockLSPClient(workspace_root=workspace_root)
-
-            return mock_lsp_client_factory
-        else:
-            # Use real LSP client factory for testing
-            from codebase_tools import create_async_lsp_client
-
-            def real_lsp_client_factory(workspace_root: str, python_path: str):
-                return create_async_lsp_client(
-                    workspace_root=workspace_root, python_path=python_path
-                )
-
-            return real_lsp_client_factory
+        # SimpleLSPClient doesn't need mocking - it's simple and reliable
+        from codebase_tools import create_simple_lsp_client
+        return create_simple_lsp_client
 
     return _create
 
