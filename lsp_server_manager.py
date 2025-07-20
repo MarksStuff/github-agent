@@ -49,3 +49,18 @@ class LSPServerManager(ABC):
     def validate_server_response(self, response: dict[str, Any]) -> bool:
         """Validate server initialization response."""
         pass
+
+    @abstractmethod
+    def validate_configuration(self) -> bool:
+        """Validate the current configuration."""
+        pass
+
+    @abstractmethod
+    def prepare_workspace(self) -> bool:
+        """Prepare the workspace for LSP analysis."""
+        pass
+
+    @abstractmethod
+    def cleanup_workspace(self) -> bool:
+        """Clean up workspace artifacts."""
+        pass

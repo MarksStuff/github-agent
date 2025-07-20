@@ -9,103 +9,49 @@ import json
 import logging
 import os
 import subprocess
-import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Protocol
 
-from constants import Language
-from lsp_client import AbstractLSPClient, LSPClientState
-from lsp_constants import LSPMethod
-from pyright_lsp_manager import PyrightLSPManager
 from repository_manager import AbstractRepositoryManager
+from simple_lsp_client import SimpleLSPClient
 from symbol_storage import AbstractSymbolStorage
 
 logger = logging.getLogger(__name__)
 
 
-# Type for LSP client factory
-LSPClientFactory = Callable[[str, str], AbstractLSPClient]
-
-
-# LSP Tools Implementation
-class CodebaseLSPClient(AbstractLSPClient):
-    """Concrete LSP client implementation for codebase tools."""
-
-    def __init__(self, workspace_root: str, python_path: str):
-        """Initialize the LSP client for codebase operations."""
-        server_manager = PyrightLSPManager(workspace_root, python_path)
-        super().__init__(
-            server_manager=server_manager,
-            workspace_root=workspace_root,
-            logger=logger,
-        )
+# Protocol for LSP client interface
+class LSPClientProtocol(Protocol):
+    """Protocol defining the interface for LSP clients."""
 
     async def get_definition(
         self, uri: str, line: int, character: int
-    ) -> list[dict[str, Any]] | None:
-        """Get definition for a symbol using LSP."""
-        definition_params = {
-            "textDocument": {"uri": uri},
-            "position": {"line": line, "character": character},
-        }
-        request = self.protocol.create_request(LSPMethod.DEFINITION, definition_params)
-        response = await self._send_request(request, timeout=10.0)
-        return response.get("result") if response else None
+    ) -> list[dict] | None:
+        """Get definition for symbol at position."""
+        ...
 
     async def get_references(
         self, uri: str, line: int, character: int, include_declaration: bool = True
-    ) -> list[dict[str, Any]] | None:
-        """Get references for a symbol using LSP."""
-        references_params = {
-            "textDocument": {"uri": uri},
-            "position": {"line": line, "character": character},
-            "context": {"includeDeclaration": include_declaration},
-        }
-        request = self.protocol.create_request(LSPMethod.REFERENCES, references_params)
-        response = await self._send_request(request, timeout=15.0)
-        return response.get("result") if response else None
+    ) -> list[dict] | None:
+        """Get references for symbol at position."""
+        ...
 
-    async def get_hover(
-        self, uri: str, line: int, character: int
-    ) -> dict[str, Any] | None:
-        """Get hover information for a symbol using LSP."""
-        hover_params = {
-            "textDocument": {"uri": uri},
-            "position": {"line": line, "character": character},
-        }
-        request = self.protocol.create_request(LSPMethod.HOVER, hover_params)
-        response = await self._send_request(request, timeout=5.0)
-        return response.get("result") if response else None
+    async def get_hover(self, uri: str, line: int, character: int) -> dict | None:
+        """Get hover information for symbol at position."""
+        ...
 
-    async def get_document_symbols(self, uri: str) -> list[dict[str, Any]] | None:
-        """Get document symbols using LSP."""
-        symbols_params = {"textDocument": {"uri": uri}}
-        request = self.protocol.create_request(
-            LSPMethod.DOCUMENT_SYMBOLS, symbols_params
-        )
-        response = await self._send_request(request, timeout=10.0)
-        return response.get("result") if response else None
 
-    async def connect(self) -> bool:
-        """Connect to the LSP server."""
-        try:
-            if not await self._start_server():
-                return False
+# Type for LSP client factory
+LSPClientFactory = Callable[[str, str], LSPClientProtocol]
 
-            self._start_reader_thread()
 
-            if not await self._initialize_connection():
-                return False
+def create_simple_lsp_client(workspace_root: str, python_path: str) -> SimpleLSPClient:
+    """Factory function to create SimpleLSPClient instances."""
+    return SimpleLSPClient(workspace_root, python_path)
 
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to connect to LSP server: {e}")
-            return False
 
-    async def disconnect(self) -> None:
-        """Disconnect from the LSP server."""
-        await self.stop()
+# LSP Tools Implementation - Now using SimpleLSPClient directly
 
 
 class CodebaseTools:
@@ -117,7 +63,7 @@ class CodebaseTools:
         "search_symbols": "search_symbols",
         "find_definition": "find_definition",
         "find_references": "find_references",
-        "get_hover": "get_hover",
+        "find_hover": "find_hover",
     }
 
     def __init__(
@@ -139,9 +85,7 @@ class CodebaseTools:
         self.lsp_client_factory = lsp_client_factory
         self.logger = logging.getLogger(__name__)
 
-        # Thread safety for LSP client cache
-        self._lsp_lock = threading.Lock()
-        self._lsp_clients: dict[str, AbstractLSPClient] = {}
+        # SimpleLSPClient doesn't need caching - create fresh instances as needed
 
     def _user_friendly_to_lsp_position(self, line: int, column: int) -> dict:
         """Convert user-friendly (1-based) coordinates to LSP (0-based) coordinates."""
@@ -296,6 +240,39 @@ class CodebaseTools:
                     ],
                 },
             },
+            {
+                "name": "find_hover",
+                "description": f"Find hover information for a symbol at a specific position in the {repo_name} repository using LSP. Returns detailed information about the symbol including documentation and type information.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "repository_id": {
+                            "type": "string",
+                            "description": "Repository identifier",
+                        },
+                        "file_path": {
+                            "type": "string",
+                            "description": "File path containing the symbol (relative to repository root or absolute)",
+                        },
+                        "line": {
+                            "type": "integer",
+                            "description": "Line number where the symbol appears (1-based)",
+                            "minimum": 1,
+                        },
+                        "character": {
+                            "type": "integer",
+                            "description": "Character position where the symbol appears (1-based)",
+                            "minimum": 1,
+                        },
+                    },
+                    "required": [
+                        "repository_id",
+                        "file_path",
+                        "line",
+                        "character",
+                    ],
+                },
+            },
         ]
 
     async def execute_tool(self, tool_name: str, **kwargs) -> str:
@@ -319,8 +296,8 @@ class CodebaseTools:
         method_name = self.TOOL_HANDLERS[tool_name]
         handler = getattr(self, method_name)
         try:
-            # Type ignore because we know these are bound methods that accept **kwargs
-            return await handler(**kwargs)  # type: ignore
+            # Call handler with only keyword arguments to avoid parameter conflicts
+            return await handler(**kwargs)
         except Exception as e:
             self.logger.exception(f"Error executing tool {tool_name}")
             return json.dumps(
@@ -527,14 +504,58 @@ class CodebaseTools:
         self,
         repository_id: str,
         symbol: str,
-        file_path: str,
-        line: int,
-        column: int,
+        file_path: str | None = None,
+        line: int | None = None,
+        column: int | None = None,
     ) -> str:
-        """Find the definition of a symbol using LSP."""
+        """Find the definition of a symbol using LSP.
+
+        If file_path, line, and column are not provided, will first search for the symbol
+        using search_symbols to find its location, then get the definition.
+        """
+        self.logger.info(
+            f"Finding definition for symbol '{symbol}' in repository '{repository_id}'"
+        )
+
+        # If location not provided, search for the symbol first
+        if file_path is None or line is None or column is None:
+            self.logger.debug(f"Location not provided, searching for symbol '{symbol}'")
+            search_result = await self.search_symbols(repository_id, symbol, limit=1)
+            search_data = json.loads(search_result)
+
+            if "error" in search_data:
+                return json.dumps(
+                    {
+                        "error": f"Failed to search for symbol: {search_data['error']}",
+                        "symbol": symbol,
+                    }
+                )
+
+            symbols = search_data.get("symbols", [])
+            if not symbols:
+                return json.dumps(
+                    {
+                        "error": f"Symbol '{symbol}' not found in repository '{repository_id}'",
+                        "symbol": symbol,
+                    }
+                )
+
+            # Use the first symbol found
+            symbol_info = symbols[0]
+            file_path = symbol_info.get("file_path")
+            line = symbol_info.get("line")
+            column = symbol_info.get("column", 0)  # Default to column 0 if not provided
+
+            self.logger.debug(f"Found symbol at {file_path}:{line}:{column}")
+
+        self.logger.info(
+            f"Getting definition for symbol '{symbol}' at {file_path}:{line}:{column}"
+        )
+
         try:
             repo_config = self.repository_manager.get_repository(repository_id)
             if not repo_config:
+                self.logger.error(f"Repository '{repository_id}' not found")
                 return json.dumps(
                     {
                         "error": f"Repository '{repository_id}' not found",
@@ -542,26 +563,37 @@ class CodebaseTools:
                     }
                 )
 
-            # Get or create LSP client for this repository
-            lsp_client = await self._get_lsp_client(repository_id)
-            if not lsp_client:
-                return json.dumps(
-                    {
-                        "error": f"LSP not available for repository '{repository_id}'",
-                        "symbol": symbol,
-                    }
-                )
+            self.logger.debug(
+                f"Repository config found: {repo_config.workspace}, language: {repo_config.language}"
+            )
 
             # Resolve file path
             resolved_path = self._resolve_file_path(file_path, repo_config.workspace)
             file_uri = Path(resolved_path).as_uri()
+            self.logger.debug(f"Resolved file path: {resolved_path} -> {file_uri}")
 
-            # Get definition from LSP
-            definitions = await lsp_client.get_definition(
-                file_uri, line - 1, column - 1
+            # Use SimpleLSPClient directly - it's proven to work reliably
+            self.logger.info("🚀 Using SimpleLSPClient for reliable LSP communication")
+
+            simple_lsp = SimpleLSPClient(
+                workspace_root=repo_config.workspace,
+                python_path=repo_config.python_path,
+            )
+
+            start_time = time.time()
+            definitions = await simple_lsp.get_definition(
+                file_uri, line - 1, column - 1, timeout=10.0
+            )
+            duration = time.time() - start_time
+
+            self.logger.info(
+                f"🚀 SimpleLSPClient completed in {duration:.3f}s! Got {len(definitions) if definitions else 0} definitions"
             )
 
             if not definitions:
+                self.logger.info(
+                    f"No definition found for symbol '{symbol}' at {file_path}:{line}:{column}"
+                )
                 return json.dumps(
                     {
                         "symbol": symbol,
@@ -573,18 +605,20 @@ class CodebaseTools:
 
             # Convert LSP response to user-friendly format
             results = []
-            for defn in definitions:
+            for i, defn in enumerate(definitions):
+                self.logger.debug(f"Processing definition {i + 1}: {defn}")
                 if "uri" in defn and "range" in defn:
-                    file_path = str(Path(defn["uri"].replace("file://", "")))
+                    def_file_path = str(Path(defn["uri"].replace("file://", "")))
                     start_pos = defn["range"]["start"]
                     results.append(
                         {
-                            "file": file_path,
+                            "file": def_file_path,
                             "line": start_pos["line"] + 1,  # Convert to 1-based
                             "column": start_pos["character"] + 1,
                         }
                     )
 
+            self.logger.info(f"Found {len(results)} definitions for symbol '{symbol}'")
             return json.dumps(
                 {
                     "symbol": symbol,
@@ -615,9 +649,13 @@ class CodebaseTools:
         column: int,
     ) -> str:
         """Find all references to a symbol using LSP."""
+        self.logger.info(
+            f"Finding references for symbol '{symbol}' at {file_path}:{line}:{column} in repository '{repository_id}'"
+        )
         try:
             repo_config = self.repository_manager.get_repository(repository_id)
             if not repo_config:
+                self.logger.error(f"Repository '{repository_id}' not found")
                 return json.dumps(
                     {
                         "error": f"Repository '{repository_id}' not found",
@@ -625,24 +663,41 @@ class CodebaseTools:
                     }
                 )
 
-            # Get or create LSP client for this repository
-            lsp_client = await self._get_lsp_client(repository_id)
-            if not lsp_client:
-                return json.dumps(
-                    {
-                        "error": f"LSP not available for repository '{repository_id}'",
-                        "symbol": symbol,
-                    }
-                )
+            self.logger.debug(
+                f"Repository config found: {repo_config.workspace}, language: {repo_config.language}"
+            )
 
             # Resolve file path
             resolved_path = self._resolve_file_path(file_path, repo_config.workspace)
             file_uri = Path(resolved_path).as_uri()
+            self.logger.debug(f"Resolved file path: {resolved_path} -> {file_uri}")
 
-            # Get references from LSP
-            references = await lsp_client.get_references(file_uri, line - 1, column - 1)
+            # Use SimpleLSPClient directly for reliable LSP communication
+            self.logger.info("🚀 Using SimpleLSPClient for references")
+
+            simple_lsp = SimpleLSPClient(
+                workspace_root=repo_config.workspace,
+                python_path=repo_config.python_path,
+            )
+
+            start_time = time.time()
+            references = await simple_lsp.get_references(
+                file_uri, line - 1, column - 1, timeout=10.0
+            )
+            duration = time.time() - start_time
+
+            self.logger.info(
+                f"🚀 SimpleLSPClient references completed in {duration:.3f}s! Got {len(references) if references else 0} references"
+            )
+
+            self.logger.debug(
+                f"LSP returned {len(references) if references else 0} references"
+            )
 
             if not references:
+                self.logger.info(
+                    f"No references found for symbol '{symbol}' at {file_path}:{line}:{column}"
+                )
                 return json.dumps(
                     {
                         "symbol": symbol,
@@ -654,7 +709,8 @@ class CodebaseTools:
 
             # Convert LSP response to user-friendly format
             results = []
-            for ref in references:
+            for i, ref in enumerate(references):
+                self.logger.debug(f"Processing reference {i + 1}: {ref}")
                 if "uri" in ref and "range" in ref:
                     file_path = str(Path(ref["uri"].replace("file://", "")))
                     start_pos = ref["range"]["start"]
@@ -666,6 +722,7 @@ class CodebaseTools:
                         }
                     )
 
+            self.logger.info(f"Found {len(results)} references for symbol '{symbol}'")
             return json.dumps(
                 {
                     "symbol": symbol,
@@ -687,16 +744,16 @@ class CodebaseTools:
                 }
             )
 
-    async def get_hover(
+    async def find_hover(
         self, repository_id: str, file_path: str, line: int, character: int
     ) -> str:
-        """Get hover information for a symbol at a specific position.
+        """Find hover information for a symbol at a specific position.
 
         Args:
             repository_id: The repository identifier
             file_path: Path to the file relative to repository root
-            line: Line number (0-based)
-            character: Character position (0-based)
+            line: Line number (1-based)
+            character: Character position (1-based)
 
         Returns:
             JSON string containing hover information or error details
@@ -706,20 +763,39 @@ class CodebaseTools:
                 f"Getting hover info for {repository_id}:{file_path}:{line}:{character}"
             )
 
-            # Get LSP client
-            client = await self._get_lsp_client(repository_id)
-            if not client:
+            # Get repository config
+            repo_config = self.repository_manager.get_repository(repository_id)
+            if not repo_config:
                 return json.dumps(
                     {
-                        "error": f"LSP client not available for repository {repository_id}",
+                        "error": f"Repository '{repository_id}' not found",
                         "file_path": file_path,
                         "line": line,
                         "character": character,
                     }
                 )
 
-            # Get hover information
-            hover_info = await client.get_hover(file_path, line, character)
+            # Resolve file path and convert to URI
+            resolved_path = self._resolve_file_path(file_path, repo_config.workspace)
+            file_uri = Path(resolved_path).as_uri()
+
+            # Use SimpleLSPClient directly for reliable LSP communication
+            self.logger.info("🚀 Using SimpleLSPClient for hover")
+
+            simple_lsp = SimpleLSPClient(
+                workspace_root=repo_config.workspace,
+                python_path=repo_config.python_path,
+            )
+
+            start_time = time.time()
+            hover_info = await simple_lsp.get_hover(
+                file_uri, line - 1, character - 1, timeout=10.0
+            )
+            duration = time.time() - start_time
+
+            self.logger.info(
+                f"🚀 SimpleLSPClient hover completed in {duration:.3f}s! Got hover info: {bool(hover_info)}"
+            )
 
             if not hover_info:
                 return json.dumps(
@@ -755,54 +831,6 @@ class CodebaseTools:
                     "repository_id": repository_id,
                 }
             )
-
-    async def _get_lsp_client(self, repository_id: str) -> AbstractLSPClient | None:
-        """Get LSP client for a repository from the repository manager."""
-        # Delegate to repository manager's LSP client management
-        if hasattr(self.repository_manager, "get_lsp_client"):
-            return self.repository_manager.get_lsp_client(repository_id)
-
-        # Fallback: create our own LSP client if repository manager doesn't support it
-        with self._lsp_lock:
-            # Check if we already have a client
-            if repository_id in self._lsp_clients:
-                existing_client = self._lsp_clients[repository_id]
-                if existing_client.state == LSPClientState.INITIALIZED:
-                    return existing_client
-                else:
-                    # Remove unhealthy client
-                    del self._lsp_clients[repository_id]
-
-            # Get repository configuration
-            repo_config = self.repository_manager.get_repository(repository_id)
-            if not repo_config:
-                return None
-
-            # Only support Python repositories for now
-            if repo_config.language != Language.PYTHON:
-                self.logger.debug(
-                    f"LSP not supported for language {repo_config.language}"
-                )
-                return None
-
-            try:
-                # Create new LSP client using the factory
-                new_client: AbstractLSPClient = self.lsp_client_factory(
-                    repo_config.workspace,
-                    repo_config.python_path,
-                )
-
-                # Start the client
-                if await new_client.start():
-                    self._lsp_clients[repository_id] = new_client
-                    return new_client
-                else:
-                    self.logger.error(f"Failed to start LSP client for {repository_id}")
-                    return None
-
-            except Exception as e:
-                self.logger.error(f"Error creating LSP client for {repository_id}: {e}")
-                return None
 
     def _resolve_file_path(self, file_path: str, workspace_root: str) -> str:
         """
@@ -864,19 +892,10 @@ class CodebaseTools:
             raise
 
     async def shutdown(self) -> None:
-        """Shutdown all LSP clients and clean up resources."""
-        with self._lsp_lock:
-            for repository_id, client in self._lsp_clients.items():
-                try:
-                    await client.stop()
-                except Exception as e:
-                    self.logger.error(
-                        f"Error stopping LSP client for {repository_id}: {e}"
-                    )
-
-            self._lsp_clients.clear()
-
-        self.logger.info("CodebaseTools shutdown complete")
+        """Shutdown - SimpleLSPClient doesn't require resource cleanup."""
+        self.logger.info(
+            "CodebaseTools shutdown - SimpleLSPClient instances are stateless"
+        )
 
 
 # End of CodebaseTools class

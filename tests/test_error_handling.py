@@ -34,28 +34,31 @@ class TestDatabaseErrorHandling(unittest.TestCase):
     def test_database_connection_retry_logic(self):
         """Test that database connections are retried on failure."""
         storage = SQLiteSymbolStorage(self.db_path, max_retries=2, retry_delay=0.01)
+        try:
+            # Mock sqlite3.connect to fail the first time, succeed the second
+            original_connect = sqlite3.connect
+            call_count = 0
 
-        # Mock sqlite3.connect to fail the first time, succeed the second
-        original_connect = sqlite3.connect
-        call_count = 0
+            def mock_connect(*args, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    raise sqlite3.DatabaseError("Connection failed")
+                return original_connect(*args, **kwargs)
 
-        def mock_connect(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise sqlite3.DatabaseError("Connection failed")
-            return original_connect(*args, **kwargs)
-
-        with patch("sqlite3.connect", side_effect=mock_connect):
-            # Force a new connection
-            storage._connection = None
-            conn = storage._get_connection()
-            self.assertIsNotNone(conn)
-            self.assertEqual(call_count, 2)
+            with patch("sqlite3.connect", side_effect=mock_connect):
+                # Force a new connection
+                storage._connection = None
+                conn = storage._get_connection()
+                self.assertIsNotNone(conn)
+                self.assertEqual(call_count, 2)
+        finally:
+            storage.close()
 
     def test_database_corruption_recovery(self):
         """Test database corruption detection and recovery."""
         storage = SQLiteSymbolStorage(self.db_path)
+        self.addCleanup(storage.close)
 
         # Create a corrupt database file
         with open(self.db_path, "wb") as f:
@@ -78,6 +81,7 @@ class TestDatabaseErrorHandling(unittest.TestCase):
     def test_insert_symbols_batch_processing(self):
         """Test that large symbol batches are processed correctly."""
         storage = SQLiteSymbolStorage(self.db_path)
+        self.addCleanup(storage.close)
 
         # Create a large number of symbols
         symbols = []
@@ -131,6 +135,7 @@ class TestDatabaseErrorHandling(unittest.TestCase):
     def test_memory_management_during_large_operations(self):
         """Test memory management during large database operations."""
         storage = SQLiteSymbolStorage(self.db_path)
+        self.addCleanup(storage.close)
 
         # Create a very large symbol list
         large_symbol_count = 5000
@@ -363,6 +368,7 @@ class TestIntegrationErrorHandling(unittest.TestCase):
 
         # Create storage and indexer
         storage = SQLiteSymbolStorage(self.db_path)
+        self.addCleanup(storage.close)
         extractor = PythonSymbolExtractor()
         indexer = PythonRepositoryIndexer(extractor, storage)
 
@@ -385,6 +391,7 @@ class TestIntegrationErrorHandling(unittest.TestCase):
         # Create CodebaseTools instance with mocks
         repo_manager = MockRepositoryManager()
         symbol_storage = SQLiteSymbolStorage(self.db_path)
+        self.addCleanup(symbol_storage.close)
 
         def mock_lsp_client_factory(
             workspace_root: str, python_path: str

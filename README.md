@@ -119,6 +119,196 @@ Each repository gets its own endpoint and is automatically configured in VSCode:
 
 ---
 
+## 🤖 Claude Code Integration
+
+### Prerequisites
+- GitHub repository checked out locally
+- Python 3.8+ and dependencies installed via `pip install -r requirements.txt`
+- Claude Code freshly installed from https://claude.ai/code
+- GitHub token with `repo` scope permissions
+
+### Step 1: Configure Environment
+
+```bash
+# Navigate to your github-agent directory
+cd /path/to/github-agent
+
+# Create/edit .env file with your GitHub token
+echo "GITHUB_TOKEN=your_github_token_here" > .env
+# Or edit .env file manually to set your token
+```
+
+### Step 2: Configure Repositories
+
+Edit the `repositories.json` file to configure your repositories:
+
+```json
+{
+  "repositories": {
+    "my-project": {
+      "workspace": "/path/to/your/project",
+      "port": 8081,
+      "description": "My project repository",
+      "language": "python",
+      "python_path": "/path/to/github-agent/.venv/bin/python",
+      "lsp_server": "pylsp"
+    }
+  }
+}
+```
+
+### Step 3: Start the MCP Server
+
+```bash
+# Deploy and start the server using the deployment script
+./scripts/deploy.sh
+```
+
+The server will start and show output like:
+```
+🚀 GitHub MCP Master starting up...
+✅ Worker for 'my-project' started on port 8081
+🎯 Master server is running. Workers are active.
+```
+
+### Step 4: Configure Claude Code (Workspace-Specific)
+
+Create workspace-specific MCP configuration files for each repository. This ensures Claude Code only connects to the appropriate MCP server when working in each repository.
+
+**For each repository, create a `.mcp.json` file in the repository root:**
+
+**In your github-agent directory:**
+```bash
+cat > /path/to/github-agent/.mcp.json << 'EOF'
+{
+  "mcpServers": {
+    "github-agent": {
+      "type": "http",
+      "url": "http://localhost:8081/mcp/"
+    }
+  }
+}
+EOF
+```
+
+**In your other repositories (if configured):**
+```bash
+# Example for a second repository on port 8082
+cat > /path/to/your-other-repo/.mcp.json << 'EOF'
+{
+  "mcpServers": {
+    "your-other-repo": {
+      "type": "http",
+      "url": "http://localhost:8082/mcp/"
+    }
+  }
+}
+EOF
+```
+
+### Step 5: Verify Connection
+
+1. **Open Claude Code in your repository directory** (e.g., `/path/to/github-agent`)
+2. **Claude Code will prompt you** to allow the new MCP server - click "Allow"
+3. **Test the connection** by asking Claude Code something like:
+
+```
+Can you check the current Git branch and find any associated pull requests?
+```
+
+Claude Code should now be able to use tools like:
+- `git_get_current_branch` - Get current Git branch
+- `github_find_pr_for_branch` - Find PR for the current branch  
+- `github_get_pr_comments` - Get PR comments
+- `github_post_pr_reply` - Reply to PR comments
+- `github_get_build_status` - Get CI build status
+- `search_symbols` - Search for functions, classes, and variables
+- `find_definition` - Find symbol definitions using LSP
+- `find_references` - Find all references to a symbol
+- `find_hover` - Get detailed hover information for symbols
+- And more...
+
+### Step 6: Multiple Repositories (Optional)
+
+To work with multiple repositories in Claude Code, edit your `repositories.json`:
+
+```json
+{
+  "repositories": {
+    "frontend": {
+      "workspace": "/path/to/frontend",
+      "port": 8081,
+      "description": "Frontend app",
+      "language": "javascript",
+      "python_path": "/path/to/github-agent/.venv/bin/python"
+    },
+    "backend": {
+      "workspace": "/path/to/backend",
+      "port": 8082,
+      "description": "Backend API",
+      "language": "python",
+      "python_path": "/path/to/github-agent/.venv/bin/python",
+      "lsp_server": "pylsp"
+    }
+  }
+}
+```
+
+Then restart the server with `./scripts/deploy.sh` and create `.mcp.json` files in each repository:
+
+**In `/path/to/frontend/.mcp.json`:**
+```json
+{
+  "mcpServers": {
+    "github-frontend": {
+      "type": "http",
+      "url": "http://localhost:8081/mcp/"
+    }
+  }
+}
+```
+
+**In `/path/to/backend/.mcp.json`:**
+```json
+{
+  "mcpServers": {
+    "github-backend": {
+      "type": "http", 
+      "url": "http://localhost:8082/mcp/"
+    }
+  }
+}
+```
+
+### Troubleshooting Claude Code Integration
+
+**Connection Issues:**
+```bash
+# Check if the MCP server is running
+curl http://localhost:8081/health
+
+# Check MCP endpoint
+curl http://localhost:8081/mcp/
+
+# View server logs
+tail -f ~/.local/share/github-agent/logs/master.log
+tail -f ~/.local/share/github-agent/logs/my-repo.log
+```
+
+**Claude Code Debugging:**
+1. Check Claude Code's developer tools (Help > Toggle Developer Tools)
+2. Look for MCP connection errors in the console
+3. Verify the MCP configuration file syntax is valid JSON
+4. Ensure the repository path in your configuration matches where Claude Code is opened
+
+**Common Solutions:**
+- Restart Claude Code after changing MCP configuration
+- Ensure GitHub token has proper `repo` permissions
+- Check that the repository path exists and is accessible
+- Verify no firewall is blocking localhost connections
+
+---
+
 ## ⚙️ Configuration
 
 ### Repository Configuration

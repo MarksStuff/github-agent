@@ -5,12 +5,8 @@
       "port": 8081,
       "description": "GitHub Agent repository",
       "language": "python",
-<<<<<<< Updated upstream
-      "python_path": "/Volumes/Code/github-agent/.venv/bin/python"
-=======
       "python_path": "/Users/mstriebeck/Code/github-agent/.venv/bin/python",
       "lsp_server": "pylsp"
->>>>>>> Stashed changes
     },
     "news-reader": {
       "workspace": "/Users/mstriebeck/Code/news_reader",

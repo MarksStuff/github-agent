@@ -330,40 +330,34 @@ class TestPythonRepositoryManager:
 class TestCreatePythonRepositoryManager:
     """Test the factory function for creating PythonRepositoryManager."""
 
-    @patch("python_repository_manager.RepositoryManager")
-    def test_create_manager_success(self, mock_repo_manager_class):
+    def test_create_manager_success(self):
         """Test successful manager creation."""
         mock_repo_manager = Mock(spec=RepositoryManager)
         mock_repo_manager.load_configuration.return_value = True
-        mock_repo_manager_class.return_value = mock_repo_manager
 
-        manager = create_python_repository_manager("/tmp/config.json")
+        manager = create_python_repository_manager(
+            "/tmp/config.json", mock_repo_manager
+        )
 
         assert isinstance(manager, PythonRepositoryManager)
         assert manager.repository_manager == mock_repo_manager
-        mock_repo_manager_class.assert_called_once_with("/tmp/config.json")
         mock_repo_manager.load_configuration.assert_called_once()
 
-    @patch("python_repository_manager.RepositoryManager")
-    def test_create_manager_load_failure(self, mock_repo_manager_class):
+    def test_create_manager_load_failure(self):
         """Test manager creation when configuration load fails."""
         mock_repo_manager = Mock(spec=RepositoryManager)
         mock_repo_manager.load_configuration.return_value = False
-        mock_repo_manager_class.return_value = mock_repo_manager
 
         with pytest.raises(
             RuntimeError, match="Failed to load repository configuration"
         ):
-            create_python_repository_manager("/tmp/config.json")
+            create_python_repository_manager("/tmp/config.json", mock_repo_manager)
 
-    @patch("python_repository_manager.RepositoryManager")
-    def test_create_manager_default_config_path(self, mock_repo_manager_class):
+    def test_create_manager_default_config_path(self):
         """Test manager creation with default config path."""
         mock_repo_manager = Mock(spec=RepositoryManager)
         mock_repo_manager.load_configuration.return_value = True
-        mock_repo_manager_class.return_value = mock_repo_manager
 
-        manager = create_python_repository_manager()
+        manager = create_python_repository_manager(repository_manager=mock_repo_manager)
 
         assert isinstance(manager, PythonRepositoryManager)
-        mock_repo_manager_class.assert_called_once_with(None)
