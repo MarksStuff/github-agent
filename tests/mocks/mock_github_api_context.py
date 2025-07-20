@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING
 from unittest.mock import Mock
 
 if TYPE_CHECKING:
-    from github import Github, Repository
+    from github import Github
+    from github.Repository import Repository
 
 from github_tools import AbstractGitHubAPIContext
 

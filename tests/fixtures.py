@@ -182,12 +182,17 @@ def logger():
         logger.addHandler(handler)
 
     # Capture logs for assertions
-    captured_logs = []
-    test_handler = logging.Handler()
-    test_handler.emit = lambda record: captured_logs.append(record)
+    captured_logs: list = []
+
+    class TestHandler(logging.Handler):
+        def emit(self, record):
+            captured_logs.append(record)
+
+    test_handler = TestHandler()
     logger.addHandler(test_handler)
 
-    logger.captured_logs = captured_logs
+    # Type ignore for dynamic attribute assignment in test fixture
+    logger.captured_logs = captured_logs  # type: ignore[attr-defined]
     return logger
 
 

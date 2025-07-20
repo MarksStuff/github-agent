@@ -14,7 +14,7 @@ from repository_indexer import (
     PythonRepositoryIndexer,
 )
 from symbol_storage import Symbol, SymbolKind
-from tests.conftest import MockSymbolExtractor
+from tests.mocks import MockSymbolExtractor
 
 
 class TestIndexingResult:
