@@ -171,44 +171,45 @@ The server will start and show output like:
 🎯 Master server is running. Workers are active.
 ```
 
-### Step 4: Configure Claude Code
+### Step 4: Configure Claude Code (Workspace-Specific)
 
-Create or edit your Claude Code MCP configuration file:
+Create workspace-specific MCP configuration files for each repository. This ensures Claude Code only connects to the appropriate MCP server when working in each repository.
 
-**macOS**: `~/.config/claude-code/mcp_servers.json`  
-**Linux**: `~/.config/claude-code/mcp_servers.json`  
-**Windows**: `%APPDATA%\claude-code\mcp_servers.json`
+**For each repository, create a `.mcp.json` file in the repository root:**
 
-Add your MCP server configuration:
-
-```json
+**In your github-agent directory:**
+```bash
+cat > /path/to/github-agent/.mcp.json << 'EOF'
 {
   "mcpServers": {
     "github-agent": {
-      "command": "node",
-      "args": ["-e", "require('http').createServer((req,res)=>{require('http').request('http://localhost:8081/mcp'+req.url,{method:req.method,headers:req.headers},(r)=>{res.writeHead(r.statusCode,r.headers);r.pipe(res)}).end(req.method==='POST'?JSON.stringify(req.body):'')}).listen(process.argv[2]||0,()=>console.log('Proxy started'))"],
-      "env": {}
-    }
-  }
-}
-```
-
-Or, for a simpler HTTP-based approach, use the direct URL method:
-
-```json
-{
-  "mcpServers": {
-    "github-agent": {
+      "type": "http",
       "url": "http://localhost:8081/mcp/"
     }
   }
 }
+EOF
+```
+
+**In your other repositories (if configured):**
+```bash
+# Example for a second repository on port 8082
+cat > /path/to/your-other-repo/.mcp.json << 'EOF'
+{
+  "mcpServers": {
+    "your-other-repo": {
+      "type": "http",
+      "url": "http://localhost:8082/mcp/"
+    }
+  }
+}
+EOF
 ```
 
 ### Step 5: Verify Connection
 
-1. **Restart Claude Code** to load the new MCP configuration
-2. **Open a project** in the directory you configured (`/path/to/your/project`)
+1. **Open Claude Code in your repository directory** (e.g., `/path/to/github-agent`)
+2. **Claude Code will prompt you** to allow the new MCP server - click "Allow"
 3. **Test the connection** by asking Claude Code something like:
 
 ```
@@ -253,19 +254,27 @@ To work with multiple repositories in Claude Code, edit your `repositories.json`
 }
 ```
 
-Then restart the server with `./scripts/deploy.sh` and update your `mcp_servers.json`:
+Then restart the server with `./scripts/deploy.sh` and create `.mcp.json` files in each repository:
 
+**In `/path/to/frontend/.mcp.json`:**
 ```json
 {
   "mcpServers": {
     "github-frontend": {
+      "type": "http",
       "url": "http://localhost:8081/mcp/"
-    },
+    }
+  }
+}
+```
+
+**In `/path/to/backend/.mcp.json`:**
+```json
+{
+  "mcpServers": {
     "github-backend": {
+      "type": "http", 
       "url": "http://localhost:8082/mcp/"
-    },
-    "github-mobile": {
-      "url": "http://localhost:8083/mcp/"
     }
   }
 }
