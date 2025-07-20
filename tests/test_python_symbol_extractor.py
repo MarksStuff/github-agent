@@ -524,11 +524,6 @@ def outer_function():
 class TestComplexPythonConstructs:
     """Test complex Python language constructs."""
 
-    @pytest.fixture
-    def extractor(self):
-        """Create a PythonSymbolExtractor for testing."""
-        return PythonSymbolExtractor()
-
     def test_multiple_decorators(self, python_symbol_extractor):
         """Test functions with multiple decorators."""
         source = '''

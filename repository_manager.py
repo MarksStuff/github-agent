@@ -789,20 +789,22 @@ class RepositoryManager(AbstractRepositoryManager):
         return results
 
     def get_lsp_client(self, repo_name: str) -> object | None:
-        """Stub method for test compatibility - SimpleLSPClient handles LSP directly."""
+        """
+        Deprecated method for LSP client access.
+
+        Note: SimpleLSPClient handles LSP directly. This method is kept for
+        backward compatibility but will always return None in production.
+        Tests should use proper mocking instead of relying on this method.
+        """
         repo_config = self.get_repository(repo_name)
         if not repo_config:
             return None
         if not repo_config.lsp_enabled or repo_config.language != Language.PYTHON:
             return None
 
-        # For test compatibility, return a mock client object when LSP would be available
-        # SimpleLSPClient creates clients on-demand, so this is just for test compatibility
-        class MockLSPClientForTests:
-            def __init__(self, workspace_root: str):
-                self.workspace_root = workspace_root
-
-        return MockLSPClientForTests(repo_config.workspace)
+        # LSP clients are created on-demand by SimpleLSPClient, not through RepositoryManager
+        # Return None to indicate no client is available through this interface
+        return None
 
     def create_default_config(self, repo_configs: list[dict]) -> None:
         """

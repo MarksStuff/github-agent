@@ -109,6 +109,7 @@ class TestDatabaseErrorHandling(unittest.TestCase):
     def test_database_operation_retry_on_failure(self):
         """Test that database operations have retry logic available."""
         storage = SQLiteSymbolStorage(self.db_path, max_retries=2, retry_delay=0.01)
+        self.addCleanup(storage.close)
 
         # Test that the retry mechanism exists and is configured
         self.assertEqual(storage.max_retries, 2)
@@ -385,8 +386,7 @@ class TestIntegrationErrorHandling(unittest.TestCase):
         import json
 
         from codebase_tools import CodebaseTools
-        from tests.conftest import MockLSPClient
-        from tests.test_fixtures import MockRepositoryManager
+        from tests.mocks import MockLSPClient, MockRepositoryManager
 
         # Create CodebaseTools instance with mocks
         repo_manager = MockRepositoryManager()

@@ -110,11 +110,8 @@ if __name__ == "__main__":
 
         # This might fail if pyright is not installed, which is okay for this test
         if result:
-            # If successful, test that we can get the client
-            client = self.manager.get_lsp_client("test-python-repo")
-            self.assertIsNotNone(client)
-
-            # Test shutdown
+            # Note: get_lsp_client is deprecated and returns None in production
+            # SimpleLSPClient handles LSP directly, so we just test shutdown
             stop_result = self.manager.stop_lsp_server("test-python-repo")
             self.assertTrue(stop_result)
         else:

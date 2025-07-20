@@ -15,7 +15,7 @@ from unittest.mock import Mock
 from constants import Language
 from github_tools import get_linter_errors
 from repository_manager import AbstractRepositoryManager, RepositoryConfig
-from tests.test_fixtures import MockRepositoryManager
+from tests.mocks import MockRepositoryManager
 
 
 class TestGetLinterErrors(unittest.TestCase):

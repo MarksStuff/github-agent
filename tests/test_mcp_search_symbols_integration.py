@@ -9,26 +9,12 @@ import json
 
 import pytest
 
-from constants import Language
-from repository_manager import RepositoryConfig
 from symbol_storage import Symbol, SymbolKind
 
 # temp_repo_path fixture now consolidated in conftest.py
 
 
-@pytest.fixture
-def mock_repo_config(temp_repo_path):
-    """Create a mock repository configuration for testing"""
-    return RepositoryConfig(
-        name="test-repo",
-        workspace=temp_repo_path,
-        port=9999,
-        description="Test repository for search_symbols integration tests",
-        language=Language.PYTHON,
-        python_path="/usr/bin/python3",
-        github_owner="test-owner",
-        github_repo="test-repo",
-    )
+# Note: mock_repo_config fixture has been moved to tests/fixtures.py
 
 
 class TestSearchSymbolsMCPIntegration:

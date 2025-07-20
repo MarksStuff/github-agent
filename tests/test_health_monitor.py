@@ -8,10 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
-
 from health_monitor import (
-    HealthMonitor,
     HealthReport,
     ServerStatus,
     ShutdownPhase,
@@ -48,11 +45,6 @@ class TestShutdownPhase:
 
 class TestHealthMonitor:
     """Test HealthMonitor class."""
-
-    @pytest.fixture
-    def monitor(self, test_logger, temp_health_file):
-        """Create a HealthMonitor instance."""
-        return HealthMonitor(test_logger, temp_health_file)
 
     def test_initialization(self, monitor, test_logger, temp_health_file):
         """Test monitor initialization."""
