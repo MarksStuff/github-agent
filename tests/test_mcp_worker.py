@@ -221,12 +221,13 @@ class TestMCPWorker:
 
         response = client.post("/mcp/", json=initialize_request)
         assert response.status_code == 200
-        assert response.json()["status"] == "queued"
+        response_data = response.json()
 
-        # Check that response was queued
-        assert not worker.message_queue.empty()
-        queued_response = worker.message_queue.get()
-        assert queued_response["result"]["serverInfo"]["name"] == "mcp-agent-test-repo"
+        # Check direct JSON-RPC response format (no longer queued)
+        assert response_data["jsonrpc"] == "2.0"
+        assert response_data["id"] == 1
+        assert "result" in response_data
+        assert response_data["result"]["serverInfo"]["name"] == "mcp-agent-test-repo"
 
     def test_mcp_tools_list(self, temp_repo, mock_github_token, mock_subprocess):
         """Test MCP tools/list method"""
@@ -260,12 +261,13 @@ class TestMCPWorker:
 
         response = client.post("/mcp/", json=tools_request)
         assert response.status_code == 200
-        assert response.json()["status"] == "queued"
+        response_data = response.json()
 
-        # Check that response was queued
-        assert not worker.message_queue.empty()
-        queued_response = worker.message_queue.get()
-        tools = queued_response["result"]["tools"]
+        # Check direct JSON-RPC response format (no longer queued)
+        assert response_data["jsonrpc"] == "2.0"
+        assert response_data["id"] == 2
+        assert "result" in response_data
+        tools = response_data["result"]["tools"]
 
         # Should have both GitHub and codebase tools
         tool_names = [tool["name"] for tool in tools]
@@ -318,12 +320,13 @@ class TestMCPWorker:
 
         response = client.post("/mcp/", json=tool_call_request)
         assert response.status_code == 200
-        assert response.json()["status"] == "queued"
+        response_data = response.json()
 
-        # Check that response was queued
-        assert not worker.message_queue.empty()
-        queued_response = worker.message_queue.get()
-        result_text = queued_response["result"]["content"][0]["text"]
+        # Check direct JSON-RPC response format (no longer queued)
+        assert response_data["jsonrpc"] == "2.0"
+        assert response_data["id"] == 3
+        assert "result" in response_data
+        result_text = response_data["result"]["content"][0]["text"]
         assert '"status":' in result_text  # Accept any status (healthy, warning, etc.)
         assert '"repo": "test-repo"' in result_text
 
@@ -374,12 +377,13 @@ class TestMCPWorker:
 
         response = client.post("/mcp/", json=tool_call_request)
         assert response.status_code == 200
-        assert response.json()["status"] == "queued"
+        response_data = response.json()
 
-        # Check that response was queued (should not fail with duplicate argument error)
-        assert not worker.message_queue.empty()
-        queued_response = worker.message_queue.get()
-        result_text = queued_response["result"]["content"][0]["text"]
+        # Check direct JSON-RPC response format (no longer queued)
+        assert response_data["jsonrpc"] == "2.0"
+        assert response_data["id"] == 4
+        assert "result" in response_data
+        result_text = response_data["result"]["content"][0]["text"]
 
         # Should not contain the specific duplicate argument error
         assert (
@@ -421,12 +425,13 @@ class TestMCPWorker:
 
         response = client.post("/mcp/", json=tool_call_request)
         assert response.status_code == 200
-        assert response.json()["status"] == "queued"
+        response_data = response.json()
 
-        # Check that error response was queued
-        assert not worker.message_queue.empty()
-        queued_response = worker.message_queue.get()
-        result_text = queued_response["result"]["content"][0]["text"]
+        # Check direct JSON-RPC response format (no longer queued)
+        assert response_data["jsonrpc"] == "2.0"
+        assert response_data["id"] == 4
+        assert "result" in response_data
+        result_text = response_data["result"]["content"][0]["text"]
         assert '"error"' in result_text
         assert "not implemented" in result_text
 
