@@ -12,49 +12,7 @@ from unittest.mock import patch
 import pytest
 
 from codebase_cli import OutputFormatter, execute_cli, execute_tool_command
-from repository_manager import AbstractRepositoryManager
-
-
-class MockCodebaseTools:
-    """Mock CodebaseTools for testing."""
-
-    def __init__(self, execute_tool_result: str | Exception = '{"result": "success"}'):
-        self.execute_tool_result = execute_tool_result
-        self.execute_tool_calls: list[dict] = []
-
-    async def execute_tool(self, tool_name: str, **kwargs) -> str:
-        """Mock execute_tool method."""
-        self.execute_tool_calls.append({"tool_name": tool_name, "kwargs": kwargs})
-        if isinstance(self.execute_tool_result, Exception):
-            raise self.execute_tool_result
-        return self.execute_tool_result
-
-
-class MockRepositoryManager(AbstractRepositoryManager):
-    """Mock repository manager for testing."""
-
-    def __init__(self):
-        self._repositories: dict[str, dict] = {}
-        self._should_fail_load = False
-
-    @property
-    def repositories(self) -> dict[str, dict]:
-        return self._repositories
-
-    def get_repository(self, name: str) -> dict | None:
-        return self._repositories.get(name)
-
-    def add_repository(self, name: str, config: dict) -> None:
-        self._repositories[name] = config
-
-    def load_configuration(self) -> bool:
-        if self._should_fail_load:
-            raise Exception("Mock configuration load failure")
-        return True
-
-    def set_fail_load(self, should_fail: bool) -> None:
-        """Set whether load_configuration should fail."""
-        self._should_fail_load = should_fail
+from tests.mocks import MockCodebaseTools, MockRepositoryManager
 
 
 class TestOutputFormatter:

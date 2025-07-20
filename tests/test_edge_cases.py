@@ -13,35 +13,31 @@ from shutdown_simple import SimpleHealthMonitor
 class TestHealthMonitoringEdgeCases:
     """Test edge cases for health monitoring."""
 
-    @pytest.fixture
-    def monitor(self, test_logger):
-        """Create a SimpleHealthMonitor."""
-        return SimpleHealthMonitor(test_logger)
 
-    def test_simple_health_monitor_basic_ops(self, monitor, test_logger):
+    def test_simple_health_monitor_basic_ops(self, monitor_simple, test_logger):
         """Test basic operations of SimpleHealthMonitor."""
         test_logger.info("Testing basic health monitor operations")
 
         # Test start monitoring
-        monitor.start_monitoring()
-        assert monitor.is_running()
+        monitor_simple.start_monitoring()
+        assert monitor_simple.is_running()
 
         # Test stop monitoring
-        monitor.stop_monitoring()
-        assert not monitor.is_running()
+        monitor_simple.stop_monitoring()
+        assert not monitor_simple.is_running()
 
         test_logger.info("Basic health monitor operations test completed")
 
-    def test_simple_health_monitor_double_start(self, monitor, test_logger):
+    def test_simple_health_monitor_double_start(self, monitor_simple, test_logger):
         """Test starting monitoring twice."""
         test_logger.info("Testing double start of health monitor")
 
-        monitor.start_monitoring()
-        monitor.start_monitoring()  # Should handle gracefully
-        assert monitor.is_running()
+        monitor_simple.start_monitoring()
+        monitor_simple.start_monitoring()  # Should handle gracefully
+        assert monitor_simple.is_running()
 
-        monitor.stop_monitoring()
-        assert not monitor.is_running()
+        monitor_simple.stop_monitoring()
+        assert not monitor_simple.is_running()
 
         test_logger.info("Double start test completed")
 
@@ -49,26 +45,6 @@ class TestHealthMonitoringEdgeCases:
 class TestExitCodeEdgeCases:
     """Test edge cases for exit code management."""
 
-    @pytest.fixture
-    def logger(self):
-        """Create a real logger for testing."""
-        logger = logging.getLogger(f"test_exit_codes_{id(self)}")
-        logger.setLevel(logging.DEBUG)
-
-        # Add console handler if not already present
-        if not logger.handlers:
-            handler = logging.StreamHandler()
-            handler.setFormatter(
-                logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-            )
-            logger.addHandler(handler)
-
-        return logger
-
-    @pytest.fixture
-    def manager(self, test_logger):
-        """Create an ExitCodeManager."""
-        return ExitCodeManager(test_logger)
 
     def test_exit_code_manager_creation(self, manager, test_logger):
         """Test basic exit code manager functionality."""

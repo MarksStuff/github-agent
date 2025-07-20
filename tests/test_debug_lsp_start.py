@@ -37,20 +37,26 @@ class TestDebugLSPStart(unittest.TestCase):
         repo_manager.add_repository("github-agent", repo_config)
         print("✅ Repository added successfully")
 
-        # Try to get LSP client
+        # Try to get LSP client (Note: This method is deprecated)
         print("🔍 Attempting to get LSP client...")
         try:
             lsp_client = repo_manager.get_lsp_client("github-agent")
 
+            # Expected behavior: get_lsp_client now returns None in production
+            # SimpleLSPClient handles LSP directly, not through RepositoryManager
             if lsp_client is None:
-                print("❌ LSP client is None")
+                print(
+                    "✅ LSP client is None (expected - SimpleLSPClient handles LSP directly)"
+                )
+                print(
+                    "📊 Note: get_lsp_client is deprecated, SimpleLSPClient creates clients on-demand"
+                )
                 return
 
-            print(f"✅ LSP client obtained: {lsp_client}")
+            print(f"⚠️ Unexpected: LSP client obtained: {lsp_client}")
             print(f"📊 LSP client type: {type(lsp_client)}")
 
-            # Note: With SimpleLSPClient architecture, LSP clients are created on-demand
-            # The repository manager returns a mock client for test compatibility
+            # Legacy code for when mock was returned
             if hasattr(lsp_client, "workspace_root"):
                 print(f"📊 LSP client workspace: {lsp_client.workspace_root}")
 

@@ -52,41 +52,7 @@ def find_free_port() -> int:
 # temp_git_repo fixture now consolidated in conftest.py
 
 
-@pytest.fixture
-def test_config_with_dynamic_port(temp_git_repo):
-    """
-    Create a test repository configuration with dynamically allocated port.
-
-    This configuration includes all required fields from the repository
-    schema validation (port, path, language, python_path) and uses
-    a dynamically allocated port to avoid conflicts.
-
-    Args:
-        temp_git_repo: Path to the temporary git repository
-
-    Returns:
-        tuple: (config_dict, allocated_port)
-    """
-    # Get a free port - this is critical to avoid conflicts with production
-    test_port = find_free_port()
-
-    # Create a complete repository configuration that matches production format
-    # All these fields are required by the master's configuration validation
-    config = {
-        "repositories": {
-            "integration-test-repo": {
-                "port": test_port,
-                "workspace": temp_git_repo,
-                "language": Language.PYTHON.value,  # Required field
-                "python_path": "/usr/bin/python3",  # Required field for US001-12
-                "description": "Integration test repository",
-                "github_owner": "test-owner",  # Optional but realistic
-                "github_repo": "integration-test",  # Optional but realistic
-            }
-        }
-    }
-
-    return config, test_port
+# test_config_with_dynamic_port fixture is now consolidated in tests/fixtures.py
 
 
 class TestMCPIntegration:
@@ -102,7 +68,7 @@ class TestMCPIntegration:
 
     @pytest.mark.asyncio
     async def test_end_to_end_workflow(
-        self, test_config_with_dynamic_port, mcp_master_factory
+        self, test_config_with_dynamic_port_tuple, mcp_master_factory
     ):
         """
         Test the complete end-to-end MCP workflow from configuration to tool execution.
@@ -125,7 +91,7 @@ class TestMCPIntegration:
         - Tool execution logic
         - Repository management
         """
-        config, test_port = test_config_with_dynamic_port
+        config, test_port = test_config_with_dynamic_port_tuple
         repo_name = "integration-test-repo"
         repo_config = config["repositories"][repo_name]
         repo_path = repo_config["workspace"]
@@ -233,8 +199,7 @@ class TestMCPIntegration:
 
         # Test codebase tools loading
         from codebase_tools import CodebaseTools
-        from tests.conftest import MockLSPClient, MockSymbolStorage
-        from tests.test_fixtures import MockRepositoryManager
+        from tests.mocks import MockLSPClient, MockRepositoryManager, MockSymbolStorage
 
         mock_repo_manager = MockRepositoryManager()
         mock_symbol_storage = MockSymbolStorage()
@@ -338,7 +303,7 @@ class TestMCPIntegration:
         assert "codebase_health_check" in error_data["available_tools"]
 
     @pytest.mark.asyncio
-    async def test_repository_manager_integration(self, test_config_with_dynamic_port):
+    async def test_repository_manager_integration(self, test_config_with_dynamic_port_tuple):
         """
         Test integration with RepositoryManager for proper repository isolation.
 
@@ -346,7 +311,7 @@ class TestMCPIntegration:
         when multiple repositories are configured. While we only test one repo
         here, we verify the manager can handle the configuration correctly.
         """
-        config, test_port = test_config_with_dynamic_port
+        config, test_port = test_config_with_dynamic_port_tuple
         repo_name = "integration-test-repo"
         repo_config = config["repositories"][repo_name]
 

@@ -49,10 +49,6 @@ class TestShutdownPhase:
 class TestHealthMonitor:
     """Test HealthMonitor class."""
 
-    @pytest.fixture
-    def monitor(self, test_logger, temp_health_file):
-        """Create a HealthMonitor instance."""
-        return HealthMonitor(test_logger, temp_health_file)
 
     def test_initialization(self, monitor, test_logger, temp_health_file):
         """Test monitor initialization."""

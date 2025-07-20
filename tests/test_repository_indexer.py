@@ -93,10 +93,6 @@ class TestIndexingResult:
 class TestPythonRepositoryIndexer:
     """Test the PythonRepositoryIndexer class."""
 
-    @pytest.fixture
-    def indexer(self, mock_symbol_extractor, mock_symbol_storage):
-        """Create a repository indexer."""
-        return PythonRepositoryIndexer(mock_symbol_extractor, mock_symbol_storage)
 
     def test_init(self, mock_symbol_extractor, mock_symbol_storage):
         """Test indexer initialization."""

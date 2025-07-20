@@ -47,10 +47,6 @@ class TestShutdownExitCode:
 class TestExitCodeManager:
     """Test the ExitCodeManager class."""
 
-    @pytest.fixture
-    def manager(self, test_logger):
-        """Create an ExitCodeManager instance."""
-        return ExitCodeManager(test_logger)
 
     def test_initialization(self, manager, test_logger):
         """Test manager initialization."""

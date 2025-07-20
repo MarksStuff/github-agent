@@ -14,8 +14,7 @@ import unittest
 from pathlib import Path
 
 from codebase_tools import CodebaseTools
-from tests.conftest import MockLSPClient, MockSymbolStorage
-from tests.test_fixtures import MockRepositoryManager
+from tests.mocks import MockLSPClient, MockRepositoryManager, MockSymbolStorage
 
 
 class TestLSPToolsIntegration(unittest.TestCase):

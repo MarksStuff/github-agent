@@ -1,20 +1,4 @@
-"""
-Test fixtures and mock objects for the GitHub Agent test suite.
-
-This module provides mock implementations of internal objects using dependency injection
-instead of unittest.mock patches, following the pattern described in AGENT.md.
-
-Currently provides:
-- MockRepositoryManager: Mock implementation for testing repository-dependent functions
-
-Usage:
-    from tests.test_fixtures import MockRepositoryManager
-
-    def test_something():
-        mock_repo_manager = MockRepositoryManager()
-        mock_repo_manager.add_repository("test-repo", config)
-        result = function_under_test("test-repo", mock_repo_manager)
-"""
+"""Mock repository manager for testing."""
 
 from typing import Any
 
@@ -27,6 +11,7 @@ class MockRepositoryManager(AbstractRepositoryManager):
     def __init__(self):
         self._repositories: dict[str, Any] = {}
         self._fail_on_access = False
+        self._should_fail_load = False
 
     @property
     def repositories(self) -> dict[str, Any]:
@@ -53,6 +38,8 @@ class MockRepositoryManager(AbstractRepositoryManager):
         """
         if self._fail_on_access:
             raise Exception("Test configuration load failure")
+        if self._should_fail_load:
+            raise Exception("Mock configuration load failure")
         return True
 
     def remove_repository(self, name: str):
@@ -67,7 +54,16 @@ class MockRepositoryManager(AbstractRepositoryManager):
         """Set whether to fail when accessing repositories."""
         self._fail_on_access = fail
 
+    def set_fail_load(self, should_fail: bool) -> None:
+        """Set whether load_configuration should fail."""
+        self._should_fail_load = should_fail
+
     def get_lsp_client(self, repo_name: str) -> Any | None:
         """Get LSP client for repository (mock implementation)."""
-        # Return None for mock implementation
-        return None
+        repo_config = self.get_repository(repo_name)
+        if not repo_config:
+            return None
+        # Return MockLSPClientForTests for test compatibility if repository exists
+        from tests.mocks import MockLSPClientForTests
+
+        return MockLSPClientForTests("mock_workspace")
