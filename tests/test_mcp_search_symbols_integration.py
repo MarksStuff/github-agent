@@ -9,8 +9,6 @@ import json
 
 import pytest
 
-from constants import Language
-from repository_manager import RepositoryConfig
 from symbol_storage import Symbol, SymbolKind
 
 # temp_repo_path fixture now consolidated in conftest.py

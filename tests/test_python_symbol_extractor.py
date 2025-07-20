@@ -524,7 +524,6 @@ def outer_function():
 class TestComplexPythonConstructs:
     """Test complex Python language constructs."""
 
-
     def test_multiple_decorators(self, python_symbol_extractor):
         """Test functions with multiple decorators."""
         source = '''

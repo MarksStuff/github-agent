@@ -303,7 +303,9 @@ class TestMCPIntegration:
         assert "codebase_health_check" in error_data["available_tools"]
 
     @pytest.mark.asyncio
-    async def test_repository_manager_integration(self, test_config_with_dynamic_port_tuple):
+    async def test_repository_manager_integration(
+        self, test_config_with_dynamic_port_tuple
+    ):
         """
         Test integration with RepositoryManager for proper repository isolation.
 

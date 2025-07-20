@@ -2,46 +2,17 @@
 Pytest configuration and shared fixtures for shutdown system tests.
 """
 
-import logging
-import os
 import socket
-import subprocess
-import tempfile
-import threading
-import time
-from pathlib import Path
-from typing import Any
-from unittest.mock import patch
 
 import pytest
 
-import codebase_tools
-import mcp_master
+# async_lsp_client imports removed - using SimpleLSPClient directly
+from symbol_storage import (
+    SQLiteSymbolStorage,
+)
 
 # Import all fixtures from the centralized fixtures file
-from tests.fixtures import *  # noqa: F401, F403
-
-# async_lsp_client imports removed - using SimpleLSPClient directly
-from python_symbol_extractor import PythonSymbolExtractor
-from repository_indexer import (
-    PythonRepositoryIndexer,
-)
-from repository_manager import RepositoryManager
-from shutdown_simple import SimpleHealthMonitor, SimpleShutdownCoordinator
-from startup_orchestrator import CodebaseStartupOrchestrator
-from symbol_storage import (
-    ProductionSymbolStorage,
-    SQLiteSymbolStorage,
-    Symbol,
-    SymbolKind,
-)
-from tests.mocks import (
-    MockRepositoryIndexer,
-    MockRepositoryManager,
-    MockSymbolExtractor,
-    MockSymbolStorage,
-    MockTimeProvider,
-)
+from tests.fixtures import *  # noqa: F403
 
 
 def find_free_port(start_port: int = 8081, max_attempts: int = 100) -> int:

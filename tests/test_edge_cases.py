@@ -2,17 +2,12 @@
 Test edge cases and error conditions for the simplified shutdown architecture.
 """
 
-import logging
 
-import pytest
-
-from exit_codes import ExitCodeManager, ShutdownExitCode
-from shutdown_simple import SimpleHealthMonitor
+from exit_codes import ShutdownExitCode
 
 
 class TestHealthMonitoringEdgeCases:
     """Test edge cases for health monitoring."""
-
 
     def test_simple_health_monitor_basic_ops(self, monitor_simple, test_logger):
         """Test basic operations of SimpleHealthMonitor."""
@@ -44,7 +39,6 @@ class TestHealthMonitoringEdgeCases:
 
 class TestExitCodeEdgeCases:
     """Test edge cases for exit code management."""
-
 
     def test_exit_code_manager_creation(self, manager, test_logger):
         """Test basic exit code manager functionality."""

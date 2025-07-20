@@ -5,8 +5,6 @@ Unit tests for symbol storage functionality.
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from symbol_storage import (
     AbstractSymbolStorage,
     SQLiteSymbolStorage,
@@ -78,7 +76,6 @@ class TestSymbol:
 
 class TestSQLiteSymbolStorage:
     """Test SQLite symbol storage implementation."""
-
 
     # Use sample_symbols fixture from conftest.py
 

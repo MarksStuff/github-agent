@@ -4,10 +4,6 @@
 Tests for the unified MCP worker
 """
 
-import os
-import tempfile
-from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,7 +11,6 @@ from fastapi.testclient import TestClient
 from constants import Language
 from mcp_worker import MCPWorker
 from tests.mocks import MockGitHubAPIContext
-
 
 # Note: The duplicate fixtures have been removed - using the consolidated ones from tests.fixtures
 # The mcp_worker_factory fixture is overridden here to add specific GitHub context injection

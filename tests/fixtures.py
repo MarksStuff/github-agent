@@ -14,7 +14,6 @@ from python_symbol_extractor import PythonSymbolExtractor
 from repository_indexer import PythonRepositoryIndexer
 from repository_manager import RepositoryConfig
 from symbol_storage import SQLiteSymbolStorage
-from tests.mocks import MockRepositoryIndexer, MockSymbolExtractor, MockSymbolStorage
 
 
 @pytest.fixture
@@ -103,7 +102,7 @@ def monitor(test_logger, temp_health_file):
 def mock_repo_config(temp_repo_path):
     """Create a mock repository configuration for testing"""
     from constants import Language
-    
+
     return RepositoryConfig(
         name="test-repo",
         workspace=temp_repo_path,
@@ -202,12 +201,15 @@ def storage():
         yield storage
         storage.close()
 
+
 # =================== FIXTURES FROM conftest.py ===================
+
 
 @pytest.fixture(scope="session")
 def temp_dir():
     """Create a temporary directory for test files."""
     from pathlib import Path
+
     with tempfile.TemporaryDirectory() as temp_dir:
         yield Path(temp_dir)
 
@@ -216,6 +218,7 @@ def temp_dir():
 def mock_repository_manager():
     """Create a fresh mock repository manager for each test."""
     from tests.mocks import MockRepositoryManager
+
     return MockRepositoryManager()
 
 
@@ -223,6 +226,7 @@ def mock_repository_manager():
 def mock_repository_manager_with_lsp():
     """Create a mock repository manager that returns mock LSP clients."""
     from tests.mocks import MockRepositoryManager
+
     return MockRepositoryManager()
 
 
@@ -239,7 +243,7 @@ def timeout_protection():
     """Provide timeout protection for tests that might hang."""
     import threading
     from typing import Any
-    
+
     timeout_seconds = 30  # Default test timeout
 
     def run_with_timeout(func, *args, **kwargs):
@@ -276,7 +280,7 @@ def cleanup_threads():
     """Automatically cleanup any daemon threads after each test."""
     import threading
     import time
-    
+
     # Record initial thread count
     initial_threads = set(threading.enumerate())
 
@@ -322,7 +326,7 @@ def cleanup_threads():
 def mock_time():
     """Provide mock time for testing time-dependent behavior."""
     from tests.mocks import MockTimeProvider
-    
+
     mock_time_provider = MockTimeProvider()
 
     # Patch time.time and time.sleep
@@ -366,6 +370,7 @@ def captured_signals():
 def mock_symbol_storage():
     """Create a mock symbol storage for testing."""
     from tests.mocks import MockSymbolStorage
+
     return MockSymbolStorage()
 
 
@@ -390,6 +395,7 @@ def temp_symbol_storage(tmp_path):
 def mock_symbol_extractor():
     """Create an empty mock symbol extractor."""
     from tests.mocks import MockSymbolExtractor
+
     return MockSymbolExtractor()
 
 
@@ -397,6 +403,7 @@ def mock_symbol_extractor():
 def mock_repository_indexer():
     """Create a mock repository indexer for testing."""
     from tests.mocks import MockRepositoryIndexer
+
     return MockRepositoryIndexer()
 
 
@@ -437,9 +444,9 @@ def test_logger():
 @pytest.fixture
 def temp_git_repo():
     """Create a temporary git repository for testing."""
-    from pathlib import Path
     import subprocess
-    
+    from pathlib import Path
+
     with tempfile.TemporaryDirectory() as temp_dir:
         repo_path = Path(temp_dir)
 
@@ -493,7 +500,7 @@ def python_symbol_extractor():
 def sample_symbols():
     """Create sample symbols for testing."""
     from symbol_storage import Symbol, SymbolKind
-    
+
     return [
         Symbol(
             name="TestClass",
@@ -549,10 +556,10 @@ def mcp_master_factory():
     """
     import mcp_master
     from repository_manager import RepositoryManager
+    from shutdown_simple import SimpleHealthMonitor, SimpleShutdownCoordinator
     from startup_orchestrator import CodebaseStartupOrchestrator
     from symbol_storage import ProductionSymbolStorage
-    from shutdown_simple import SimpleShutdownCoordinator, SimpleHealthMonitor
-    
+
     def create_mcp_master(config_file_path: str) -> mcp_master.MCPMaster:
         # Create repository manager from configuration
         repository_manager = RepositoryManager.create_from_config(config_file_path)
@@ -620,7 +627,7 @@ def repository_manager_factory():
 def symbol_storage_factory():
     """Factory for creating symbol storage instances with automatic cleanup."""
     from tests.mocks import MockSymbolStorage
-    
+
     created_objects = []
 
     def _create(mock=True):
@@ -708,13 +715,13 @@ def test_config_with_dynamic_port_tuple(temp_git_repo):
         tuple: (config_dict, allocated_port)
     """
     import socket
-    
+
     # Get a free port - this is critical to avoid conflicts with production
     def find_free_port() -> int:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("localhost", 0))  # Bind to any available port
             return s.getsockname()[1]  # Return the allocated port
-            
+
     test_port = find_free_port()
 
     # Create a complete repository configuration that matches production format
@@ -740,9 +747,9 @@ def test_config_with_dynamic_port_tuple(temp_git_repo):
 @pytest.fixture
 def mcp_worker_factory_with_github(temp_git_repo, mock_github_token, mock_subprocess):
     """Factory for creating MCPWorker instances with automatic cleanup"""
-    from tests.mocks import MockGitHubAPIContext
     from mcp_worker import MCPWorker
-    
+    from tests.mocks import MockGitHubAPIContext
+
     workers = []
 
     def _create(repo_config):

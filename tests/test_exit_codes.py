@@ -2,9 +2,8 @@
 Tests for exit code system functionality.
 """
 
-import pytest
 
-from exit_codes import ExitCodeManager, ShutdownExitCode, get_exit_code_description
+from exit_codes import ShutdownExitCode, get_exit_code_description
 
 
 class TestShutdownExitCode:
@@ -46,7 +45,6 @@ class TestShutdownExitCode:
 
 class TestExitCodeManager:
     """Test the ExitCodeManager class."""
-
 
     def test_initialization(self, manager, test_logger):
         """Test manager initialization."""
