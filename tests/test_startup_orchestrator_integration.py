@@ -135,6 +135,9 @@ class DataProcessor:
             assert status.duration is not None
             assert status.duration > 0
 
+            # Clean up database connection
+            storage.close()
+
     @pytest.mark.asyncio
     async def test_full_startup_sequence_multiple_repositories(self):
         """Test complete startup sequence with multiple repositories."""

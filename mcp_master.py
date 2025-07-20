@@ -504,6 +504,9 @@ class MCPMaster:
         # Initialize repository indexes
         await self.initialize_repository_indexes()
 
+        # LSP functionality handled by SimpleLSPClient on-demand - no server startup needed
+        logger.info("LSP functionality handled by SimpleLSPClient on-demand")
+
         # Set up signal handlers
         signal.signal(signal.SIGTERM, self.signal_handler)
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -595,6 +598,11 @@ class MCPMaster:
 
         logger.info(
             f"Worker shutdown complete: {success_count}/{total_count} successful"
+        )
+
+        # Note: LSP server shutdown no longer needed - SimpleLSPClient uses on-demand processes
+        logger.info(
+            "LSP functionality handled by SimpleLSPClient - no persistent servers to stop"
         )
 
         # Clean up symbol storage after all workers are shutdown
@@ -758,12 +766,12 @@ async def main() -> None:
                 )
 
                 # Create codebase tools
-                from codebase_tools import CodebaseLSPClient, CodebaseTools
+                from codebase_tools import CodebaseTools, create_simple_lsp_client
 
                 codebase_tools = CodebaseTools(
                     repository_manager=repository_manager,
                     symbol_storage=symbol_storage,
-                    lsp_client_factory=CodebaseLSPClient,
+                    lsp_client_factory=create_simple_lsp_client,
                 )
 
                 # Create shutdown and health monitoring components
@@ -821,12 +829,12 @@ async def main() -> None:
         )
 
         # Create codebase tools
-        from codebase_tools import CodebaseLSPClient, CodebaseTools
+        from codebase_tools import CodebaseTools, create_simple_lsp_client
 
         codebase_tools = CodebaseTools(
             repository_manager=repository_manager,
             symbol_storage=symbol_storage,
-            lsp_client_factory=CodebaseLSPClient,
+            lsp_client_factory=create_simple_lsp_client,
         )
 
         # Create shutdown and health monitoring components

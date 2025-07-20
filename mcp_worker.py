@@ -30,9 +30,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 import github_tools
-from codebase_tools import CodebaseLSPClient, CodebaseTools
+from codebase_tools import CodebaseTools, create_simple_lsp_client
 from constants import DATA_DIR, LOGS_DIR, SYMBOLS_DB_PATH, Language
 from github_tools import (
+    AbstractGitHubAPIContext,
     GitHubAPIContext,
     execute_find_pr_for_branch,
     execute_get_build_status,
@@ -68,7 +69,12 @@ class MCPWorker:
     symbol_storage: SQLiteSymbolStorage | None
     codebase_tools_instance: CodebaseTools
 
-    def __init__(self, repository_config: RepositoryConfig, db_path: str | None = None):
+    def __init__(
+        self,
+        repository_config: RepositoryConfig,
+        db_path: str | None = None,
+        github_context: AbstractGitHubAPIContext | None = None,
+    ):
         # Store repository configuration
         self.repo_config = repository_config
         self.db_path = db_path
@@ -153,13 +159,18 @@ class MCPWorker:
             self.logger.error(f"Repository path {self.repo_path} does not exist!")
             raise ValueError(f"Repository path {self.repo_path} does not exist")
 
-        self.logger.debug("Creating GitHub context...")
+        self.logger.debug("Setting up GitHub context...")
         try:
-            # Create GitHub context
-            self.github_context = GitHubAPIContext(self.repo_config)
-            self.logger.debug("GitHub context created successfully")
+            # Use injected GitHub context or create a new one
+            if github_context is not None:
+                self.github_context = github_context
+                self.logger.debug("Using injected GitHub context")
+            else:
+                # Create GitHub context using production implementation
+                self.github_context = GitHubAPIContext(self.repo_config)
+                self.logger.debug("Created new GitHub context")
         except Exception as e:
-            self.logger.error(f"Failed to create GitHub context: {e}")
+            self.logger.error(f"Failed to setup GitHub context: {e}")
             raise
 
         self.logger.debug("Setting up repository manager...")
@@ -189,7 +200,7 @@ class MCPWorker:
             self.codebase_tools_instance = CodebaseTools(
                 repository_manager=github_temp_repo_manager,
                 symbol_storage=default_symbol_storage,
-                lsp_client_factory=CodebaseLSPClient,
+                lsp_client_factory=create_simple_lsp_client,
             )
             self.logger.debug("CodebaseTools instance created successfully")
         except Exception as e:
@@ -232,6 +243,9 @@ class MCPWorker:
             f"Worker initialization complete for {self.repo_name} on port {self.port}"
         )
 
+        # Note: LSP functionality now handled by SimpleLSPClient on-demand
+        # No need for persistent LSP server startup
+
     def _initialize_symbol_storage(self) -> None:
         """Initialize symbol storage for codebase tools."""
         try:
@@ -249,6 +263,14 @@ class MCPWorker:
         except Exception as e:
             self.logger.error(f"Failed to initialize symbol storage: {e}")
             raise
+
+    def cleanup(self) -> None:
+        """Clean up resources when worker is done."""
+        if hasattr(self, "symbol_storage") and self.symbol_storage:
+            self.symbol_storage.close()
+            self.symbol_storage = None
+
+    # LSP server startup removed - SimpleLSPClient handles LSP processes on-demand
 
     def _setup_repository_manager(self) -> None:
         """Set up a temporary repository manager for this worker's repository"""
@@ -434,8 +456,7 @@ class MCPWorker:
                             },
                         },
                     }
-                    self.message_queue.put(response)
-                    return {"status": "queued"}
+                    return response
 
                 elif body.get("method") == "notifications/initialized":
                     self.logger.info("Received initialized notification")
@@ -461,8 +482,7 @@ class MCPWorker:
                         "id": body.get("id", 1),
                         "result": {"tools": all_tools},
                     }
-                    self.message_queue.put(response)
-                    return {"status": "queued"}
+                    return response
 
                 elif body.get("method") == "tools/call":
                     # Handle tool execution for this repository
@@ -606,15 +626,19 @@ class MCPWorker:
                             "codebase_health_check",
                             "find_definition",
                             "find_references",
-                            "get_hover",
+                            "find_hover",
                         }
 
                         if tool_name in codebase_tool_handlers:
                             # Use the CodebaseTools instance
+                            # Ensure repository_id from self.repo_name takes precedence
+                            codebase_args = {
+                                **tool_args,
+                                "repository_id": self.repo_name,
+                            }
                             result = await self.codebase_tools_instance.execute_tool(
                                 tool_name,
-                                repository_id=self.repo_name,
-                                **tool_args,
+                                **codebase_args,
                             )
                         else:
                             # Try to find the tool in any of the registered modules
@@ -656,8 +680,7 @@ class MCPWorker:
                         "id": body.get("id", 1),
                         "result": {"content": [{"type": "text", "text": result}]},
                     }
-                    self.message_queue.put(response)
-                    return {"status": "queued"}
+                    return response
 
                 return {
                     "jsonrpc": "2.0",
@@ -730,11 +753,17 @@ class MCPWorker:
             self.logger.error(f"Failed to create uvicorn server: {e}")
             raise
 
-        # Set up signal handlers
+        # Set up signal handlers (only works in main thread)
         self.logger.debug("Setting up signal handlers...")
-        signal.signal(signal.SIGTERM, self.signal_handler)
-        signal.signal(signal.SIGINT, self.signal_handler)
-        self.logger.debug("Signal handlers configured")
+        try:
+            signal.signal(signal.SIGTERM, self.signal_handler)
+            signal.signal(signal.SIGINT, self.signal_handler)
+            self.logger.debug("Signal handlers configured")
+        except ValueError as e:
+            # signal.signal() raises ValueError if not in main thread
+            self.logger.debug(f"Skipping signal handlers (not in main thread): {e}")
+        except Exception as e:
+            self.logger.warning(f"Failed to set up signal handlers: {e}")
 
         self.logger.info(f"Starting uvicorn server on port {self.port}...")
         try:

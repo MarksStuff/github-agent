@@ -113,39 +113,31 @@ class TestStartupResult:
 class TestCodebaseStartupOrchestrator:
     """Test the CodebaseStartupOrchestrator class."""
 
-    def test_initialization(self):
+    def test_initialization(self, in_memory_symbol_storage):
         """Test orchestrator initialization."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            db_path = Path(temp_dir) / "test.db"
-            storage = SQLiteSymbolStorage(str(db_path))
-            extractor = PythonSymbolExtractor()
-            indexer = PythonRepositoryIndexer(extractor, storage)
+        storage = in_memory_symbol_storage
+        extractor = PythonSymbolExtractor()
+        indexer = PythonRepositoryIndexer(extractor, storage)
 
-            orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
+        orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
 
-            assert orchestrator.symbol_storage == storage
-            assert orchestrator.symbol_extractor == extractor
-            assert orchestrator.indexer == indexer
-
-            storage.close()
+        assert orchestrator.symbol_storage == storage
+        assert orchestrator.symbol_extractor == extractor
+        assert orchestrator.indexer == indexer
 
     @pytest.mark.asyncio
-    async def test_initialize_database(self):
+    async def test_initialize_database(self, temp_symbol_storage):
         """Test database initialization."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            db_path = Path(temp_dir) / "test.db"
-            storage = SQLiteSymbolStorage(str(db_path))
-            extractor = PythonSymbolExtractor()
-            indexer = PythonRepositoryIndexer(extractor, storage)
+        storage = temp_symbol_storage
+        extractor = PythonSymbolExtractor()
+        indexer = PythonRepositoryIndexer(extractor, storage)
 
-            orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
+        orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
 
-            await orchestrator.initialize_database()
+        await orchestrator.initialize_database()
 
-            # Database file should exist
-            assert db_path.exists()
-
-            storage.close()
+        # Verify health check passes (indicates database is working)
+        assert storage.health_check() is True
 
     @pytest.mark.asyncio
     async def test_initialize_database_failure(self):
@@ -163,63 +155,58 @@ class TestCodebaseStartupOrchestrator:
                 SQLiteSymbolStorage(str(db_path))
 
     @pytest.mark.asyncio
-    async def test_initialize_repositories_empty_list(self):
+    async def test_initialize_repositories_empty_list(self, in_memory_symbol_storage):
         """Test initialization with empty repository list."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            db_path = Path(temp_dir) / "test.db"
-            storage = SQLiteSymbolStorage(str(db_path))
-            extractor = PythonSymbolExtractor()
-            indexer = PythonRepositoryIndexer(extractor, storage)
-            orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
+        storage = in_memory_symbol_storage
+        extractor = PythonSymbolExtractor()
+        indexer = PythonRepositoryIndexer(extractor, storage)
+        orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
 
-            result = await orchestrator.initialize_repositories([])
+        result = await orchestrator.initialize_repositories([])
 
-            assert result.total_repositories == 0
-            assert result.indexed_repositories == 0
-            assert result.failed_repositories == 0
-            assert result.skipped_repositories == 0
-            assert result.success_rate == 1.0
-            assert len(result.indexing_statuses) == 0
-
-            storage.close()
+        assert result.total_repositories == 0
+        assert result.indexed_repositories == 0
+        assert result.failed_repositories == 0
+        assert result.skipped_repositories == 0
+        assert result.success_rate == 1.0
+        assert len(result.indexing_statuses) == 0
 
     @pytest.mark.asyncio
-    async def test_initialize_repositories_no_python_repos(self):
+    async def test_initialize_repositories_no_python_repos(
+        self, in_memory_symbol_storage
+    ):
         """Test initialization with no Python repositories."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            db_path = Path(temp_dir) / "test.db"
-            storage = SQLiteSymbolStorage(str(db_path))
-            extractor = PythonSymbolExtractor()
-            indexer = PythonRepositoryIndexer(extractor, storage)
-            orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
+        storage = in_memory_symbol_storage
+        extractor = PythonSymbolExtractor()
+        indexer = PythonRepositoryIndexer(extractor, storage)
+        orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
 
-            # Create Swift repository config
-            swift_repo = RepositoryConfig(
-                name="swift-repo",
-                workspace="/path/to/swift",
-                description="Swift repository",
-                language=Language.SWIFT,
-                port=8080,
-                python_path="/usr/bin/python3",
-                github_owner="owner",
-                github_repo="repo",
-            )
+        # Create Swift repository config
+        swift_repo = RepositoryConfig(
+            name="swift-repo",
+            workspace="/path/to/swift",
+            description="Swift repository",
+            language=Language.SWIFT,
+            port=8080,
+            python_path="/usr/bin/python3",
+            github_owner="owner",
+            github_repo="repo",
+        )
 
-            result = await orchestrator.initialize_repositories([swift_repo])
+        result = await orchestrator.initialize_repositories([swift_repo])
 
-            assert result.total_repositories == 1
-            assert result.indexed_repositories == 0
-            assert result.failed_repositories == 0
-            assert result.skipped_repositories == 1
-            assert result.success_rate == 1.0
-            assert len(result.indexing_statuses) == 0
+        assert result.total_repositories == 1
+        assert result.indexed_repositories == 0
+        assert result.failed_repositories == 0
+        assert result.skipped_repositories == 1
+        assert result.success_rate == 1.0
+        assert len(result.indexing_statuses) == 0
 
     @pytest.mark.asyncio
-    async def test_initialize_repositories_with_python_repo(self):
+    async def test_initialize_repositories_with_python_repo(self, temp_symbol_storage):
         """Test initialization with Python repository."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            db_path = Path(temp_dir) / "test.db"
-            storage = SQLiteSymbolStorage(str(db_path))
+            storage = temp_symbol_storage
             extractor = PythonSymbolExtractor()
             indexer = PythonRepositoryIndexer(extractor, storage)
 
@@ -258,47 +245,46 @@ class TestCodebaseStartupOrchestrator:
             ]
 
     @pytest.mark.asyncio
-    async def test_initialize_repositories_with_indexing_failure(self):
+    async def test_initialize_repositories_with_indexing_failure(
+        self, in_memory_symbol_storage
+    ):
         """Test initialization with indexing failure."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            db_path = Path(temp_dir) / "test.db"
-            storage = SQLiteSymbolStorage(str(db_path))
-            extractor = PythonSymbolExtractor()
-            indexer = PythonRepositoryIndexer(extractor, storage)
-            orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
+        storage = in_memory_symbol_storage
+        extractor = PythonSymbolExtractor()
+        indexer = PythonRepositoryIndexer(extractor, storage)
+        orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
 
-            # Create Python repository config with invalid path
-            python_repo = RepositoryConfig(
-                name="python-repo",
-                workspace="/nonexistent/path",
-                description="Python repository",
-                language=Language.PYTHON,
-                port=8080,
-                python_path="/usr/bin/python3",
-                github_owner="owner",
-                github_repo="repo",
-            )
+        # Create Python repository config with invalid path
+        python_repo = RepositoryConfig(
+            name="python-repo",
+            workspace="/nonexistent/path",
+            description="Python repository",
+            language=Language.PYTHON,
+            port=8080,
+            python_path="/usr/bin/python3",
+            github_owner="owner",
+            github_repo="repo",
+        )
 
-            result = await orchestrator.initialize_repositories([python_repo])
+        result = await orchestrator.initialize_repositories([python_repo])
 
-            assert result.total_repositories == 1
-            assert result.indexed_repositories == 0
-            assert result.failed_repositories == 1
-            assert result.skipped_repositories == 0
-            assert result.success_rate == 0.0
-            assert len(result.indexing_statuses) == 1
+        assert result.total_repositories == 1
+        assert result.indexed_repositories == 0
+        assert result.failed_repositories == 1
+        assert result.skipped_repositories == 0
+        assert result.success_rate == 0.0
+        assert len(result.indexing_statuses) == 1
 
-            status = result.indexing_statuses[0]
-            assert status.repository_id == "python-repo"
-            assert status.status == IndexingStatusEnum.FAILED
-            assert status.error_message is not None
+        status = result.indexing_statuses[0]
+        assert status.repository_id == "python-repo"
+        assert status.status == IndexingStatusEnum.FAILED
+        assert status.error_message is not None
 
     @pytest.mark.asyncio
-    async def test_initialize_repositories_mixed_repos(self):
+    async def test_initialize_repositories_mixed_repos(self, temp_symbol_storage):
         """Test initialization with mixed repository types."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            db_path = Path(temp_dir) / "test.db"
-            storage = SQLiteSymbolStorage(str(db_path))
+            storage = temp_symbol_storage
             extractor = PythonSymbolExtractor()
             indexer = PythonRepositoryIndexer(extractor, storage)
 
@@ -344,36 +330,33 @@ class TestCodebaseStartupOrchestrator:
             status = result.indexing_statuses[0]
             assert status.repository_id == "python-repo"
 
-    def test_get_indexing_status(self):
+    def test_get_indexing_status(self, in_memory_symbol_storage):
         """Test getting indexing status for a repository."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            db_path = Path(temp_dir) / "test.db"
-            storage = SQLiteSymbolStorage(str(db_path))
-            extractor = PythonSymbolExtractor()
-            indexer = PythonRepositoryIndexer(extractor, storage)
-            orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
+        storage = in_memory_symbol_storage
+        extractor = PythonSymbolExtractor()
+        indexer = PythonRepositoryIndexer(extractor, storage)
+        orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
 
-            statuses = [
-                IndexingStatus("repo1", "/path1", IndexingStatusEnum.COMPLETED),
-                IndexingStatus("repo2", "/path2", IndexingStatusEnum.FAILED),
-            ]
+        statuses = [
+            IndexingStatus("repo1", "/path1", IndexingStatusEnum.COMPLETED),
+            IndexingStatus("repo2", "/path2", IndexingStatusEnum.FAILED),
+        ]
 
-            # Find existing status
-            status = orchestrator.get_indexing_status("repo1", statuses)
-            assert status is not None
-            assert status.repository_id == "repo1"
-            assert status.status == IndexingStatusEnum.COMPLETED
+        # Find existing status
+        status = orchestrator.get_indexing_status("repo1", statuses)
+        assert status is not None
+        assert status.repository_id == "repo1"
+        assert status.status == IndexingStatusEnum.COMPLETED
 
-            # Find non-existing status
-            status = orchestrator.get_indexing_status("repo3", statuses)
-            assert status is None
+        # Find non-existing status
+        status = orchestrator.get_indexing_status("repo3", statuses)
+        assert status is None
 
     @pytest.mark.asyncio
-    async def test_index_repository_success(self):
+    async def test_index_repository_success(self, temp_symbol_storage):
         """Test successful repository indexing."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            db_path = Path(temp_dir) / "test.db"
-            storage = SQLiteSymbolStorage(str(db_path))
+            storage = temp_symbol_storage
             extractor = PythonSymbolExtractor()
             indexer = PythonRepositoryIndexer(extractor, storage)
 
@@ -416,39 +399,37 @@ class TestCodebaseStartupOrchestrator:
             assert status.duration is not None
 
     @pytest.mark.asyncio
-    async def test_index_repository_failure(self):
+    async def test_index_repository_failure(self, in_memory_symbol_storage):
         """Test repository indexing failure."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            db_path = Path(temp_dir) / "test.db"
-            storage = SQLiteSymbolStorage(str(db_path))
-            extractor = PythonSymbolExtractor()
-            indexer = PythonRepositoryIndexer(extractor, storage)
-            orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
+        storage = in_memory_symbol_storage
+        extractor = PythonSymbolExtractor()
+        indexer = PythonRepositoryIndexer(extractor, storage)
+        orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
 
-            # Initialize database first
-            await orchestrator.initialize_database()
+        # Initialize database first
+        await orchestrator.initialize_database()
 
-            # Create repository config with invalid path
-            repo_config = RepositoryConfig(
-                name="test-repo",
-                workspace="/nonexistent/path",
-                description="Test repository",
-                language=Language.PYTHON,
-                port=8080,
-                python_path="/usr/bin/python3",
-                github_owner="owner",
-                github_repo="repo",
-            )
+        # Create repository config with invalid path
+        repo_config = RepositoryConfig(
+            name="test-repo",
+            workspace="/nonexistent/path",
+            description="Test repository",
+            language=Language.PYTHON,
+            port=8080,
+            python_path="/usr/bin/python3",
+            github_owner="owner",
+            github_repo="repo",
+        )
 
-            status = IndexingStatus(
-                repository_id="test-repo",
-                repository_path="/nonexistent/path",
-                status=IndexingStatusEnum.PENDING,
-            )
+        status = IndexingStatus(
+            repository_id="test-repo",
+            repository_path="/nonexistent/path",
+            status=IndexingStatusEnum.PENDING,
+        )
 
-            await orchestrator._index_repository(repo_config, status)
+        await orchestrator._index_repository(repo_config, status)
 
-            assert status.status == IndexingStatusEnum.FAILED
-            assert status.error_message is not None
-            assert status.start_time is not None
-            assert status.end_time is not None
+        assert status.status == IndexingStatusEnum.FAILED
+        assert status.error_message is not None
+        assert status.start_time is not None
+        assert status.end_time is not None

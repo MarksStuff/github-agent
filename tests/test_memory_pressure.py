@@ -35,6 +35,7 @@ class TestMemoryPressureScenarios(unittest.TestCase):
     def test_large_symbol_batch_memory_usage(self):
         """Test memory usage during large symbol batch processing."""
         storage = SQLiteSymbolStorage(self.db_path)
+        self.addCleanup(storage.close)
 
         # Create a large number of symbols (should be processed in batches)
         symbol_count = 10000
@@ -160,6 +161,7 @@ class Class_{i}:
 
         # Create storage and indexer
         storage = SQLiteSymbolStorage(self.db_path)
+        self.addCleanup(storage.close)
         extractor = PythonSymbolExtractor()
         indexer = PythonRepositoryIndexer(extractor, storage)
 
@@ -190,6 +192,7 @@ class Class_{i}:
     def test_database_memory_management_large_queries(self):
         """Test memory management during large database queries."""
         storage = SQLiteSymbolStorage(self.db_path)
+        self.addCleanup(storage.close)
 
         # Insert a large number of symbols first
         symbols = []
@@ -235,6 +238,7 @@ class Class_{i}:
     def test_recovery_from_memory_pressure(self):
         """Test system recovery after memory pressure events."""
         storage = SQLiteSymbolStorage(self.db_path)
+        self.addCleanup(storage.close)
 
         # Simulate memory pressure by creating and destroying large objects
         large_objects = []

@@ -152,16 +152,19 @@ class PythonRepositoryManager:
 
 def create_python_repository_manager(
     config_path: str | None = None,
+    repository_manager: RepositoryManager | None = None,
 ) -> PythonRepositoryManager:
     """Create a PythonRepositoryManager instance.
 
     Args:
         config_path: Optional path to repositories.json file
+        repository_manager: Optional RepositoryManager instance for dependency injection
 
     Returns:
         PythonRepositoryManager instance
     """
-    repository_manager = RepositoryManager(config_path)
+    if repository_manager is None:
+        repository_manager = RepositoryManager(config_path)
 
     if not repository_manager.load_configuration():
         raise RuntimeError("Failed to load repository configuration")

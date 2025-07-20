@@ -16,7 +16,8 @@ import pytest
 
 import codebase_tools
 import mcp_master
-from lsp_client import AbstractLSPClient, LSPClientState
+
+# async_lsp_client imports removed - using SimpleLSPClient directly
 from python_symbol_extractor import AbstractSymbolExtractor, PythonSymbolExtractor
 from repository_indexer import (
     AbstractRepositoryIndexer,
@@ -63,79 +64,29 @@ def find_free_port(start_port: int = 8081, max_attempts: int = 100) -> int:
     )
 
 
-class MockLSPClient(AbstractLSPClient):
-    """Mock LSP client for testing."""
+# Minimal MockLSPClient for test compatibility
+class MockLSPClient:
+    """Minimal mock LSP client for testing compatibility."""
 
-    def __init__(
-        self,
-        workspace_root: str = "/test",
-        state: LSPClientState = LSPClientState.INITIALIZED,
-    ):
-        # Don't call super().__init__ to avoid needing server_manager
+    def __init__(self, workspace_root: str = "/test"):
         self.workspace_root = workspace_root
-        self.state = state
         self.logger = logging.getLogger(__name__)
-
-        # Mock responses that can be set by tests
-        self._definition_response: list[dict] = []
-        self._references_response: list[dict] = []
-        self._hover_response = None
-        self._document_symbols_response: list[dict] = []
-        self._start_result = True  # Default to successful start
 
     async def get_definition(
         self, uri: str, line: int, character: int
     ) -> list[dict] | None:
         """Mock get_definition method."""
-        return self._definition_response
+        return []
 
     async def get_references(
         self, uri: str, line: int, character: int, include_declaration: bool = True
     ) -> list[dict] | None:
         """Mock get_references method."""
-        return self._references_response
+        return []
 
     async def get_hover(self, uri: str, line: int, character: int) -> dict | None:
         """Mock get_hover method."""
-        return self._hover_response
-
-    async def get_document_symbols(self, uri: str) -> list[dict] | None:
-        """Mock get_document_symbols method."""
-        return self._document_symbols_response
-
-    async def connect(self) -> bool:
-        """Mock connect method."""
-        return True
-
-    async def disconnect(self) -> None:
-        """Mock disconnect method."""
-        pass
-
-    async def stop(self) -> None:
-        """Mock stop method."""
-        pass
-
-    async def start(self) -> bool:
-        """Mock start method."""
-        if self._start_result:
-            self.state = LSPClientState.INITIALIZED
-        return self._start_result
-
-    def shutdown(self) -> None:
-        """Mock shutdown method."""
-        self.state = LSPClientState.DISCONNECTED
-
-    def set_definition_response(self, response: list[dict]):
-        """Set the response for get_definition calls."""
-        self._definition_response = response
-
-    def set_references_response(self, response: list[dict]):
-        """Set the response for get_references calls."""
-        self._references_response = response
-
-    def set_start_result(self, result: bool):
-        """Set the result for start method calls."""
-        self._start_result = result
+        return None
 
 
 @pytest.fixture(scope="session")
@@ -151,15 +102,7 @@ def mock_repository_manager():
     return MockRepositoryManager()
 
 
-def mock_lsp_client_provider(workspace_root: str, python_path: str) -> MockLSPClient:
-    """Provider function to create mock LSP clients for dependency injection."""
-    return MockLSPClient(workspace_root=workspace_root)
-
-
-@pytest.fixture
-def mock_lsp_client():
-    """Create a mock LSP client for testing."""
-    return MockLSPClient()
+# LSP client provider functions removed - SimpleLSPClient used directly
 
 
 @pytest.fixture
@@ -491,6 +434,31 @@ def in_memory_symbol_storage():
 
 
 @pytest.fixture
+def temp_symbol_storage(tmp_path):
+    """Create a temporary file-based SQLite symbol storage for testing."""
+    db_path = tmp_path / "test_symbols.db"
+    storage = SQLiteSymbolStorage(str(db_path))
+    yield storage
+    storage.close()
+
+
+class SymbolStorageCloser:
+    """Context manager to ensure SQLiteSymbolStorage is properly closed."""
+
+    def __init__(self, db_path):
+        self.db_path = db_path
+        self.storage = None
+
+    def __enter__(self):
+        self.storage = SQLiteSymbolStorage(str(self.db_path))
+        return self.storage
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.storage:
+            self.storage.close()
+
+
+@pytest.fixture
 def mock_symbol_extractor():
     """Create an empty mock symbol extractor."""
     return MockSymbolExtractor()
@@ -674,17 +642,12 @@ def mcp_master_factory():
         health_monitor = SimpleHealthMonitor(test_logger)
 
         # Create CodebaseTools instance
-        from codebase_tools import CodebaseLSPClient
-
-        def mock_lsp_client_factory(workspace: str, python_path: str):
-            return CodebaseLSPClient(workspace, python_path)
-
-        from codebase_tools import CodebaseTools
+        from codebase_tools import CodebaseTools, create_simple_lsp_client
 
         codebase_tools = CodebaseTools(
             repository_manager=repository_manager,
             symbol_storage=symbol_storage,
-            lsp_client_factory=mock_lsp_client_factory,
+            lsp_client_factory=create_simple_lsp_client,
         )
 
         return mcp_master.MCPMaster(
@@ -745,26 +708,10 @@ def lsp_client_factory_factory():
     """Factory for creating LSP client factory functions."""
 
     def _create(mock=True):
-        if mock:
+        # SimpleLSPClient doesn't need mocking - it's simple and reliable
+        from codebase_tools import create_simple_lsp_client
 
-            def mock_lsp_client_factory(
-                workspace_root: str, python_path: str
-            ) -> MockLSPClient:
-                return MockLSPClient(workspace_root=workspace_root)
-
-            return mock_lsp_client_factory
-        else:
-            # Use real LSP client factory for testing
-            from codebase_tools import CodebaseLSPClient
-
-            def real_lsp_client_factory(
-                workspace_root: str, python_path: str
-            ) -> CodebaseLSPClient:
-                return CodebaseLSPClient(
-                    workspace_root=workspace_root, python_path=python_path
-                )
-
-            return real_lsp_client_factory
+        return create_simple_lsp_client
 
     return _create
 
