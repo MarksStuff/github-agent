@@ -11,6 +11,23 @@ This task breakdown addresses the Symbol Type Information user story with a **ph
 
 ---
 
+## 📝 Updates from PR Review (2025-07-21)
+
+Based on PR feedback, the following updates have been made:
+
+- **Structural Changes:**
+- Remove "Key Decisions Needed" section entirely - replace with "Architecture Commitments"
+- Add "MVP Definition" section with concrete metrics before Phase 1
+- Add "Performance Requirements" section with specific targets
+- Restructure Phase 1 from spike-based to deliverable-based approach
+- **New Sections to Add:**
+- MVP Definition: 90% accuracy for basic types, <500ms response time, graceful degradation
+- Performance Requirements: <500ms queries, <100MB memory overhead
+- LSP Integration Strategy: Extension points, compatibility requirements
+- Type Support Matrix: Supported/Planned/Deferred categories with business justification
+
+---
+
 ## Task Breakdown
 
 ### Phase 1: Foundation & Risk Mitigation
