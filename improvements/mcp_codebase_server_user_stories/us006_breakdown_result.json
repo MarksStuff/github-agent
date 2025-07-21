@@ -1,0 +1,241 @@
+{
+  "user_story": {
+    "id": "US006",
+    "title": "Symbol Type Information",
+    "description": "As a developer I want to retrieve type information and signatures for Python symbols so that I understand how to use them correctly.",
+    "acceptance_criteria": [
+      "get_type_info(symbol, repository_id) returns function signatures, parameter types",
+      "Support for Python type hints and docstrings",
+      "Class hierarchy information (base classes, methods)",
+      "Variable type inference from context"
+    ],
+    "tasks": null
+  },
+  "estimation_consensus": {
+    "consensus_points": 4,
+    "confidence_level": "medium",
+    "key_risks": [
+      "Impact**: High - Could double the effort if existing LSP/symbol extraction is inadequate",
+      "Mitigation**: Conduct architecture audit in first sprint to validate extension feasibility",
+      "Early Warning**: If existing tools can't handle basic type extraction, escalate immediately"
+    ],
+    "simplification_opportunities": [
+      "Value**: Potentially reduces core implementation from 2.5 to 1.5 points",
+      "Action**: Map existing symbol extraction capabilities to type signature needs",
+      "Timeline**: Complete assessment in first 2 days"
+    ],
+    "critical_assumptions": [
+      "Validate**: Can current LSP server or symbol extractor provide AST access and basic type information?",
+      "Method**: Technical spike in first 2 days of development",
+      "Impact**: Changes estimate from 3 to 2 points (if excellent) or 5 points (if inadequate)"
+    ],
+    "debate_insights": {
+      "lowest_estimate": {
+        "agent_name": "testing_first",
+        "effort_points": 2,
+        "reasoning": "## Testing-First Analysis: Symbol Type Information\n\n### 1. Critical Failure Modes to Test\n\n**Type System Failures:**\n- Invalid/corrupted AST nodes causing type inference crashes\n- Circular import dependencies breaking symbol resolution\n- Missing type annotations leading to incomplete signatures\n- Dynamic type modifications not captured statically\n- Generic types with unresolved type parameters\n\n**Repository State Failures:**\n- Repository not found/accessible during type analysis\n- Concurrent modifications to codebase during analysis\n- Malformed Python files causing parser exceptions\n- Missing dependencies breaking import resolution\n- Inconsistent Python version type compatibility\n\n**Memory and Performance Failures:**\n- Deep class hierarchies causing stack overflow\n- Large codebases exhausting memory during analysis\n- Infinite loops in recursive type resolution\n- LSP server timeouts on complex type queries\n- Resource leaks in long-running analysis sessions\n\n**Data Integrity Failures:**\n- Stale type information after code changes\n- Inconsistent type data between different analysis runs\n- Race conditions in concurrent type extraction\n- Partial type information corruption\n\n### 2. Required Test Coverage Matrix\n\n**Unit Tests (70% of effort):**\n```python\n# Core type extraction\ntest_function_signature_extraction()\ntest_class_hierarchy_resolution()\ntest_variable_type_inference()\ntest_generic_type_handling()\ntest_union_optional_types()\n\n# Error handling\ntest_malformed_syntax_recovery()\ntest_missing_dependencies_graceful_fail()\ntest_circular_imports_detection()\ntest_invalid_repository_id()\ntest_timeout_handling()\n\n# Edge cases\ntest_dynamically_modified_classes()\ntest_metaclass_type_resolution()\ntest_decorator_signature_preservation()\ntest_nested_function_scoping()\ntest_lambda_type_inference()\n```\n\n**Integration Tests (20% of effort):**\n```python\ntest_lsp_server_integration()\ntest_repository_manager_coordination()\ntest_symbol_extractor_pipeline()\ntest_concurrent_type_queries()\ntest_cache_invalidation_workflow()\n```\n\n**Property-Based Tests (10% of effort):**\n```python\n# Fuzz testing with hypothesis\ntest_arbitrary_python_ast_stability()\ntest_type_system_consistency_properties()\ntest_signature_serialization_roundtrip()\n```\n\n### 3. Essential Safety Mechanisms\n\n**Input Validation:**\n- Repository ID format validation with sanitization\n- Symbol name validation against injection attacks\n- AST node type verification before processing\n- File path traversal protection\n\n**Resource Protection:**\n- Configurable analysis timeout limits\n- Memory usage monitoring with circuit breakers\n- Maximum recursion depth enforcement\n- LSP connection health checks\n\n**Error Recovery:**\n- Graceful degradation to basic type information\n- Partial result return on analysis failures\n- Automatic retry with backoff for transient failures\n- Comprehensive error logging with context\n\n**Data Consistency:**\n- Type information versioning with repository state\n- Atomic updates to prevent partial corruption\n- Cache coherency validation\n- Idempotent operation design\n\n### 4. Monitoring and Observability\n\n**Required Metrics:**\n- Type analysis success/failure rates\n- Analysis duration percentiles\n- Memory usage patterns\n- Cache hit/miss ratios\n- LSP server response times\n\n**Health Checks:**\n- Repository connectivity validation\n- LSP server responsiveness\n- Cache integrity verification\n- Memory leak detection\n\n### 5. Test Infrastructure Requirements\n\n**Mock Enhancements Needed:**\n- Extended `mock_symbol_extractor.py` with type-specific scenarios\n- `mock_lsp_client_for_tests.py` timeout simulation\n- Repository state corruption scenarios\n- Complex type hierarchy test fixtures\n\n**New Test Utilities:**\n- AST generation helpers for edge cases\n- Type system consistency validators\n- Performance benchmarking harnesses\n- Concurrency testing framework\n\n### 6. Effort Estimation: **11 Story Points**\n\n**Breakdown:**\n- Core implementation: 4 points\n- Comprehensive unit tests: 4 points  \n- Integration tests: 2 points\n- Safety mechanisms: 1 point\n- Performance testing: 0.5 points\n- Documentation: 0.5 points\n\n**Risk Factors Increasing Estimate:**\n- Python type system complexity and edge cases\n- LSP protocol reliability challenges\n- Repository state management complexity\n- Performance requirements under scale\n- Need for comprehensive error recovery\n\n**Critical Path Dependencies:**\n- LSP server stability and timeout handling\n- Repository manager concurrent access patterns\n- Symbol extractor integration points\n- Cache invalidation strategy\n\nThis estimate prioritizes reliability and comprehensive failure mode coverage, ensuring the type information system can handle real-world complexity while maintaining consistent performance and accuracy.",
+        "assumptions": [],
+        "risks": [
+          "Resource leaks in long-running analysis sessions",
+          "Stale type information after code changes",
+          "Inconsistent type data between different analysis runs",
+          "Race conditions in concurrent type extraction",
+          "Partial type information corruption",
+          "Repository ID format validation with sanitization",
+          "Symbol name validation against injection attacks",
+          "AST node type verification before processing",
+          "File path traversal protection",
+          "Configurable analysis timeout limits",
+          "Memory usage monitoring with circuit breakers",
+          "Maximum recursion depth enforcement",
+          "LSP connection health checks",
+          "Graceful degradation to basic type information",
+          "Partial result return on analysis failures",
+          "Automatic retry with backoff for transient failures",
+          "Comprehensive error logging with context",
+          "Type information versioning with repository state",
+          "Atomic updates to prevent partial corruption",
+          "Cache coherency validation",
+          "Idempotent operation design",
+          "Type analysis success/failure rates",
+          "Analysis duration percentiles",
+          "Memory usage patterns",
+          "Cache hit/miss ratios",
+          "LSP server response times",
+          "Repository connectivity validation",
+          "LSP server responsiveness",
+          "Cache integrity verification",
+          "Memory leak detection",
+          "Extended `mock_symbol_extractor.py` with type-specific scenarios",
+          "`mock_lsp_client_for_tests.py` timeout simulation",
+          "Repository state corruption scenarios",
+          "AST generation helpers for edge cases",
+          "Type system consistency validators",
+          "Performance benchmarking harnesses",
+          "Concurrency testing framework",
+          "Core implementation: 4 points",
+          "Comprehensive unit tests: 4 points",
+          "Integration tests: 2 points",
+          "Safety mechanisms: 1 point",
+          "Performance testing: 0.5 points",
+          "Documentation: 0.5 points",
+          "LSP protocol reliability challenges",
+          "Performance requirements under scale",
+          "Need for comprehensive error recovery",
+          "LSP server stability and timeout handling",
+          "Repository manager concurrent access patterns",
+          "Symbol extractor integration points",
+          "Cache invalidation strategy"
+        ],
+        "simplifications": []
+      },
+      "highest_estimate": {
+        "agent_name": "domain_expert",
+        "effort_points": 5,
+        "reasoning": "## Domain Expert Analysis: Symbol Type Information\n\n### 1. Business Rules Analysis\n\n**API Contract Compliance:**\n- Type information must be consistent with existing MCP tool patterns in the codebase\n- Response format must align with established `get_type_info(symbol, repository_id)` interface\n- Error handling must follow repository's standard patterns for invalid symbols/repositories\n\n**Data Quality Standards:**\n- Type information must be accurate and up-to-date with actual code state\n- Docstring extraction must preserve formatting for developer readability\n- Class hierarchy must include complete inheritance chain, not partial views\n\n**Performance SLA Requirements:**\n- Based on existing performance focus, type analysis must complete within reasonable time bounds\n- Large codebases require efficient symbol resolution without full repository parsing\n- Caching strategies needed for frequently accessed symbols\n\n### 2. Compliance Requirements\n\n**Developer Experience Standards:**\n- Must support Python 3.x type hint syntax (Union, Optional, Generics, etc.)\n- Backward compatibility with legacy codebases lacking type hints\n- Integration with popular IDEs and development tools through standardized output\n\n**Data Privacy & Security:**\n- No exposure of sensitive code patterns or proprietary implementation details\n- Secure handling of private repository access through existing authentication\n- Audit trail for type information access in enterprise environments\n\n**API Governance:**\n- Consistent error codes and messages across all MCP tools\n- Versioned response schemas to support API evolution\n- Rate limiting compliance for external repository access\n\n### 3. Operational Constraints\n\n**Infrastructure Integration:**\n- Must work within existing MCP server architecture and shutdown procedures\n- Integration with current multi-agent workflow orchestration patterns\n- Compatibility with existing test frameworks and mocking strategies\n\n**Scalability Requirements:**\n- Support for analyzing large enterprise codebases (1M+ lines)\n- Efficient memory usage for concurrent symbol analysis requests\n- Graceful degradation when type information is incomplete or ambiguous\n\n**Monitoring & Observability:**\n- Error tracking for failed type resolution attempts\n- Performance metrics for symbol analysis operations\n- Success rate monitoring for different Python version compatibility\n\n### 4. Business Value & User Impact\n\n**Primary User Needs:**\n- **Code Comprehension:** Developers need quick access to function signatures for API integration\n- **Development Velocity:** Reduce time spent reading source code to understand interfaces\n- **Code Quality:** Enable better type checking and IDE support through accurate type information\n\n**Business Impact:**\n- Reduced developer onboarding time for new codebases\n- Improved code reliability through better type understanding\n- Enhanced developer productivity in large, complex repositories\n\n### 5. Effort Estimation: **8 Story Points**\n\n**Breakdown:**\n- **Core Implementation (5 pts):** Python AST parsing, type hint extraction, signature analysis\n- **Business Integration (2 pts):** MCP tool pattern compliance, error handling, response formatting\n- **Compliance & Quality (1 pt):** Testing with various Python versions, documentation, performance validation\n\n**Risk Factors:**\n- Complex type systems (Generics, Protocol types) may require additional effort\n- Legacy codebase compatibility could surface edge cases\n- Performance optimization for large repositories may need iteration\n\n**Business Priority:** High - Direct impact on developer productivity and code quality, aligns with repository's focus on code analysis tools.",
+        "assumptions": [],
+        "risks": [
+          "**Core Implementation (5 pts):** Python AST parsing, type hint extraction, signature analysis",
+          "**Business Integration (2 pts):** MCP tool pattern compliance, error handling, response formatting",
+          "**Compliance & Quality (1 pt):** Testing with various Python versions, documentation, performance validation",
+          "Legacy codebase compatibility could surface edge cases",
+          "Performance optimization for large repositories may need iteration"
+        ],
+        "simplifications": [
+          "**Development Velocity:** Reduce time spent reading source code to understand interfaces",
+          "**Code Quality:** Enable better type checking and IDE support through accurate type information",
+          "Reduced developer onboarding time for new codebases",
+          "Improved code reliability through better type understanding"
+        ]
+      },
+      "debate_summary": "# Structured Estimation Debate Analysis\n\n## 1. What the Testing_First Might Be Missing\n\n**Domain_Expert's Perspective:**\n\n\"The testing-first estimate severely undervalues the **business complexity** of Python's type system. While they focus extensively on failure modes, they're missing critical domain requirements:\n\n- **Type System Sophistication**: Modern Python codebases use Protocol types, TypedDict, Literal types, and complex Generic constraints that go far beyond basic AST parsing. The testing approach treats this as 'edge cases' when it's actually core functionality.\n\n- **Business Integration Overhead**: They allocate only 0.5 points for documentation but ignore the substantial effort needed to align with existing MCP tool patterns, ensure consistent error messaging, and maintain API contracts that other tools depend on.\n\n- **Real-World Python Complexity**: Their test matrix, while comprehensive for crashes, doesn't address the nuanced business rules around type inference precedence, stub file handling, or the interaction between type hints and runtime type modifications that enterprise codebases commonly use.\n\nThe 2-point estimate treats this as a simple 'extract and display' feature, but it's actually a complex type analysis engine that needs to handle the full spectrum of Python's type system correctly, not just avoid crashing.\"\n\n## 2. What the Domain_Expert Might Be Overcomplicating\n\n**Testing_First's Perspective:**\n\n\"The domain expert is gold-plating this feature with enterprise requirements that may not apply to our current context:\n\n- **Over-Engineering for Scale**: They assume we need to handle '1M+ line codebases' and 'enterprise environments' when we should start with a working solution for typical repositories and scale up based on actual needs.\n\n- **Existing Infrastructure Leverage**: They're estimating AST parsing and type extraction from scratch (5 points), but we likely already have LSP server integration and symbol extraction capabilities that can be extended. The incremental work is much smaller.\n\n- **Analysis Paralysis**: They're spending significant effort on compliance frameworks, audit trails, and versioned schemas when the immediate user need is simple: 'show me this function's signature.' We can iterate on sophistication.\n\n- **False Precision**: Their detailed business rules analysis doesn't change the core technical work - it's still AST traversal, type hint extraction, and formatting. The business complexity is largely configuration and presentation, not algorithmic complexity.\n\nA simple implementation that handles 80% of cases correctly is more valuable than a perfect enterprise solution that takes 2.5x longer to deliver.\"\n\n## 3. Specific Disagreements\n\n### **Core Implementation Complexity**\n- **Testing_First**: 4 points (focuses on making existing tools work reliably)\n- **Domain_Expert**: 5 points (assumes building comprehensive type analysis from scratch)\n\n### **Testing vs. Business Integration**\n- **Testing_First**: 4 points for testing, 0.5 points for business requirements\n- **Domain_Expert**: 1 point for testing, 2 points for business integration\n\n### **Scope Definition**\n- **Testing_First**: Comprehensive failure mode coverage with graceful degradation\n- **Domain_Expert**: Full Python type system support with enterprise compliance\n\n## 4. Resolution Factors\n\n**Key Information Needed:**\n1. **Architecture Audit**: What type analysis capabilities already exist in the LSP server or symbol extractor?\n2. **User Research**: What's the actual complexity distribution of codebases our users work with?\n3. **Integration Assessment**: How much existing MCP tooling can be leveraged vs. built from scratch?\n4. **Performance Baseline**: What are current response time expectations for similar analysis tools?\n5. **Python Version Survey**: What type system features do our target codebases actually use?\n\n## 5. Key Insights Emerged\n\n### **Testing-First Contributions:**\n- **Reliability Focus**: Comprehensive failure mode analysis ensures production readiness\n- **Resource Protection**: Concrete safety mechanisms prevent system instability\n- **Test Coverage Matrix**: Structured approach to validating edge cases\n\n### **Domain-Expert Contributions:**\n- **User Value Clarity**: Clear connection between technical work and developer productivity\n- **Business Context**: Understanding of how this fits into larger development workflows\n- **Type System Depth**: Recognition of Python's sophisticated type features\n\n### **Synthesis Insights:**\n- **Incremental Delivery Strategy**: Start with basic type extraction, iterate on sophistication\n- **Leverage Existing Infrastructure**: Investigate current LSP/symbol extraction capabilities first\n- **Balance Testing and Features**: Both comprehensive testing AND proper business integration are critical\n\n## 6. Synthesis: Most Realistic View\n\n**Recommended Estimate: 3 points**\n\n**Rationale:**\n- **Core Implementation (1.5 pts)**: Assuming we can extend existing LSP/symbol extraction rather than build from scratch\n- **Comprehensive Testing (1 pt)**: Essential for reliability, but focused on actual failure modes rather than theoretical edge cases  \n- **Business Integration (0.5 pts)**: Proper MCP pattern compliance and error handling, but without over-engineering\n\n**Key Approach:**\n1. **Discovery Phase**: Quick investigation of existing infrastructure capabilities\n2. **MVP Implementation**: Basic function/class signature extraction with proper error handling\n3. **Iterative Enhancement**: Add sophisticated type system support based on user feedback\n4. **Testing Strategy**: Focus on real-world failure scenarios rather than exhaustive edge case coverage\n\n**Risk Mitigation:**\n- Start with the testing-first safety mechanisms to ensure stability\n- Implement domain-expert's business requirements incrementally\n- Plan for scaling complexity based on actual usage patterns rather than theoretical requirements\n\nThis synthesis respects both the need for reliability (testing-first) and business value (domain-expert) while avoiding over-engineering for uncertain requirements.",
+      "key_disagreements": [
+        "**Testing_First**: 4 points (focuses on making existing tools work reliably)",
+        "**Domain_Expert**: 5 points (assumes building comprehensive type analysis from scratch)",
+        "**Testing_First**: 4 points for testing, 0.5 points for business requirements",
+        "**Domain_Expert**: 1 point for testing, 2 points for business integration",
+        "**Testing_First**: Comprehensive failure mode coverage with graceful degradation",
+        "**Domain_Expert**: Full Python type system support with enterprise compliance"
+      ],
+      "revealed_insights": [
+        "**Reliability Focus**: Comprehensive failure mode analysis ensures production readiness",
+        "**Resource Protection**: Concrete safety mechanisms prevent system instability",
+        "**Test Coverage Matrix**: Structured approach to validating edge cases",
+        "**User Value Clarity**: Clear connection between technical work and developer productivity",
+        "**Business Context**: Understanding of how this fits into larger development workflows",
+        "**Type System Depth**: Recognition of Python's sophisticated type features",
+        "**Incremental Delivery Strategy**: Start with basic type extraction, iterate on sophistication"
+      ],
+      "resolution_points": [
+        "**Balance Testing and Features**: Both comprehensive testing AND proper business integration are critical",
+        "**Core Implementation (1.5 pts)**: Assuming we can extend existing LSP/symbol extraction rather than build from scratch",
+        "**Comprehensive Testing (1 pt)**: Essential for reliability, but focused on actual failure modes rather than theoretical edge cases",
+        "**Business Integration (0.5 pts)**: Proper MCP pattern compliance and error handling, but without over-engineering",
+        "Start with the testing-first safety mechanisms to ensure stability",
+        "Implement domain-expert's business requirements incrementally",
+        "Plan for scaling complexity based on actual usage patterns rather than theoretical requirements"
+      ]
+    }
+  },
+  "tasks": [
+    {
+      "id": "task_001",
+      "description": "## Task Breakdown",
+      "deployment_notes": "",
+      "status": "pending",
+      "implementation_notes": "",
+      "quality_notes": "",
+      "safety_notes": ""
+    },
+    {
+      "id": "task_002",
+      "description": "Technical Architecture Spike \u26a1 CRITICAL",
+      "deployment_notes": "",
+      "status": "pending",
+      "implementation_notes": "",
+      "quality_notes": "",
+      "safety_notes": ""
+    },
+    {
+      "id": "task_003",
+      "description": "Symbol Type Data Model Design",
+      "deployment_notes": "",
+      "status": "pending",
+      "implementation_notes": "",
+      "quality_notes": "",
+      "safety_notes": ""
+    },
+    {
+      "id": "task_004",
+      "description": "Basic Type Extraction Implementation",
+      "deployment_notes": "",
+      "status": "pending",
+      "implementation_notes": "",
+      "quality_notes": "",
+      "safety_notes": ""
+    },
+    {
+      "id": "task_005",
+      "description": "Class Hierarchy Analysis",
+      "deployment_notes": "",
+      "status": "pending",
+      "implementation_notes": "",
+      "quality_notes": "",
+      "safety_notes": ""
+    },
+    {
+      "id": "task_006",
+      "description": "MCP Tool Integration",
+      "deployment_notes": "",
+      "status": "pending",
+      "implementation_notes": "",
+      "quality_notes": "",
+      "safety_notes": ""
+    },
+    {
+      "id": "task_007",
+      "description": "Comprehensive Test Suite",
+      "deployment_notes": "",
+      "status": "pending",
+      "implementation_notes": "",
+      "quality_notes": "",
+      "safety_notes": ""
+    },
+    {
+      "id": "task_008",
+      "description": "Performance Optimization",
+      "deployment_notes": "",
+      "status": "pending",
+      "implementation_notes": "",
+      "quality_notes": "",
+      "safety_notes": ""
+    },
+    {
+      "id": "task_009",
+      "description": "Error Handling & Logging",
+      "deployment_notes": "",
+      "status": "pending",
+      "implementation_notes": "",
+      "quality_notes": "",
+      "safety_notes": ""
+    },
+    {
+      "id": "task_010",
+      "description": "Documentation & Integration",
+      "deployment_notes": "",
+      "status": "pending",
+      "implementation_notes": "",
+      "quality_notes": "",
+      "safety_notes": ""
+    }
+  ],
+  "markdown_breakdown": "# MCP Codebase Intelligence Server - Task Breakdown for Symbol Type Information\n\n## Executive Summary\n\nThis task breakdown addresses the Symbol Type Information user story with a **phased approach** that validates critical assumptions early while leveraging existing infrastructure. Based on estimation insights, we'll start with a technical spike to assess our foundation, then build incrementally with comprehensive testing.\n\n### Key Decisions Needed\n1. **Architecture Validation**: Should we extend existing LSP integration or build new type analysis?\n2. **Quality vs Speed**: Focus on comprehensive Python type support (5 points) or reliable basic functionality (3 points)?\n3. **Fallback Strategy**: How graceful should degradation be when type information is unavailable?\n\n---\n\n## Task Breakdown\n\n### Phase 1: Foundation & Risk Mitigation\n\n#### Task 1.1: Technical Architecture Spike \u26a1 CRITICAL\n**Effort**: 0.5 points | **Priority**: P0 | **Timeline**: Days 1-2\n\n**Description**: Validate our ability to extract type information from existing LSP/symbol infrastructure.\n\n**Acceptance Criteria**:\n- [ ] Audit current LSP server capabilities for type information extraction\n- [ ] Test AST access through existing symbol extraction tools  \n- [ ] Document what type data is readily available vs needs new implementation\n- [ ] Identify circular dependency handling in current codebase\n\n**Risk Mitigation**: \n- Addresses the \"Impact: High - Could double effort\" risk from estimation\n- Provides early warning system for inadequate foundation\n\n**Questions for Review**:\n- Should we proceed with pyright LSP if current tools are inadequate?\n- What's the minimum viable type information for first release?\n\n#### Task 1.2: Symbol Type Data Model Design\n**Effort**: 0.5 points | **Priority**: P0 | **Timeline**: Day 2\n\n**Description**: Design the data structures and database schema for storing type information.\n\n**Acceptance Criteria**:\n- [ ] Define TypeInfo data structure compatible with existing Symbol schema\n- [ ] Design storage for function signatures, parameter types, return types\n- [ ] Plan class hierarchy storage (inheritance chains, method overrides)\n- [ ] Specify fallback data structure for missing type information\n\n**Dependencies**: Requires Task 1.1 completion\n\n---\n\n### Phase 2: Core Implementation\n\n#### Task 2.1: Basic Type Extraction Implementation\n**Effort**: 1.5 points | **Priority**: P1 | **Timeline**: Days 3-5\n\n**Description**: Implement core type information extraction using validated approach from spike.\n\n**Acceptance Criteria**:\n- [ ] Extract function signatures with parameter names and types\n- [ ] Capture return type information where available\n- [ ] Handle Python type hints (Union, Optional, Generic types)\n- [ ] Extract class method signatures and property types\n\n**Quick-Win Opportunity**: \n- Leverage existing symbol extraction to reduce from 2.5 to 1.5 points\n- Reuse existing LSP communication patterns\n\n**Implementation Notes**:\n```python\n@dataclass\nclass TypeInfo:\n    signature: Optional[str]\n    parameters: List[ParameterInfo]\n    return_type: Optional[str]\n    docstring: Optional[str]\n    is_async: bool\n    decorators: List[str]\n```\n\n#### Task 2.2: Class Hierarchy Analysis\n**Effort**: 1.0 points | **Priority**: P1 | **Timeline**: Days 5-6\n\n**Description**: Implement class inheritance and method resolution analysis.\n\n**Acceptance Criteria**:\n- [ ] Extract base class relationships\n- [ ] Identify method overrides and inheritance chains  \n- [ ] Handle multiple inheritance scenarios\n- [ ] Track mixin and ABC (Abstract Base Class) relationships\n\n**Risk Mitigation**: \n- Focuses on Python's specific inheritance model complexity\n- Includes graceful handling of complex multiple inheritance\n\n#### Task 2.3: MCP Tool Integration\n**Effort**: 0.5 points | **Priority**: P1 | **Timeline**: Day 7\n\n**Description**: Expose type information through MCP tool interface.\n\n**Acceptance Criteria**:\n- [ ] Implement `get_type_info(symbol, repository_id)` MCP tool\n- [ ] Return consistent JSON schema for all type information\n- [ ] Handle missing type information gracefully\n- [ ] Integrate with existing symbol lookup tools\n\n**API Design Question for Review**:\n```typescript\ninterface TypeInfoResponse {\n  symbol: string;\n  signature?: string;\n  parameters?: ParameterInfo[];\n  return_type?: string;\n  class_hierarchy?: string[];\n  docstring?: string;\n  source_location: Location;\n}\n```\n- Is this schema sufficient for agent needs?\n\n---\n\n### Phase 3: Quality & Testing\n\n#### Task 3.1: Comprehensive Test Suite\n**Effort**: 1.0 points | **Priority**: P1 | **Timeline**: Days 8-9\n\n**Description**: Build robust test coverage addressing failure modes identified in estimation.\n\n**Acceptance Criteria**:\n- [ ] Test circular import dependency handling\n- [ ] Validate complex inheritance scenarios (diamond problem, mixins)\n- [ ] Test graceful degradation when LSP server fails\n- [ ] Verify performance with large codebases (>1000 classes)\n- [ ] Test type hint edge cases (Union, Generic, TypeVar)\n\n**Failure Mode Coverage** (from Testing_First analysis):\n- Invalid AST nodes causing crashes\n- Circular dependencies in type resolution\n- Memory leaks during type analysis\n- LSP server disconnection during type queries\n\n#### Task 3.2: Performance Optimization\n**Effort**: 0.5 points | **Priority**: P2 | **Timeline**: Day 10\n\n**Description**: Optimize type information retrieval for production use.\n\n**Acceptance Criteria**:\n- [ ] Implement caching for frequently requested type information\n- [ ] Batch type analysis requests to LSP server\n- [ ] Add query timeout handling\n- [ ] Profile memory usage during type analysis\n\n---\n\n### Phase 4: Production Readiness\n\n#### Task 4.1: Error Handling & Logging\n**Effort**: 0.5 points | **Priority**: P2 | **Timeline**: Day 11\n\n**Description**: Implement comprehensive error handling and observability.\n\n**Acceptance Criteria**:\n- [ ] Log type analysis failures with context\n- [ ] Implement fallback responses for missing type data  \n- [ ] Add metrics for type analysis success rates\n- [ ] Handle LSP server timeouts gracefully\n\n#### Task 4.2: Documentation & Integration\n**Effort**: 0.5 points | **Priority**: P2 | **Timeline**: Day 12\n\n**Description**: Document the type information system and integration patterns.\n\n**Acceptance Criteria**:\n- [ ] API documentation for `get_type_info` tool\n- [ ] Integration examples for common use cases\n- [ ] Troubleshooting guide for type analysis failures\n- [ ] Performance characteristics documentation\n\n---\n\n## Risk Mitigation Strategies\n\n### Critical Risk: Inadequate Foundation Infrastructure\n- **Mitigation**: Task 1.1 technical spike provides early validation\n- **Escalation**: If spike reveals major gaps, pivot to pyright LSP integration\n- **Timeline**: Decision point at end of Day 2\n\n### Medium Risk: Complex Python Type System Edge Cases  \n- **Mitigation**: Comprehensive test suite (Task 3.1) with real-world scenarios\n- **Fallback**: Graceful degradation to basic signature information\n- **Monitoring**: Success rate metrics in Task 4.1\n\n### Low Risk: Performance at Scale\n- **Mitigation**: Caching and batching in Task 3.2\n- **Validation**: Load testing with target repositories\n\n---\n\n## Quick-Win Opportunities\n\n### \ud83d\ude80 Leverage Existing Symbol Extraction (Potential 1 point savings)\n**Assessment in Task 1.1**: If existing tools provide AST access, reduce Task 2.1 effort by 1 point\n\n### \ud83d\ude80 Reuse LSP Communication Patterns (Time savings)  \n**Implementation**: Use established LSP client patterns from existing codebase\n\n### \ud83d\ude80 Database Schema Extension (Architecture reuse)\n**Benefit**: Extend existing Symbol table rather than new storage system\n\n---\n\n## Dependencies & Timeline\n\n```mermaid\ngantt\n    title Symbol Type Information Implementation\n    dateFormat X\n    axisFormat %d\n    \n    section Phase 1\n    Architecture Spike    :crit, spike, 0, 2d\n    Data Model Design     :model, after spike, 1d\n    \n    section Phase 2  \n    Type Extraction       :impl1, after model, 3d\n    Class Hierarchy       :impl2, after impl1, 2d\n    MCP Integration       :mcp, after impl2, 1d\n    \n    section Phase 3\n    Test Suite           :test, after mcp, 2d\n    Performance          :perf, after test, 1d\n    \n    section Phase 4\n    Error Handling       :error, after perf, 1d  \n    Documentation        :docs, after error, 1d\n```\n\n**Total Estimate**: 4 points (aligns with consensus)\n**Critical Path**: Architecture spike \u2192 Core implementation \u2192 Testing\n**Delivery Milestones**:\n- Day 2: Architecture validation complete \u2705\n- Day 7: Basic type information working \u2705  \n- Day 10: Production-ready with comprehensive testing \u2705\n\n---\n\n## Open Questions for Review\n\n### \ud83e\udd14 Architecture Decisions\n1. **LSP Server Choice**: Should we standardize on pyright for superior type analysis, or maintain flexibility?\n2. **Type Information Depth**: How comprehensive should our type analysis be initially? Full Python type system or basic signatures?\n\n### \ud83e\udd14 Quality vs Speed Trade-offs  \n1. **Failure Handling**: Is graceful degradation sufficient, or do we need guaranteed type information?\n2. **Performance Requirements**: What's the acceptable response time for type queries? (<200ms, <500ms?)\n\n### \ud83e\udd14 Integration Patterns\n1. **Schema Evolution**: Should TypeInfo be a separate response or embedded in existing symbol data?\n2. **Caching Strategy**: Type information changes less frequently\u2014should we cache aggressively?\n\n### \ud83e\udd14 Testing Strategy\n1. **Test Data**: Should we use real-world repositories or synthetic test cases for validation?\n2. **Performance Baselines**: What repositories should we use for performance benchmarking?\n\n---\n\n## Implementation Context & Notes\n\n### From Domain Expert Analysis\n- Need enterprise-grade compliance with Python type system standards\n- Integration with existing MCP patterns is critical for adoption\n- Consider backward compatibility with repositories lacking type hints\n\n### From Testing-First Analysis  \n- Comprehensive failure mode coverage is essential for reliability\n- Graceful degradation prevents system-wide failures\n- Performance characteristics must be predictable under load\n\n### Architecture Decision Record\n**Decision Point**: After Task 1.1 completion, document the chosen approach:\n- Extend existing LSP integration vs new pyright client\n- Database schema evolution vs new storage\n- Caching strategy for type information\n\n**Tracking**: Create ADR document capturing trade-offs and rationale\n\n---\n\n*This task breakdown enables incremental development with early validation of critical assumptions while maintaining focus on both speed and quality based on the estimation debate insights.*",
+  "markdown_file": "/Users/mstriebeck/Code/github-agent/improvements/mcp_codebase_server_user_stories/task-breakdown-us006.md",
+  "unified_personas": true,
+  "github_pr": {
+    "success": false,
+    "error": "Failed to create PR: a pull request for branch \"task-breakdown/us006-symbol-type-information\" into branch \"main\" already exists:\nhttps://github.com/MarksStuff/github-agent/pull/61\n",
+    "branch_name": "task-breakdown/us006-symbol-type-information",
+    "filename": "task-breakdown-us006.md"
+  }
+}

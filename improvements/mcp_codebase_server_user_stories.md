@@ -37,7 +37,7 @@
 - Sub-second response time for simple queries
 - Integration with existing repository port assignments
 
-### US005 - Python LSP Integration
+### US005 - Python LSP Integration - DONE
 **As a developer** I want accurate symbol definitions and references through Python LSP so that I get semantic understanding rather than text matching.
 
 **Acceptance Criteria:**

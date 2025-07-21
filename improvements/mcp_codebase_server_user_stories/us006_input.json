@@ -1,0 +1,14 @@
+{
+  "design_doc_path": "/Users/mstriebeck/Code/github-agent/improvements/mcp_codebase_server_design.md",
+  "user_story": {
+    "id": "US006",
+    "title": "Symbol Type Information",
+    "description": "As a developer I want to retrieve type information and signatures for Python symbols so that I understand how to use them correctly.",
+    "acceptance_criteria": [
+      "get_type_info(symbol, repository_id) returns function signatures, parameter types",
+      "Support for Python type hints and docstrings",
+      "Class hierarchy information (base classes, methods)",
+      "Variable type inference from context"
+    ]
+  }
+}
