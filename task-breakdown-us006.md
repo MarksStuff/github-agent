@@ -1,344 +1,290 @@
-# Task Breakdown: Symbol Type Information Feature
+# MCP Codebase Intelligence Server - Task Breakdown for Symbol Type Information
 
-## Executive Summary & Key Decisions Needed
+## Executive Summary
 
-This feature implements semantic type information retrieval to replace grep-based code discovery, targeting **95-99% token reduction** for AI agents. Based on estimation insights, we're balancing fast delivery with architectural quality to avoid technical debt.
+This task breakdown addresses the Symbol Type Information user story with a **phased approach** that validates critical assumptions early while leveraging existing infrastructure. Based on estimation insights, we'll start with a technical spike to assess our foundation, then build incrementally with comprehensive testing.
 
-### 🔥 Critical Decisions for Review
-1. **Performance SLA**: Should we target <200ms response time from day 1, or start with <2s and optimize?
-2. **Architecture Approach**: Start with `inspect` module + simple caching, or implement full LSP integration immediately?
-3. **Scope**: Focus on 80% common cases first, or address complex type scenarios (generics, inheritance) upfront?
-4. **Deployment Strategy**: Ship MVP and iterate, or build comprehensive solution before release?
+### Key Decisions Needed
+1. **Architecture Validation**: Should we extend existing LSP integration or build new type analysis?
+2. **Quality vs Speed**: Focus on comprehensive Python type support (5 points) or reliable basic functionality (3 points)?
+3. **Fallback Strategy**: How graceful should degradation be when type information is unavailable?
 
 ---
 
 ## Task Breakdown
 
-### 🚀 Phase 1: Quick Wins & Foundation (3-4 days)
+### Phase 1: Foundation & Risk Mitigation
 
-#### Task 1.1: Performance Baseline & Validation Spike
-**Priority**: CRITICAL - Validates core assumption
-**Estimate**: 0.5 days
+#### Task 1.1: Technical Architecture Spike ⚡ CRITICAL
+**Effort**: 0.5 points | **Priority**: P0 | **Timeline**: Days 1-2
+
+**Description**: Validate our ability to extract type information from existing LSP/symbol infrastructure.
 
 **Acceptance Criteria**:
-- [ ] Benchmark current LSP type query response times on 3 representative repositories
-- [ ] Document baseline: avg/p95 response times for `hover`, `definition`, `typeDefinition` requests
-- [ ] Validate <200ms target is achievable with existing LSP infrastructure
-- [ ] Test LSP server stability under concurrent type queries
+- [ ] Audit current LSP server capabilities for type information extraction
+- [ ] Test AST access through existing symbol extraction tools  
+- [ ] Document what type data is readily available vs needs new implementation
+- [ ] Identify circular dependency handling in current codebase
 
-**Risk Mitigation**: Addresses "Performance Baseline" assumption - need concrete data before committing to SLAs
+**Risk Mitigation**: 
+- Addresses the "Impact: High - Could double effort" risk from estimation
+- Provides early warning system for inadequate foundation
+
+**Questions for Review**:
+- Should we proceed with pyright LSP if current tools are inadequate?
+- What's the minimum viable type information for first release?
+
+#### Task 1.2: Symbol Type Data Model Design
+**Effort**: 0.5 points | **Priority**: P0 | **Timeline**: Day 2
+
+**Description**: Design the data structures and database schema for storing type information.
+
+**Acceptance Criteria**:
+- [ ] Define TypeInfo data structure compatible with existing Symbol schema
+- [ ] Design storage for function signatures, parameter types, return types
+- [ ] Plan class hierarchy storage (inheritance chains, method overrides)
+- [ ] Specify fallback data structure for missing type information
+
+**Dependencies**: Requires Task 1.1 completion
+
+---
+
+### Phase 2: Core Implementation
+
+#### Task 2.1: Basic Type Extraction Implementation
+**Effort**: 1.5 points | **Priority**: P1 | **Timeline**: Days 3-5
+
+**Description**: Implement core type information extraction using validated approach from spike.
+
+**Acceptance Criteria**:
+- [ ] Extract function signatures with parameter names and types
+- [ ] Capture return type information where available
+- [ ] Handle Python type hints (Union, Optional, Generic types)
+- [ ] Extract class method signatures and property types
+
+**Quick-Win Opportunity**: 
+- Leverage existing symbol extraction to reduce from 2.5 to 1.5 points
+- Reuse existing LSP communication patterns
 
 **Implementation Notes**:
 ```python
-# Benchmark script to measure LSP query times
-def benchmark_lsp_performance():
-    # Test hover, definition, typeDefinition on various symbol types
-    # Measure response times across different file sizes
-    # Document LSP server resource usage
+@dataclass
+class TypeInfo:
+    signature: Optional[str]
+    parameters: List[ParameterInfo]
+    return_type: Optional[str]
+    docstring: Optional[str]
+    is_async: bool
+    decorators: List[str]
 ```
 
-**Review Questions**:
-- Should we benchmark against multiple LSP servers (pyright vs pylsp)?
-- What's acceptable performance degradation under load?
+#### Task 2.2: Class Hierarchy Analysis
+**Effort**: 1.0 points | **Priority**: P1 | **Timeline**: Days 5-6
 
----
-
-#### Task 1.2: Python Inspect Module Integration
-**Priority**: HIGH - Leverages quick-win opportunity
-**Estimate**: 1 day
+**Description**: Implement class inheritance and method resolution analysis.
 
 **Acceptance Criteria**:
-- [ ] Implement `get_basic_type_info()` using Python's `inspect` module
-- [ ] Extract function signatures, parameter types, return annotations
-- [ ] Handle class hierarchy (MRO, base classes, methods)
-- [ ] Support for both runtime and static analysis scenarios
-- [ ] 90% test coverage on common Python constructs
+- [ ] Extract base class relationships
+- [ ] Identify method overrides and inheritance chains  
+- [ ] Handle multiple inheritance scenarios
+- [ ] Track mixin and ABC (Abstract Base Class) relationships
 
-**Quick-Win Leverage**: Uses built-in Python capabilities without LSP complexity
+**Risk Mitigation**: 
+- Focuses on Python's specific inheritance model complexity
+- Includes graceful handling of complex multiple inheritance
 
-**Implementation Notes**:
-```python
-def get_basic_type_info(symbol_name: str, module_path: str) -> TypeInfo:
-    """Fast type info using inspect module"""
-    # Import module dynamically
-    # Use inspect.signature(), inspect.getmembers()
-    # Handle classes with inspect.getmro()
-    # Fallback gracefully when inspection fails
+#### Task 2.3: MCP Tool Integration
+**Effort**: 0.5 points | **Priority**: P1 | **Timeline**: Day 7
+
+**Description**: Expose type information through MCP tool interface.
+
+**Acceptance Criteria**:
+- [ ] Implement `get_type_info(symbol, repository_id)` MCP tool
+- [ ] Return consistent JSON schema for all type information
+- [ ] Handle missing type information gracefully
+- [ ] Integrate with existing symbol lookup tools
+
+**API Design Question for Review**:
+```typescript
+interface TypeInfoResponse {
+  symbol: string;
+  signature?: string;
+  parameters?: ParameterInfo[];
+  return_type?: string;
+  class_hierarchy?: string[];
+  docstring?: string;
+  source_location: Location;
+}
 ```
-
-**Dependencies**: None - can work independently
-
----
-
-#### Task 1.3: Simple Caching Layer
-**Priority**: MEDIUM - Performance optimization
-**Estimate**: 0.5 days
-
-**Acceptance Criteria**:
-- [ ] In-memory LRU cache for type information (1000 entries)
-- [ ] Cache key: (symbol_name, file_path, file_mtime)
-- [ ] Cache hit rate >80% for repeated queries
-- [ ] Memory usage <50MB for typical workloads
-
-**Risk Mitigation**: Addresses caching performance concerns without over-engineering
-
-**Implementation Notes**:
-```python
-from functools import lru_cache
-from typing import Dict, Optional
-
-@lru_cache(maxsize=1000)
-def cached_type_info(symbol_name: str, file_hash: str) -> Optional[TypeInfo]:
-    # Simple caching with file hash for invalidation
-```
+- Is this schema sufficient for agent needs?
 
 ---
 
-### 🔧 Phase 2: LSP Integration & Enhancement (2-3 days)
+### Phase 3: Quality & Testing
 
-#### Task 2.1: LSP Type Query Integration
-**Priority**: HIGH - Core functionality
-**Estimate**: 1.5 days
+#### Task 3.1: Comprehensive Test Suite
+**Effort**: 1.0 points | **Priority**: P1 | **Timeline**: Days 8-9
+
+**Description**: Build robust test coverage addressing failure modes identified in estimation.
 
 **Acceptance Criteria**:
-- [ ] Integrate with existing LSP client architecture
-- [ ] Implement `lsp_get_type_info()` using hover + typeDefinition requests
-- [ ] Parse LSP responses into structured TypeInfo objects
-- [ ] Handle LSP errors gracefully (reuse 70+ error codes pattern)
-- [ ] Support for both pyright and pylsp servers
+- [ ] Test circular import dependency handling
+- [ ] Validate complex inheritance scenarios (diamond problem, mixins)
+- [ ] Test graceful degradation when LSP server fails
+- [ ] Verify performance with large codebases (>1000 classes)
+- [ ] Test type hint edge cases (Union, Generic, TypeVar)
 
-**Risk Mitigation**: Reuses established LSP patterns to reduce integration complexity
+**Failure Mode Coverage** (from Testing_First analysis):
+- Invalid AST nodes causing crashes
+- Circular dependencies in type resolution
+- Memory leaks during type analysis
+- LSP server disconnection during type queries
 
-**Implementation Notes**:
-```python
-async def lsp_get_type_info(symbol: str, position: Position) -> TypeInfo:
-    # Use existing LSP client connection pool
-    # Send hover + typeDefinition requests
-    # Parse markdown responses into structured data
-    # Handle LSP server differences (pyright vs pylsp)
-```
+#### Task 3.2: Performance Optimization
+**Effort**: 0.5 points | **Priority**: P2 | **Timeline**: Day 10
 
-**Dependencies**: Requires existing LSP infrastructure
+**Description**: Optimize type information retrieval for production use.
+
+**Acceptance Criteria**:
+- [ ] Implement caching for frequently requested type information
+- [ ] Batch type analysis requests to LSP server
+- [ ] Add query timeout handling
+- [ ] Profile memory usage during type analysis
 
 ---
 
-#### Task 2.2: Hybrid Approach Implementation
-**Priority**: HIGH - Architecture decision
-**Estimate**: 1 day
+### Phase 4: Production Readiness
+
+#### Task 4.1: Error Handling & Logging
+**Effort**: 0.5 points | **Priority**: P2 | **Timeline**: Day 11
+
+**Description**: Implement comprehensive error handling and observability.
 
 **Acceptance Criteria**:
-- [ ] Implement fallback chain: inspect → LSP → basic text analysis
-- [ ] Performance routing: use inspect for runtime info, LSP for static analysis
-- [ ] Merge results from multiple sources intelligently
-- [ ] Document which approach works best for different scenarios
+- [ ] Log type analysis failures with context
+- [ ] Implement fallback responses for missing type data  
+- [ ] Add metrics for type analysis success rates
+- [ ] Handle LSP server timeouts gracefully
 
-**Risk Mitigation**: Provides robustness against single-point-of-failure
+#### Task 4.2: Documentation & Integration
+**Effort**: 0.5 points | **Priority**: P2 | **Timeline**: Day 12
 
-**Implementation Notes**:
-```python
-def get_type_info(symbol: str, context: AnalysisContext) -> TypeInfo:
-    # Try inspect module first (fast path)
-    # Fall back to LSP for static analysis
-    # Combine results for comprehensive view
-    # Log which method provided the information
-```
-
----
-
-### 🎯 Phase 3: Advanced Features & Optimization (2-3 days)
-
-#### Task 3.1: Complex Type Scenario Handling
-**Priority**: MEDIUM - Addresses domain expert concerns
-**Estimate**: 1.5 days
+**Description**: Document the type information system and integration patterns.
 
 **Acceptance Criteria**:
-- [ ] Handle Python generics (`List[str]`, `Dict[str, Any]`)
-- [ ] Support inheritance relationships and method resolution order
-- [ ] Dynamic typing scenarios (duck typing, `Any` types)
-- [ ] Protocol and abstract base class support
-- [ ] Type union and optional handling
-
-**Risk Mitigation**: Addresses business domain complexity to avoid architectural debt
-
-**Review Questions**:
-- Should this be in Phase 1 to avoid rework, or can we ship without it?
-- Which complex scenarios are most critical for user workflows?
-
----
-
-#### Task 3.2: Performance Optimization & Monitoring
-**Priority**: MEDIUM - Long-term sustainability
-**Estimate**: 1 day
-
-**Acceptance Criteria**:
-- [ ] Implement request batching for multiple symbol queries
-- [ ] Add performance metrics collection (response times, cache hit rates)
-- [ ] Optimize cache eviction strategy based on usage patterns
-- [ ] Connection pooling for LSP servers if not already present
-- [ ] Performance regression tests
-
-**Implementation Notes**:
-```python
-class TypeInfoMetrics:
-    def record_query_time(self, duration_ms: int):
-        # Track P95, P99 response times
-    def record_cache_hit_rate(self, hit_rate: float):
-        # Monitor cache effectiveness
-```
-
----
-
-### 🧪 Phase 4: Integration & Testing (1-2 days)
-
-#### Task 4.1: MCP Tool Integration
-**Priority**: HIGH - User-facing interface
-**Estimate**: 0.5 days
-
-**Acceptance Criteria**:
-- [ ] Implement `get_type_info` MCP tool with proper schema
-- [ ] Handle repository_id parameter for multi-repo support
-- [ ] Return structured JSON response matching design document
-- [ ] Error handling with meaningful messages for users
-
-**Implementation Notes**:
-```python
-@mcp_tool
-def get_type_info(symbol: str, repository_id: Optional[str] = None) -> Dict:
-    # Route to appropriate repository
-    # Call type analysis chain
-    # Format response for MCP protocol
-    return {
-        "symbol": symbol,
-        "signature": "...",
-        "type_info": {...},
-        "source": "inspect|lsp|fallback"
-    }
-```
-
----
-
-#### Task 4.2: End-to-End Testing
-**Priority**: HIGH - Quality assurance
-**Estimate**: 1 day
-
-**Acceptance Criteria**:
-- [ ] Test against 3 different Python repositories (Django, FastAPI, data science)
-- [ ] Validate token reduction claims with before/after comparisons
-- [ ] Performance testing under various load scenarios
-- [ ] Integration testing with existing MCP server infrastructure
-- [ ] User acceptance testing with real AI agent workflows
-
-**Risk Mitigation**: Validates core business value proposition
+- [ ] API documentation for `get_type_info` tool
+- [ ] Integration examples for common use cases
+- [ ] Troubleshooting guide for type analysis failures
+- [ ] Performance characteristics documentation
 
 ---
 
 ## Risk Mitigation Strategies
 
-### 🛡️ Technical Risks
-| Risk | Mitigation Task | Success Criteria |
-|------|----------------|------------------|
-| LSP Integration Complexity | Task 2.1 + reuse existing patterns | <1 day integration time |
-| Performance SLA | Task 1.1 baseline + Task 3.2 optimization | <200ms P95 response time |
-| Cache Effectiveness | Task 1.3 simple cache + monitoring | >80% hit rate |
+### Critical Risk: Inadequate Foundation Infrastructure
+- **Mitigation**: Task 1.1 technical spike provides early validation
+- **Escalation**: If spike reveals major gaps, pivot to pyright LSP integration
+- **Timeline**: Decision point at end of Day 2
 
-### 🏢 Business Risks
-| Risk | Mitigation Task | Success Criteria |
-|------|----------------|------------------|
-| Insufficient Type Coverage | Task 3.1 complex scenarios | Handle 95% of real-world cases |
-| Token Reduction Claims | Task 4.2 validation testing | Demonstrate 95%+ reduction |
-| User Adoption | Task 4.1 clean MCP interface | Intuitive API design |
+### Medium Risk: Complex Python Type System Edge Cases  
+- **Mitigation**: Comprehensive test suite (Task 3.1) with real-world scenarios
+- **Fallback**: Graceful degradation to basic signature information
+- **Monitoring**: Success rate metrics in Task 4.1
+
+### Low Risk: Performance at Scale
+- **Mitigation**: Caching and batching in Task 3.2
+- **Validation**: Load testing with target repositories
 
 ---
 
 ## Quick-Win Opportunities
 
-### ✅ Immediate Value (Phase 1)
-- **Python inspect module**: 80% of use cases with zero LSP complexity
-- **Simple caching**: Major performance boost with minimal code
-- **Existing LSP infrastructure**: Reuse connection pooling and error handling
+### 🚀 Leverage Existing Symbol Extraction (Potential 1 point savings)
+**Assessment in Task 1.1**: If existing tools provide AST access, reduce Task 2.1 effort by 1 point
 
-### ⚡ Performance Wins (Phase 2-3)
-- **Request batching**: Handle multiple symbols in single LSP query
-- **Connection pooling**: Reduce LSP server startup overhead
-- **Smart fallbacks**: Fast path for common scenarios
+### 🚀 Reuse LSP Communication Patterns (Time savings)  
+**Implementation**: Use established LSP client patterns from existing codebase
+
+### 🚀 Database Schema Extension (Architecture reuse)
+**Benefit**: Extend existing Symbol table rather than new storage system
 
 ---
 
 ## Dependencies & Timeline
 
-### 📅 Critical Path (6-9 days total)
+```mermaid
+gantt
+    title Symbol Type Information Implementation
+    dateFormat X
+    axisFormat %d
+    
+    section Phase 1
+    Architecture Spike    :crit, spike, 0, 2d
+    Data Model Design     :model, after spike, 1d
+    
+    section Phase 2  
+    Type Extraction       :impl1, after model, 3d
+    Class Hierarchy       :impl2, after impl1, 2d
+    MCP Integration       :mcp, after impl2, 1d
+    
+    section Phase 3
+    Test Suite           :test, after mcp, 2d
+    Performance          :perf, after test, 1d
+    
+    section Phase 4
+    Error Handling       :error, after perf, 1d  
+    Documentation        :docs, after error, 1d
 ```
-Phase 1 (3-4 days): Foundation + Quick Wins
-├── Task 1.1: Performance Baseline (0.5d) ← CRITICAL FIRST
-├── Task 1.2: Inspect Integration (1d) ← Can parallel
-└── Task 1.3: Simple Caching (0.5d) ← Depends on 1.2
 
-Phase 2 (2-3 days): LSP Integration  
-├── Task 2.1: LSP Integration (1.5d) ← Depends on 1.1
-└── Task 2.2: Hybrid Approach (1d) ← Depends on 1.2, 2.1
-
-Phase 3 (2-3 days): Advanced Features
-├── Task 3.1: Complex Types (1.5d) ← Can parallel with 3.2
-└── Task 3.2: Performance Optimization (1d)
-
-Phase 4 (1-2 days): Integration
-├── Task 4.1: MCP Tool (0.5d) ← Depends on Phase 2
-└── Task 4.2: E2E Testing (1d) ← Depends on all phases
-```
-
-### 🔗 External Dependencies
-- Existing LSP server infrastructure (pyright/pylsp installations)
-- MCP server framework and tool registration
-- Repository configuration system
-- Test repositories for validation
+**Total Estimate**: 4 points (aligns with consensus)
+**Critical Path**: Architecture spike → Core implementation → Testing
+**Delivery Milestones**:
+- Day 2: Architecture validation complete ✅
+- Day 7: Basic type information working ✅  
+- Day 10: Production-ready with comprehensive testing ✅
 
 ---
 
 ## Open Questions for Review
 
 ### 🤔 Architecture Decisions
-1. **Phase 1 vs Full Implementation**: Should we ship Phase 1 as MVP, or complete all phases before release?
-   - *Lean toward MVP approach for faster user feedback*
+1. **LSP Server Choice**: Should we standardize on pyright for superior type analysis, or maintain flexibility?
+2. **Type Information Depth**: How comprehensive should our type analysis be initially? Full Python type system or basic signatures?
 
-2. **Performance SLA**: Is <200ms realistic for initial release, or should we target <2s first?
-   - *Need Task 1.1 results to make informed decision*
+### 🤔 Quality vs Speed Trade-offs  
+1. **Failure Handling**: Is graceful degradation sufficient, or do we need guaranteed type information?
+2. **Performance Requirements**: What's the acceptable response time for type queries? (<200ms, <500ms?)
 
-3. **Complex Type Handling**: Can we defer Task 3.1 to post-MVP, or is it critical for user adoption?
-   - *Depends on target user workflows - need product input*
+### 🤔 Integration Patterns
+1. **Schema Evolution**: Should TypeInfo be a separate response or embedded in existing symbol data?
+2. **Caching Strategy**: Type information changes less frequently—should we cache aggressively?
 
-### 📊 Success Metrics
-1. **Token Reduction Validation**: How do we measure the 95-99% token reduction claim?
-   - *Proposed: A/B test with before/after agent sessions*
-
-2. **Performance Benchmarks**: What constitutes acceptable performance under load?
-   - *Need guidance on concurrent user expectations*
-
-### 🚀 Deployment Strategy
-1. **Feature Flag**: Should this be behind a feature flag for gradual rollout?
-2. **Backward Compatibility**: Any concerns about changing existing MCP tool interfaces?
+### 🤔 Testing Strategy
+1. **Test Data**: Should we use real-world repositories or synthetic test cases for validation?
+2. **Performance Baselines**: What repositories should we use for performance benchmarking?
 
 ---
 
-## Implementation Notes & Context
+## Implementation Context & Notes
 
-### 🏗️ Architecture Principles
-- **Fail Fast**: Task 1.1 validates core assumptions before major investment
-- **Incremental Value**: Each phase delivers working functionality
-- **Reuse Over Rebuild**: Leverage existing LSP infrastructure heavily
-- **Performance First**: Monitoring and optimization built in from start
+### From Domain Expert Analysis
+- Need enterprise-grade compliance with Python type system standards
+- Integration with existing MCP patterns is critical for adoption
+- Consider backward compatibility with repositories lacking type hints
 
-### 🔍 Code Quality Standards
-- 90% test coverage on new functionality
-- Type hints on all public interfaces
-- Comprehensive error handling with meaningful messages
-- Performance regression tests for critical paths
+### From Testing-First Analysis  
+- Comprehensive failure mode coverage is essential for reliability
+- Graceful degradation prevents system-wide failures
+- Performance characteristics must be predictable under load
 
-### 📝 Documentation Requirements
-- API documentation for new MCP tools
-- Performance characteristics and SLA documentation
-- Troubleshooting guide for common issues
-- Integration examples for AI agent developers
+### Architecture Decision Record
+**Decision Point**: After Task 1.1 completion, document the chosen approach:
+- Extend existing LSP integration vs new pyright client
+- Database schema evolution vs new storage
+- Caching strategy for type information
+
+**Tracking**: Create ADR document capturing trade-offs and rationale
 
 ---
 
-**Ready for Review**: Please comment on specific tasks, architecture decisions, and timeline concerns. Priority questions are marked with 🔥 for immediate feedback.
+*This task breakdown enables incremental development with early validation of critical assumptions while maintaining focus on both speed and quality based on the estimation debate insights.*
