@@ -1,0 +1,57 @@
+{
+  "feature_spec": {
+    "name": "When we use the github_post_pr_reply tool, we need to persist which comments we replied to. And then use this to make sure that subsequent calls of github_get_pr_comments don't return comments that we already replied to.",
+    "description": "When we use the github_post_pr_reply tool, we need to persist which comments we replied to. And then use this to make sure that subsequent calls of github_get_pr_comments don't return comments that we already replied to.\nUse SQLite - which ew already use for the symbol storage.\n",
+    "requirements": [
+      "Implement as specified in the description"
+    ],
+    "acceptance_criteria": [
+      "Feature works as described"
+    ],
+    "constraints": []
+  },
+  "codebase_state": {
+    "repository": "mstriebeck/github-agent",
+    "branch": "feature/when-we-use-the-githubpostprreply-tool-we-need-to-",
+    "commit_sha": "5cd5edb91ac1d00e265c4ad222e6af993eca0a78",
+    "analysis_summary": "Repository: mstriebeck/github-agent\nBranch: main\nTotal files: 186\nDirectories: 16\nTechnologies: Python\nTest frameworks: Python tests in tests/, pytest\nPatterns: Configuration Management\nTop languages: .py: 94, .html: 30, .md: 26, .json: 7, .sh: 7",
+    "patterns_identified": [
+      "Configuration Management"
+    ],
+    "existing_tests": {
+      "frameworks": [
+        "Python tests in tests/",
+        "pytest"
+      ]
+    }
+  },
+  "analysis_results": {
+    "architect": {
+      "content": "## Architectural Recommendations\n\n**Design Pattern**: Repository Pattern with Unit of Work for database operations\n**Integration Strategy**: Extend existing SQLite infrastructure rather than introducing new persistence layer\n**Scalability Approach**: Start simple with SQLite - upgrade only if actual performance data justifies complexity\n\n**Key Architectural Principles Applied:**\n1. **Single Responsibility**: CommentFilter handles filtering logic separately from API calls\n2. **Consistency**: Follow existing database patterns and transaction handling\n3. **Realistic Scale**: SQLite appropriate for GitHub agent workload patterns\n4. **Fail-Safe Design**: Graceful degradation if tracking fails doesn't break core functionality\n\nThis architecture maintains system cohesion while adding the required functionality with minimal complexity overhead.",
+      "timestamp": "2025-07-25T19:57:54.805206",
+      "status": "success",
+      "error": null
+    },
+    "developer": {
+      "content": "## Fast Implementation Analysis\n\n### 1. Implementation Approach (Quick Wins)\n\n**Core Strategy:** Simple SQLite table + wrapper functions\n- Create `replied_comments` table with comment_id + timestamp\n- Modify existing tools to check/record replies\n- Use basic SQL operations - fast to implement\n\n**Quick wins first:**\n1. Single table design: `(comment_id, pr_number, replied_at)`\n2. Two helper functions: `mark_comment_replied()` and `is_comment_replied()`\n3. Filter logic in `github_get_pr_comments`\n\n### 2. Development Estimate\n\n**MVP: 2-3 hours**\n- Database setup: 30 mins\n- Helper functions: 45 mins  \n- Integration: 60 mins\n- Basic testing: 30 mins\n\n**Milestones:**\n1. Working SQLite table (30 mins)\n2. Reply tracking works (1 hour)\n3. Comment filtering works (1.5 hours)\n4. End-to-end validation (2 hours)\n\n### 3. Technical Choices (Speed-focused)\n\n**Libraries:** Use Python's built-in `sqlite3` - zero dependencies\n**Schema:** Minimal viable structure:\n```sql\nCREATE TABLE replied_comments (\n    comment_id INTEGER PRIMARY KEY,\n    pr_number INTEGER,\n    replied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n```\n\n**Integration points:**\n- `github_post_pr_reply`: Add `mark_comment_replied(comment_id)` call\n- `github_get_pr_comments`: Filter with `WHERE comment_id NOT IN (SELECT...)`\n\n### 4. Prototype Ideas\n\n**Quick validation:**\n1. Create table + insert test data\n2. Verify filtering works with mock comments\n3. Test reply marking functionality\n\n**Prototype demonstrates:** Comments disappear from results after reply, no duplicates possible.\n\n**Next steps:** Add error handling, consider bulk operations, add cleanup for old entries.\n\nWant me to implement this MVP approach right now?",
+      "timestamp": "2025-07-25T19:59:05.537381",
+      "status": "success",
+      "error": null
+    },
+    "senior_engineer": {
+      "content": "",
+      "timestamp": "2025-07-25T20:00:21.809940",
+      "status": "success",
+      "error": null
+    },
+    "tester": {
+      "content": "## IMPLEMENTATION RECOMMENDATION\n\n**Start with these failing tests first:**\n\n1. `test_empty_database_returns_no_replied_comments()`\n2. `test_mark_comment_as_replied_persists_to_database()`  \n3. `test_filter_removes_already_replied_comments()`\n4. `test_concurrent_reply_marking_is_thread_safe()`\n\n**Key Testability Principles Applied:**\n- Pure dependency injection eliminates global state\n- Abstract interfaces enable perfect isolation testing  \n- Custom mock objects provide full control over test scenarios\n- Small, focused methods make unit testing comprehensive\n- Separation of concerns isolates database, API, and business logic\n\nThis test-driven approach ensures robust, maintainable code with high confidence in correctness.",
+      "timestamp": "2025-07-25T20:01:55.987203",
+      "status": "success",
+      "error": null
+    }
+  },
+  "workflow_phase": "round_1_analysis",
+  "pr_number": 63,
+  "created_at": "2025-07-25T19:55:47.576759"
+}
