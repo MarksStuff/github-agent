@@ -1,7 +1,7 @@
 # Architect Analysis
 
 **Feature**: When we use the github_post_pr_reply tool, we need to persist which comments we replied to. And then use this to make sure that subsequent calls of github_get_pr_comments don't return comments that we already replied to.
-**Date**: 2025-07-29T07:22:29.196389
+**Date**: 2025-07-29T15:55:10.267392
 **Agent**: architect
 
 ## Analysis
