@@ -3,7 +3,7 @@
 **Feature**: When we use the github_post_pr_reply tool, we need to persist which comments we replied to. And then use this to make sure that subsequent calls of github_get_pr_comments don't return comments that we already replied to.
 **Repository**: mstriebeck/github-agent
 **Branch**: tracking-comments
-**Date**: 2025-07-28T19:04:04.803908
+**Date**: 2025-07-28T19:33:23.459590
 
 ## Codebase Context
 
