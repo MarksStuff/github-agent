@@ -1,113 +1,26 @@
 # Developer Analysis
 
 **Feature**: When we use the github_post_pr_reply tool, we need to persist which comments we replied to. And then use this to make sure that subsequent calls of github_get_pr_comments don't return comments that we already replied to.
-**Date**: 2025-07-28T23:41:16.295714
+**Date**: 2025-07-29T07:22:29.196705
 **Agent**: developer
 
 ## Analysis
 
-Based on the analysis document and the context provided, let me provide the implementation analysis based on the described architecture:
+## 5. Fast Development Sequence
 
-## IMPLEMENTATION ANALYSIS: GitHub Comment Reply Tracking
+**MVP Implementation Order**:
+1. **Extend schema** - Add table to existing `create_schema()` method
+2. **Add tracking methods** - 3 simple methods to `SQLiteSymbolStorage`
+3. **Hook post_reply** - Single line in `execute_post_pr_reply()`
+4. **Filter comments** - Simple list comprehension in `execute_get_pr_comments()`
+5. **Test manually** - Quick verification with real PR
 
-### 1. **Implementation Strategy Analysis**
+**Validation Strategy**:
+- **Immediate feedback**: Log every reply tracking operation
+- **Simple verification**: Check database with SQL queries
+- **End-to-end test**: Reply to comment, verify it disappears from next fetch
 
-**Architecture Fit**: This feature aligns perfectly with the existing SQLite symbol storage pattern. The `symbol_storage.py` module provides a proven template for database abstractions with the `AbstractSymbolStorage` interface and `SQLiteSymbolStorage` implementation.
-
-**File Organization**: Following the established pattern:
-- Create `comment_reply_storage.py` in the root directory alongside `symbol_storage.py`
-- Extend `github_tools.py` to integrate the tracking functionality
-- Keep database schema updates within the storage module
-
-**Class Design**: Mirror the symbol storage pattern:
-- `AbstractCommentReplyStorage` interface
-- `SQLiteCommentReplyStorage` implementation 
-- `ProductionCommentReplyStorage` factory
-- Integration into `GitHubAPIContext` for repository-specific access
-
-**Integration Points**: Hook into existing workflow at two key points:
-- `github_post_pr_reply` - Add tracking after successful reply
-- `github_get_pr_comments` - Filter out already-replied comments
-
-### 2. **Existing Code Leverage Analysis**
-
-**Reusable Components**: 
-- SQLite connection patterns from `symbol_storage.py`
-- Error handling and retry logic already proven
-- Database initialization in `mcp_master.py` pattern
-- WAL mode and connection pooling strategies
-
-**Utility Functions**: 
-- Existing database location logic (`~/.local/share/github-agent/symbols.db`)
-- Batch processing patterns (though less relevant here)
-- Timestamp handling from symbol storage
-
-**Patterns to Follow**:
-- Same abstract base class pattern
-- Identical error resilience approach
-- Repository-scoped operations via `repository_id`
-- Dependency injection through constructor
-
-**Dependencies**: All required SQLite infrastructure already exists - no new dependencies needed.
-
-### 3. **Implementation Complexity Assessment**
-
-**Core vs. Optional**:
-- **Core**: Basic reply tracking with comment ID + repository scope
-- **Optional**: Reply content storage, user tracking, timestamp queries
-
-**Complexity Ranking**:
-- **Low**: Database schema and basic CRUD operations
-- **Medium**: Integration into existing GitHub tools without breaking changes
-- **Low**: Filtering logic in comment retrieval
-
-**Risk Areas**:
-- Comment ID uniqueness across different PR contexts
-- Ensuring atomic operations between reply posting and tracking
-- Thread safety with concurrent workers (though existing symbol storage handles this)
-
-**Validation Strategy**: 
-- Test with single PR comment cycle
-- Verify filtering works across multiple calls
-- Confirm no duplicate replies on repeated runs
-
-### 4. **Technical Decision Analysis**
-
-**Data Flow**:
-1. `github_get_pr_comments` → Query tracking storage → Filter results
-2. `github_post_pr_reply` → Post to GitHub → Record in tracking storage
-
-**Error Handling**:
-- If tracking storage fails after successful reply, log warning but don't fail
-- If tracking lookup fails, default to returning all comments (safe fallback)
-- Repository ID validation to prevent cross-contamination
-
-**Performance**: Minimal impact - simple indexed lookups, same database as symbols
-
-**Configuration**: Reuse existing database location pattern, no new config needed
-
-### 5. **Development Approach Recommendation**
-
-**Implementation Order**:
-1. **Database schema & storage class** - Standalone, testable component
-2. **Integration into github_post_pr_reply** - Low-risk addition
-3. **Filtering in github_get_pr_comments** - Core feature completion
-4. **Error handling refinement** - Polish and edge cases
-
-**Testing Strategy**:
-- Unit tests for storage operations
-- Integration test with mock GitHub API calls
-- End-to-end test with actual PR comment cycle
-
-**MVP Definition**: 
-- Successfully track one comment reply
-- Filter that comment from subsequent retrievals
-- No crashes or data corruption under normal operation
-
-**Quick Start Approach**:
-Database schema first - simple table with comment_id, repository_id, replied_at. Then integrate tracking into post operation, finally add filtering to get operation. This minimizes risk while enabling rapid feedback on each component.
-
-The existing SQLite infrastructure makes this a straightforward extension rather than a complex new feature. The proven patterns reduce implementation risk significantly.
+**This approach gets a working system in ~30 minutes** by leveraging existing, proven patterns rather than building from scratch.
 
 ---
 *This analysis was generated by the developer agent as part of the multi-agent workflow.*
