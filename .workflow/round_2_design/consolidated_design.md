@@ -2,428 +2,617 @@
 
 ## 1. Introduction
 
-This design document specifies the implementation of PR comment reply persistence for the GitHub Agent codebase. The feature tracks which PR comments have been replied to and filters them from subsequent `github_get_pr_comments` calls to prevent duplicate responses.
+This design document specifies the implementation of PR comment reply persistence for the GitHub MCP agent system. The feature enables tracking which PR comments have been replied to, preventing duplicate responses and improving workflow efficiency.
 
-The solution extends the existing [`SQLiteSymbolStorage`](file:///Users/mstriebeck/Code/github-agent/symbol_storage.py) architecture pattern to maintain architectural consistency while adding minimal complexity to the established codebase patterns.
+The implementation extends the existing SQLite storage patterns used by [`symbol_storage.py`](file:///Users/mstriebeck/Code/github-agent/symbol_storage.py) and integrates with the current GitHub tools architecture in [`github_tools.py`](file:///Users/mstriebeck/Code/github-agent/github_tools.py). The solution maintains architectural consistency with the master-worker process model and repository-aware database isolation.
 
 ## 2. Goals / Non-Goals
 
 ### Goals
-- **Persistent Reply Tracking**: Store comment IDs that have been replied to in SQLite database
-- **Automatic Filtering**: Exclude already-replied comments from `github_get_pr_comments` results  
-- **Repository Isolation**: Track comments per repository following existing patterns
-- **Backward Compatibility**: No breaking changes to existing GitHub tool interfaces
-- **Architectural Consistency**: Follow established `AbstractSymbolStorage` → `SQLiteSymbolStorage` patterns
+- **Track replied comments**: Persist which comments have received replies to avoid duplicate responses
+- **Filter unreplied comments**: Automatically exclude already-replied comments from `github_get_pr_comments` results
+- **Repository isolation**: Maintain separate comment tracking per repository following existing patterns
+- **Architectural consistency**: Reuse existing SQLite storage patterns, error handling, and dependency injection
+- **Backward compatibility**: No breaking changes to existing API interfaces
+- **Performance**: Efficient comment filtering with indexed database queries
 
 ### Non-Goals
-- **Cross-Repository Comment Sharing**: Comments tracked independently per repository
-- **Comment Metadata Storage**: Only storing comment IDs, not full comment content or timestamps
-- **Real-time Synchronization**: No event-driven updates between processes
-- **Complex Reply Queuing**: Simple immediate tracking, no retry mechanisms for tracking failures
-- **Multi-User Reply Coordination**: Single-agent reply tracking only
+- **Comment content storage**: Only track reply relationships, not comment text or metadata
+- **Cross-repository analytics**: No aggregation of comment data across repositories
+- **Real-time synchronization**: No live updates or webhooks for comment status changes
+- **Comment threading analysis**: No deep analysis of comment conversation structures
+- **GitHub API optimization**: No caching or rate limiting improvements beyond reply tracking
 
 ## 3. Proposed Architecture
 
-The architecture extends existing storage patterns by adding comment reply tracking methods to the `AbstractSymbolStorage` interface. This leverages the established dependency injection pattern where `CodebaseTools` receives storage instances via constructor injection.
+The architecture extends the existing storage abstraction pattern with minimal system impact:
+
+```mermaid
+graph TB
+    A[github_post_pr_reply] --> B[CommentReplyStorage]
+    C[github_get_pr_comments] --> B
+    B --> D[SQLiteCommentReplyStorage]
+    D --> E[comment_replies_{repo}.db]
+    
+    F[AbstractCommentReplyStorage] --> D
+    F --> G[MockCommentReplyStorage]
+    
+    H[Worker Process] --> I[CodebaseTools]
+    I --> B
+    
+    subgraph "Per Repository"
+        E
+        J[symbols_{repo}.db]
+    end
+```
 
 **Key Architectural Decisions**:
-- **Extend Existing Abstractions**: Add methods to `AbstractSymbolStorage` rather than creating separate storage layer
-- **Repository-Scoped Databases**: Each repository worker maintains its own comment tracking in existing symbol database
-- **Direct Integration**: Modify `execute_post_pr_reply` and `execute_get_pr_comments` functions to call storage methods
-- **Consistent Error Handling**: Reuse existing retry patterns and SQLite error handling from `symbol_storage.py`
-
-**Data Flow**:
-```
-github_post_pr_reply() → Success → symbol_storage.record_comment_reply()
-github_get_pr_comments() → symbol_storage.get_replied_comment_ids() → filter comments → return filtered list
-```
+- **Repository-scoped databases**: Each repository maintains `DATA_DIR/comment_replies_{repo_id}.db`
+- **Abstract base class pattern**: Follows existing `AbstractSymbolStorage` design for testability
+- **Dependency injection**: Integrated into worker processes alongside existing symbol storage
+- **Factory pattern**: Production factory class handles schema creation and configuration
 
 ## 4. Detailed Design
 
-### 4.1 Extended Abstract Base Class
+### 4.1 Core Data Structures
 
-**File**: [`symbol_storage.py`](file:///Users/mstriebeck/Code/github-agent/symbol_storage.py#L64)
-
+**CommentReply Dataclass**:
 ```python
-class AbstractSymbolStorage(ABC):
-    # ... existing methods ...
+@dataclass
+class CommentReply:
+    comment_id: int
+    reply_id: int | None  # GitHub's response comment ID
+    repository_id: str
+    pr_number: int
+    created_at: str | None = None
+    
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "comment_id": self.comment_id,
+            "reply_id": self.reply_id,
+            "repository_id": self.repository_id,
+            "pr_number": self.pr_number,
+            "created_at": self.created_at,
+        }
+```
+
+### 4.2 Abstract Base Class
+
+**AbstractCommentReplyStorage** (`comment_storage.py`):
+```python
+class AbstractCommentReplyStorage(ABC):
+    """Abstract base class for comment reply storage operations."""
 
     @abstractmethod
-    def record_comment_reply(self, comment_id: int, pr_number: int, repository_id: str) -> None:
+    def create_schema(self) -> None:
+        """Create the database schema for comment reply storage."""
+        pass
+
+    @abstractmethod
+    def record_reply(self, comment_id: int, reply_id: int | None, 
+                    repository_id: str, pr_number: int) -> None:
         """Record that a comment has been replied to."""
         pass
 
     @abstractmethod
-    def get_replied_comment_ids(self, pr_number: int, repository_id: str) -> set[int]:
-        """Get comment IDs that have been replied to for a specific PR."""
+    def is_comment_replied(self, comment_id: int, repository_id: str) -> bool:
+        """Check if a comment has been replied to."""
         pass
 
     @abstractmethod
-    def is_comment_replied(self, comment_id: int, repository_id: str) -> bool:
-        """Check if a specific comment has been replied to."""
+    def get_replied_comment_ids(self, repository_id: str, 
+                               pr_number: int | None = None) -> set[int]:
+        """Get set of comment IDs that have been replied to."""
+        pass
+
+    @abstractmethod
+    def health_check(self) -> bool:
+        """Check if the comment reply storage is accessible."""
         pass
 ```
 
-### 4.2 SQLite Implementation Extension
+### 4.3 SQLite Implementation
 
-**File**: [`symbol_storage.py`](file:///Users/mstriebeck/Code/github-agent/symbol_storage.py#L250)
+**SQLiteCommentReplyStorage** (`comment_storage.py`):
+```python
+class SQLiteCommentReplyStorage(AbstractCommentReplyStorage):
+    """SQLite implementation of comment reply storage."""
 
-**Schema Extension**:
+    def __init__(self, db_path: str | Path, max_retries: int = 3, 
+                 retry_delay: float = 0.1):
+        """Initialize SQLite comment reply storage."""
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._connection: sqlite3.Connection | None = None
+        self._connection_lock = threading.Lock()
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self.create_schema()
+
+    def _get_connection(self) -> sqlite3.Connection:
+        """Get database connection with retry logic."""
+        # Implementation follows SQLiteSymbolStorage._get_connection pattern
+
+    def _execute_with_retry(self, query: str, params: tuple = ()) -> Any:
+        """Execute database operation with retry logic."""
+        # Implementation follows SQLiteSymbolStorage._execute_with_retry pattern
+
+    def create_schema(self) -> None:
+        """Create comment reply tracking schema."""
+        schema_sql = """
+        CREATE TABLE IF NOT EXISTS comment_replies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            comment_id INTEGER NOT NULL,
+            reply_id INTEGER,
+            repository_id TEXT NOT NULL,
+            pr_number INTEGER NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(comment_id, repository_id)
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_comment_repo 
+        ON comment_replies(repository_id, pr_number);
+        
+        CREATE INDEX IF NOT EXISTS idx_comment_lookup 
+        ON comment_replies(comment_id, repository_id);
+        """
+        self._execute_with_retry(schema_sql)
+
+    def record_reply(self, comment_id: int, reply_id: int | None,
+                    repository_id: str, pr_number: int) -> None:
+        """Record comment reply with conflict resolution."""
+        insert_sql = """
+        INSERT OR REPLACE INTO comment_replies 
+        (comment_id, reply_id, repository_id, pr_number)
+        VALUES (?, ?, ?, ?)
+        """
+        self._execute_with_retry(insert_sql, (comment_id, reply_id, repository_id, pr_number))
+
+    def is_comment_replied(self, comment_id: int, repository_id: str) -> bool:
+        """Check if comment has been replied to."""
+        check_sql = """
+        SELECT 1 FROM comment_replies 
+        WHERE comment_id = ? AND repository_id = ?
+        LIMIT 1
+        """
+        result = self._execute_with_retry(check_sql, (comment_id, repository_id))
+        return bool(result.fetchone())
+
+    def get_replied_comment_ids(self, repository_id: str, 
+                               pr_number: int | None = None) -> set[int]:
+        """Get replied comment IDs for filtering."""
+        if pr_number is not None:
+            query_sql = """
+            SELECT comment_id FROM comment_replies 
+            WHERE repository_id = ? AND pr_number = ?
+            """
+            params = (repository_id, pr_number)
+        else:
+            query_sql = """
+            SELECT comment_id FROM comment_replies 
+            WHERE repository_id = ?
+            """
+            params = (repository_id,)
+        
+        result = self._execute_with_retry(query_sql, params)
+        return {row[0] for row in result.fetchall()}
+
+    def health_check(self) -> bool:
+        """Verify database accessibility."""
+        try:
+            self._execute_with_retry("SELECT 1")
+            return True
+        except Exception:
+            return False
+```
+
+### 4.4 Production Factory
+
+**ProductionCommentReplyStorage** (`comment_storage.py`):
+```python
+class ProductionCommentReplyStorage:
+    """Factory for production comment reply storage instances."""
+
+    @classmethod
+    def create_with_schema(cls, repository_id: str) -> SQLiteCommentReplyStorage:
+        """Create production storage instance with schema initialization."""
+        db_path = DATA_DIR / f"comment_replies_{repository_id}.db"
+        storage = SQLiteCommentReplyStorage(db_path)
+        logger.info(f"Created comment reply storage for repository: {repository_id}")
+        return storage
+```
+
+### 4.5 GitHub Tools Integration
+
+**Modified execute_post_pr_reply** (`github_tools.py`):
+```python
+async def execute_post_pr_reply(repo_name: str, comment_id: int, message: str) -> str:
+    """Reply to a PR comment and record the reply."""
+    try:
+        context = get_github_context(repo_name)
+        if not context.repo:
+            return json.dumps({"error": f"GitHub repository not configured for {repo_name}"})
+
+        # Existing GitHub API logic (lines 548-625)...
+        
+        # NEW: After successful reply (line 591)
+        if reply_resp.status_code in [200, 201]:
+            # Record the successful reply
+            comment_storage = ProductionCommentReplyStorage.create_with_schema(context.repo_name)
+            comment_storage.record_reply(
+                comment_id=comment_id,
+                reply_id=reply_resp.json()["id"],
+                repository_id=context.repo_name,
+                pr_number=int(pr_number) if pr_number else 0
+            )
+            
+            return json.dumps({
+                "success": True,
+                "method": "direct_reply",
+                "repo": context.repo_name,
+                "repo_config": repo_name,
+                "comment_id": reply_resp.json()["id"],
+                "url": reply_resp.json()["html_url"],
+                "reply_recorded": True  # NEW field
+            })
+```
+
+**Modified execute_get_pr_comments** (`github_tools.py`):
+```python
+async def execute_get_pr_comments(repo_name: str, pr_number: int) -> str:
+    """Get PR comments with replied comment filtering."""
+    try:
+        context = get_github_context(repo_name)
+        # Existing API calls (lines 410-478)...
+        
+        # NEW: Get replied comment IDs for filtering
+        comment_storage = ProductionCommentReplyStorage.create_with_schema(context.repo_name)
+        replied_comment_ids = comment_storage.get_replied_comment_ids(
+            repository_id=context.repo_name,
+            pr_number=pr_number
+        )
+        
+        # Modified: Filter comments during formatting (line 483)
+        formatted_review_comments = []
+        for comment in review_comments:
+            if comment["id"] not in replied_comment_ids:  # NEW filter condition
+                formatted_review_comments.append({
+                    "id": comment["id"],
+                    "type": "review_comment",
+                    "author": comment["user"]["login"],
+                    "body": comment["body"],
+                    "file": comment.get("path", ""),
+                    "line": comment.get("line", comment.get("original_line", 0)),
+                    "created_at": comment["created_at"],
+                    "url": comment["html_url"],
+                })
+
+        # Similar filtering for issue comments...
+        
+        # Modified response with new fields
+        result = {
+            "pr_number": pr_number,
+            "title": pr_data["title"],
+            "repo": context.repo_name,
+            "repo_config": repo_name,
+            "review_comments": formatted_review_comments,
+            "issue_comments": formatted_issue_comments,
+            "total_comments": len(formatted_review_comments) + len(formatted_issue_comments),
+            "replied_comment_count": len(replied_comment_ids),  # NEW field
+            "unreplied_comment_count": total_original_comments - len(replied_comment_ids)  # NEW field
+        }
+```
+
+### 4.6 Database Schema Details
+
+**Complete DDL**:
 ```sql
 CREATE TABLE IF NOT EXISTS comment_replies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     comment_id INTEGER NOT NULL,
-    pr_number INTEGER NOT NULL,
+    reply_id INTEGER,
     repository_id TEXT NOT NULL,
-    replied_at TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (comment_id, repository_id),
-    FOREIGN KEY (repository_id) REFERENCES repositories(id)
+    pr_number INTEGER NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(comment_id, repository_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_comment_replies_pr 
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_comment_repo 
 ON comment_replies(repository_id, pr_number);
+
+CREATE INDEX IF NOT EXISTS idx_comment_lookup 
+ON comment_replies(comment_id, repository_id);
+
+-- Optional: Composite index for filtering queries
+CREATE INDEX IF NOT EXISTS idx_repo_pr_comments 
+ON comment_replies(repository_id, pr_number, comment_id);
 ```
 
-**Implementation Methods**:
-```python
-class SQLiteSymbolStorage(AbstractSymbolStorage):
-    # ... existing implementation ...
+**Sample Queries**:
+```sql
+-- Record a reply
+INSERT OR REPLACE INTO comment_replies 
+(comment_id, reply_id, repository_id, pr_number)
+VALUES (123456, 789012, 'user/repo', 42);
 
-    def record_comment_reply(self, comment_id: int, pr_number: int, repository_id: str) -> None:
-        """Record that a comment has been replied to."""
-        query = """
-        INSERT OR REPLACE INTO comment_replies 
-        (comment_id, pr_number, repository_id, replied_at)
-        VALUES (?, ?, ?, datetime('now'))
-        """
-        self._execute_with_retry(query, (comment_id, pr_number, repository_id))
-        logger.info(f"Recorded reply to comment {comment_id} in PR {pr_number} for repo {repository_id}")
+-- Check if comment is replied
+SELECT 1 FROM comment_replies 
+WHERE comment_id = 123456 AND repository_id = 'user/repo'
+LIMIT 1;
 
-    def get_replied_comment_ids(self, pr_number: int, repository_id: str) -> set[int]:
-        """Get comment IDs that have been replied to for a specific PR."""
-        query = """
-        SELECT comment_id FROM comment_replies 
-        WHERE pr_number = ? AND repository_id = ?
-        """
-        with self._get_connection() as conn:
-            cursor = conn.execute(query, (pr_number, repository_id))
-            return {row[0] for row in cursor.fetchall()}
+-- Get all replied comment IDs for PR
+SELECT comment_id FROM comment_replies 
+WHERE repository_id = 'user/repo' AND pr_number = 42;
 
-    def is_comment_replied(self, comment_id: int, repository_id: str) -> bool:
-        """Check if a specific comment has been replied to."""
-        query = """
-        SELECT 1 FROM comment_replies 
-        WHERE comment_id = ? AND repository_id = ? LIMIT 1
-        """
-        with self._get_connection() as conn:
-            cursor = conn.execute(query, (comment_id, repository_id))
-            return cursor.fetchone() is not None
+-- Health check
+SELECT COUNT(*) FROM comment_replies WHERE 1=1;
 ```
-
-### 4.3 GitHub Tools Integration
-
-**File**: [`github_tools.py`](file:///Users/mstriebeck/Code/github-agent/github_tools.py)
-
-**Modified Function Signatures**:
-```python
-async def execute_post_pr_reply(
-    repo_name: str, 
-    comment_id: int, 
-    message: str,
-    symbol_storage: AbstractSymbolStorage = None
-) -> str:
-    """Reply to a PR comment and record the reply."""
-    # ... existing implementation until successful reply ...
-    
-    if reply_resp.status_code in [200, 201]:
-        # Record successful reply
-        if symbol_storage:
-            try:
-                symbol_storage.record_comment_reply(comment_id, pr_number, context.repo_name)
-            except Exception as e:
-                logger.warning(f"Failed to record comment reply tracking: {e}")
-        
-        return json.dumps({
-            "success": True,
-            "method": "direct_reply",
-            "repo": context.repo_name,
-            "comment_id": reply_resp.json()["id"],
-            "url": reply_resp.json()["html_url"],
-            "reply_tracked": symbol_storage is not None
-        })
-
-async def execute_get_pr_comments(
-    repo_name: str, 
-    pr_number: int,
-    symbol_storage: AbstractSymbolStorage = None
-) -> str:
-    """Get PR comments, excluding already-replied comments."""
-    # ... existing implementation until comment collection ...
-    
-    # Filter out replied comments
-    if symbol_storage:
-        try:
-            replied_ids = symbol_storage.get_replied_comment_ids(pr_number, context.repo_name)
-            review_comments = [c for c in review_comments if c["id"] not in replied_ids]
-            issue_comments = [c for c in issue_comments if c["id"] not in replied_ids]
-            logger.info(f"Filtered out {len(replied_ids)} already-replied comments")
-        except Exception as e:
-            logger.warning(f"Failed to filter replied comments: {e}")
-    
-    # ... rest of existing implementation ...
-```
-
-### 4.4 Worker Process Integration
-
-**File**: [`mcp_worker.py`](file:///Users/mstriebeck/Code/github-agent/mcp_worker.py)
-
-**Modified Tool Handler Registration**:
-```python
-# Add symbol_storage parameter to GitHub tool handlers
-TOOL_HANDLERS = {
-    "github_get_pr_comments": lambda repo_name, pr_number: 
-        execute_get_pr_comments(repo_name, pr_number, worker_symbol_storage),
-    "github_post_pr_reply": lambda repo_name, comment_id, message:
-        execute_post_pr_reply(repo_name, comment_id, message, worker_symbol_storage),
-    # ... existing handlers ...
-}
-```
-
-### 4.5 Error Handling and Resilience
-
-**Exception Handling Pattern**:
-```python
-def record_comment_reply(self, comment_id: int, pr_number: int, repository_id: str) -> None:
-    """Record comment reply with comprehensive error handling."""
-    try:
-        query = """INSERT OR REPLACE INTO comment_replies ..."""
-        self._execute_with_retry(query, (comment_id, pr_number, repository_id))
-    except sqlite3.DatabaseError as e:
-        logger.error(f"Database error recording comment reply: {e}")
-        raise
-    except sqlite3.Error as e:
-        logger.error(f"SQLite error recording comment reply: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error recording comment reply: {e}")
-        raise
-```
-
-**Graceful Degradation**:
-- If comment tracking fails, GitHub operations continue normally
-- Warning logs indicate tracking failures without breaking functionality
-- Reply filtering skipped if storage unavailable
 
 ## 5. Alternatives Considered
 
-### 5.1 Separate Comment Storage Service
-**Considered**: Creating `AbstractCommentStorage` with `SQLiteCommentStorage` implementation
-**Rejected**: Violates existing dependency injection patterns and adds unnecessary abstraction layers for simple feature
+### 5.1 JSON File Storage
+**Rejected**: Would require custom locking mechanisms and lacks query performance of SQLite.
 
-### 5.2 JSON File Storage
-**Considered**: Using JSON files for comment tracking similar to repository configuration
-**Rejected**: Inconsistent with existing SQLite patterns and lacks query performance for filtering operations
+### 5.2 Single Global Database
+**Rejected**: Violates existing repository isolation pattern and creates cross-repository dependencies.
 
-### 5.3 External Database
-**Considered**: PostgreSQL or shared database for comment tracking
-**Rejected**: Violates existing repository isolation architecture and adds operational complexity
+### 5.3 In-Memory Cache Only
+**Rejected**: Would lose reply tracking across worker process restarts.
 
-### 5.4 Event-Driven Architecture
-**Considered**: Decorator pattern with `@track_comment_replies` for loose coupling
-**Rejected**: Over-engineering for simple requirement; direct integration sufficient for current needs
+### 5.4 GitHub API-based Tracking
+**Rejected**: Would require additional API calls and doesn't scale with GitHub rate limits.
+
+### 5.5 Extend Symbol Storage
+**Rejected**: Comment replies are conceptually different from code symbols and would pollute the symbol schema.
 
 ## 6. Testing / Validation
 
-### 6.1 Mock Extension
+### 6.1 Mock Implementation
 
-**File**: [`tests/mocks/mock_symbol_storage.py`](file:///Users/mstriebeck/Code/github-agent/tests/mocks/mock_symbol_storage.py)
-
+**MockCommentReplyStorage** (`tests/mocks/mock_comment_storage.py`):
 ```python
-class MockSymbolStorage(AbstractSymbolStorage):
+class MockCommentReplyStorage(AbstractCommentReplyStorage):
+    """Mock comment reply storage for testing."""
+
     def __init__(self):
-        # ... existing initialization ...
-        self.replied_comments: dict[tuple[int, str], set[int]] = {}  # (pr_number, repo_id) -> comment_ids
+        self.replied_comments: dict[tuple[int, str], CommentReply] = {}
+        self._health_check_result: bool = True
 
-    def record_comment_reply(self, comment_id: int, pr_number: int, repository_id: str) -> None:
-        key = (pr_number, repository_id)
-        if key not in self.replied_comments:
-            self.replied_comments[key] = set()
-        self.replied_comments[key].add(comment_id)
+    def create_schema(self) -> None:
+        pass
 
-    def get_replied_comment_ids(self, pr_number: int, repository_id: str) -> set[int]:
-        return self.replied_comments.get((pr_number, repository_id), set())
+    def record_reply(self, comment_id: int, reply_id: int | None,
+                    repository_id: str, pr_number: int) -> None:
+        key = (comment_id, repository_id)
+        self.replied_comments[key] = CommentReply(
+            comment_id=comment_id,
+            reply_id=reply_id,
+            repository_id=repository_id,
+            pr_number=pr_number
+        )
 
     def is_comment_replied(self, comment_id: int, repository_id: str) -> bool:
-        for (pr_num, repo_id), comment_ids in self.replied_comments.items():
-            if repo_id == repository_id and comment_id in comment_ids:
-                return True
-        return False
+        return (comment_id, repository_id) in self.replied_comments
+
+    def get_replied_comment_ids(self, repository_id: str, 
+                               pr_number: int | None = None) -> set[int]:
+        results = set()
+        for (comment_id, repo_id), reply in self.replied_comments.items():
+            if repo_id == repository_id:
+                if pr_number is None or reply.pr_number == pr_number:
+                    results.add(comment_id)
+        return results
+
+    def health_check(self) -> bool:
+        return self._health_check_result
+
+    def set_health_check_result(self, result: bool) -> None:
+        self._health_check_result = result
 ```
 
 ### 6.2 Unit Test Specifications
 
-**File**: [`tests/test_symbol_storage.py`](file:///Users/mstriebeck/Code/github-agent/tests/test_symbol_storage.py)
-
+**test_comment_storage.py**:
 ```python
-def test_record_comment_reply_success():
-    """Test successful comment reply recording."""
-    storage = SQLiteSymbolStorage(":memory:")
-    storage.create_schema()
-    
-    storage.record_comment_reply(123, 456, "test-repo")
-    assert storage.is_comment_replied(123, "test-repo")
+class TestSQLiteCommentReplyStorage:
+    @pytest.fixture
+    def temp_db_path(self):
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            yield f.name
+        Path(f.name).unlink(missing_ok=True)
 
-def test_get_replied_comment_ids_filters_by_pr():
-    """Test comment ID retrieval filtered by PR number."""
-    storage = SQLiteSymbolStorage(":memory:")
-    storage.create_schema()
-    
-    storage.record_comment_reply(123, 456, "test-repo")
-    storage.record_comment_reply(789, 999, "test-repo")
-    
-    replied_ids = storage.get_replied_comment_ids(456, "test-repo")
-    assert replied_ids == {123}
+    @pytest.fixture
+    def storage(self, temp_db_path):
+        return SQLiteCommentReplyStorage(temp_db_path)
 
-def test_comment_reply_repository_isolation():
-    """Test comment replies are isolated by repository."""
-    storage = SQLiteSymbolStorage(":memory:")
-    storage.create_schema()
-    
-    storage.record_comment_reply(123, 456, "repo-a")
-    storage.record_comment_reply(123, 456, "repo-b")
-    
-    assert storage.is_comment_replied(123, "repo-a")
-    assert storage.is_comment_replied(123, "repo-b")
-    assert storage.get_replied_comment_ids(456, "repo-a") == {123}
-    assert storage.get_replied_comment_ids(456, "repo-b") == {123}
+    def test_create_schema_success(self, storage):
+        # Verify tables and indexes created
+        conn = storage._get_connection()
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = [row[0] for row in cursor.fetchall()]
+        assert "comment_replies" in tables
+
+    def test_record_reply_success(self, storage):
+        storage.record_reply(123, 456, "test/repo", 1)
+        assert storage.is_comment_replied(123, "test/repo")
+
+    def test_record_duplicate_reply_upsert(self, storage):
+        storage.record_reply(123, 456, "test/repo", 1)
+        storage.record_reply(123, 789, "test/repo", 1)  # Update reply_id
+        # Should not raise error, should update existing record
+
+    def test_get_replied_comment_ids_filtered_by_pr(self, storage):
+        storage.record_reply(123, 456, "test/repo", 1)
+        storage.record_reply(124, 457, "test/repo", 2)
+        
+        pr1_replies = storage.get_replied_comment_ids("test/repo", 1)
+        assert pr1_replies == {123}
+
+    def test_repository_isolation(self, storage):
+        storage.record_reply(123, 456, "repo1", 1)
+        storage.record_reply(123, 457, "repo2", 1)
+        
+        assert storage.is_comment_replied(123, "repo1")
+        assert storage.is_comment_replied(123, "repo2")
+        assert storage.get_replied_comment_ids("repo1") == {123}
+        assert storage.get_replied_comment_ids("repo2") == {123}
 ```
 
 ### 6.3 Integration Test Specifications
 
-**File**: [`tests/test_github_tools_integration.py`](file:///Users/mstriebeck/Code/github-agent/tests/test_github_tools_integration.py)
-
+**test_github_comment_integration.py**:
 ```python
-@pytest.mark.asyncio
-async def test_post_reply_records_comment_tracking():
-    """Test that posting a reply records comment tracking."""
-    mock_storage = MockSymbolStorage()
-    
-    # Mock successful GitHub API response
-    with patch('requests.post') as mock_post:
-        mock_post.return_value.status_code = 201
-        mock_post.return_value.json.return_value = {"id": 999, "html_url": "test-url"}
-        
-        result = await execute_post_pr_reply("test-repo", 123, "test message", mock_storage)
-        
-    assert '"reply_tracked": true' in result
-    assert mock_storage.is_comment_replied(123, "test-repo")
+class TestGitHubCommentIntegration:
+    @pytest.fixture
+    def mock_github_context(self):
+        return MockGitHubAPIContext("test/repo")
 
-@pytest.mark.asyncio 
-async def test_get_comments_filters_replied():
-    """Test that getting comments filters out replied ones."""
-    mock_storage = MockSymbolStorage()
-    mock_storage.record_comment_reply(123, 456, "test-repo")
-    
-    # Mock GitHub API responses
-    with patch('requests.get') as mock_get:
-        # Setup mock responses for PR details and comments
-        mock_get.side_effect = [
-            Mock(status_code=200, json=lambda: {"review_comments_url": "test-url", "number": 456}),
-            Mock(status_code=200, json=lambda: [{"id": 123, "body": "replied"}, {"id": 789, "body": "new"}])
-        ]
+    @pytest.mark.asyncio
+    async def test_post_reply_records_tracking(self, mock_github_context):
+        # Mock successful GitHub API response
+        with patch('requests.post') as mock_post:
+            mock_post.return_value.status_code = 201
+            mock_post.return_value.json.return_value = {
+                "id": 789,
+                "html_url": "https://github.com/test/repo/pull/1#issuecomment-789"
+            }
+            
+            result = await execute_post_pr_reply("test_repo", 123, "Test reply")
+            response = json.loads(result)
+            
+            assert response["success"] is True
+            assert response["reply_recorded"] is True
+
+    @pytest.mark.asyncio
+    async def test_get_comments_filters_replied(self, mock_github_context):
+        # Pre-populate replied comments
+        storage = ProductionCommentReplyStorage.create_with_schema("test/repo")
+        storage.record_reply(123, 789, "test/repo", 1)
         
-        result = await execute_get_pr_comments("test-repo", 456, mock_storage)
-        
-    # Should only include unreplied comment (789)
-    result_data = json.loads(result)
-    comment_ids = [c["id"] for c in result_data["review_comments"]]
-    assert 123 not in comment_ids
-    assert 789 in comment_ids
+        # Mock GitHub API responses
+        with patch('requests.get') as mock_get:
+            # Setup mock responses for PR details and comments
+            result = await execute_get_pr_comments("test_repo", 1)
+            response = json.loads(result)
+            
+            # Verify replied comment 123 is filtered out
+            comment_ids = [c["id"] for c in response["review_comments"]]
+            assert 123 not in comment_ids
+            assert response["replied_comment_count"] == 1
 ```
 
 ## 7. Migration / Deployment & Rollout
 
-### 7.1 Database Schema Migration
+### 7.1 Implementation Steps
 
-**Migration Script** (added to [`SQLiteSymbolStorage.create_schema()`](file:///Users/mstriebeck/Code/github-agent/symbol_storage.py#L250)):
+**Step 1: Create Base Infrastructure**
+1. Create `comment_storage.py` with abstract base class
+2. Implement `SQLiteCommentReplyStorage` class
+3. Add production factory class
+4. Create unit tests for storage layer
+
+**Step 2: GitHub Tools Integration**
+1. Modify `execute_post_pr_reply` to record successful replies
+2. Modify `execute_get_pr_comments` to filter replied comments
+3. Add integration tests for modified functions
+4. Update response schemas with new fields
+
+**Step 3: Worker Process Integration**
+1. Add comment storage initialization to worker startup
+2. Inject comment storage into GitHub tools context
+3. Test worker process isolation
+
+**Step 4: Testing and Validation**
+1. Create mock implementations for testing
+2. Add comprehensive unit test coverage
+3. Run integration tests against test repositories
+4. Performance testing with large comment datasets
+
+**Step 5: Deployment**
+1. Deploy to development environment
+2. Test with real GitHub repositories
+3. Monitor database performance and file creation
+4. Production rollout with monitoring
+
+### 7.2 Database Migration
+
+**No Migration Required**: This is a new feature with clean schema creation.
+
+**Database Cleanup** (if needed):
 ```python
-def create_schema(self) -> None:
-    """Create database schema including comment reply tracking."""
-    # ... existing schema creation ...
-    
-    # Add comment reply tracking table
-    self._execute_with_retry("""
-        CREATE TABLE IF NOT EXISTS comment_replies (
-            comment_id INTEGER NOT NULL,
-            pr_number INTEGER NOT NULL,
-            repository_id TEXT NOT NULL,
-            replied_at TEXT NOT NULL DEFAULT (datetime('now')),
-            PRIMARY KEY (comment_id, repository_id)
-        )
-    """, ())
-    
-    self._execute_with_retry("""
-        CREATE INDEX IF NOT EXISTS idx_comment_replies_pr 
-        ON comment_replies(repository_id, pr_number)
-    """, ())
+# Utility function for clearing comment tracking
+def reset_comment_tracking(repository_id: str) -> None:
+    """Reset comment reply tracking for repository."""
+    db_path = DATA_DIR / f"comment_replies_{repository_id}.db"
+    if db_path.exists():
+        db_path.unlink()
+    logger.info(f"Cleared comment tracking for repository: {repository_id}")
 ```
 
-### 7.2 Deployment Steps
+### 7.3 Configuration
 
-1. **Phase 1: Schema Update**
-   - Deploy updated `symbol_storage.py` with new methods
-   - Existing databases automatically get new tables on startup
-   - No data migration needed (clean start)
+**Environment Variables** (optional):
+- `GITHUB_AGENT_COMMENT_TRACKING_DISABLED`: Disable feature for testing
+- `GITHUB_AGENT_COMMENT_DB_PATH`: Override default database location
 
-2. **Phase 2: Tool Integration**  
-   - Deploy updated `github_tools.py` with tracking calls
-   - Deploy updated `mcp_worker.py` with parameter passing
-   - Backward compatible - tools work without storage parameter
-
-3. **Phase 3: Validation**
-   - Monitor logs for comment tracking success/failure rates
-   - Verify database table creation in existing repositories
-   - Test comment filtering in development environment
-
-### 7.3 Rollback Plan
-
-**Immediate Rollback**: 
-- Remove `symbol_storage` parameters from tool handler registration
-- Comment tracking gracefully degrades to no-op
-- No data corruption risk
-
-**Full Rollback**:
-- Revert GitHub tools functions to original implementations
-- `comment_replies` table remains harmless in database
-- No impact on existing symbol storage functionality
+**No Breaking Changes**: All modifications are backward compatible with existing tool interfaces.
 
 ## Appendix
 
-### Conflict Resolutions
+### A.1 File Locations
 
-**Abstraction Level Conflict**: Resolved by extending existing `AbstractSymbolStorage` rather than creating new abstractions, balancing consistency with simplicity.
+**New Files**:
+- `/Users/mstriebeck/Code/github-agent/comment_storage.py`
+- `/Users/mstriebeck/Code/github-agent/tests/test_comment_storage.py`
+- `/Users/mstriebeck/Code/github-agent/tests/mocks/mock_comment_storage.py`
+- `/Users/mstriebeck/Code/github-agent/tests/test_github_comment_integration.py`
 
-**Integration Approach Conflict**: Resolved by direct integration with graceful degradation, prioritizing immediate functionality over loose coupling for this simple feature.
+**Modified Files**:
+- `/Users/mstriebeck/Code/github-agent/github_tools.py` (lines 583, 481)
 
-**Testing Scope Conflict**: Resolved by extending existing test files rather than creating comprehensive separate test suite, matching codebase's lean testing approach.
+### A.2 Error Handling Specifications
 
-**Development Methodology Conflict**: Resolved by implementation-first approach with immediate test coverage, leveraging existing testing infrastructure.
+**Custom Exceptions**:
+```python
+class CommentStorageError(Exception):
+    """Base exception for comment storage operations."""
+    pass
 
-### Implementation Checklist
+class CommentTrackingDisabledError(CommentStorageError):
+    """Raised when comment tracking is disabled."""
+    pass
+```
 
-- [ ] Extend `AbstractSymbolStorage` with comment methods
-- [ ] Implement methods in `SQLiteSymbolStorage` 
-- [ ] Add schema migration to `create_schema()`
-- [ ] Modify `execute_post_pr_reply` function
-- [ ] Modify `execute_get_pr_comments` function  
-- [ ] Update worker tool handler registration
-- [ ] Extend `MockSymbolStorage` for testing
-- [ ] Add unit tests to existing test file
-- [ ] Add integration tests for GitHub workflow
-- [ ] Update documentation and logging
+**Error Scenarios**:
+- SQLite database corruption: Use retry pattern from symbol storage
+- GitHub API failures: Don't record reply if posting fails
+- Concurrent access: Use existing threading.Lock pattern
+- Invalid comment IDs: Log warning but don't fail operation
 
-### Performance Considerations
+### A.3 Performance Considerations
 
-**Query Performance**: Composite index on `(repository_id, pr_number)` supports efficient filtering
-**Storage Overhead**: Minimal - 24 bytes per replied comment
-**Memory Impact**: Comment ID sets cached in memory during filtering operations
-**Concurrency**: SQLite WAL mode handles concurrent reads during comment filtering
+**Expected Load**:
+- Comments per PR: 10-100 typical, 1000+ worst case
+- Repositories: 10-50 per installation
+- Database size: <1MB per repository for typical usage
+
+**Optimization Strategies**:
+- Composite indexes for filtering queries
+- Connection pooling with existing SQLite patterns
+- Batch operations for bulk comment processing
+
+### A.4 Monitoring and Observability
+
+**Logging Additions**:
+```python
+logger.info(f"Recording reply for comment {comment_id} in {repository_id}")
+logger.info(f"Filtered {len(replied_ids)} replied comments from PR {pr_number}")
+logger.warning(f"Comment storage health check failed for {repository_id}")
+```
+
+**Metrics to Track**:
+- Comment reply recording success rate
+- Comment filtering performance
+- Database health check results
+- Storage file sizes per repository
