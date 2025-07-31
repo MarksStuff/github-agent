@@ -2,149 +2,108 @@
 
 ## 1. Introduction
 
-This design document outlines the implementation of GitHub PR comment reply tracking for the github-agent codebase. The feature ensures that when the `github_post_pr_reply` tool is used, we persist which comments we replied to and filter subsequent `github_get_pr_comments` calls to exclude already-replied comments.
+This design document specifies the architecture for GitHub PR comment persistence functionality that enables tracking which comments have been replied to in Pull Request workflows. The system integrates with the existing `/Users/mstriebeck/Code/github-agent` codebase, following established patterns in `symbol_storage.py`, `github_tools.py`, and testing frameworks.
 
-The solution integrates with the existing [`github_tools.py`](file:///Users/mstriebeck/Code/github-agent/github_tools.py) architecture while maintaining consistency with established patterns from [`symbol_storage.py`](file:///Users/mstriebeck/Code/github-agent/symbol_storage.py) and the master-worker process isolation model.
+The feature addresses the requirement: "When we use the github_post_pr_reply tool, we need to persist which comments we replied to. And then use this to make sure that subsequent calls of github_get_pr_comments don't return comments that we already replied to."
 
 ## 2. Goals / Non-Goals
 
 ### Goals
-- **Persistent tracking**: Store which PR comments have received replies across agent restarts
-- **Automatic filtering**: Exclude already-replied comments from `github_get_pr_comments` results
-- **Repository isolation**: Each repository worker maintains separate comment tracking state
-- **Performance**: Sub-100ms comment filtering for PR comment lists up to 1000 comments
-- **Backward compatibility**: No breaking changes to existing GitHub tool APIs
-- **Architectural consistency**: Follow existing [`SQLiteSymbolStorage`](file:///Users/mstriebeck/Code/github-agent/symbol_storage.py#L124) patterns
+
+1. **Persistent Comment Tracking**: Store which PR comments have received replies
+2. **Existing Tool Integration**: Extend `github_get_pr_comments` to filter replied comments
+3. **Architectural Consistency**: Follow existing `SQLiteSymbolStorage` patterns
+4. **Backward Compatibility**: Maintain existing GitHub tool interfaces
+5. **Repository Isolation**: Support per-repository comment tracking
+6. **Resilient Storage**: Implement retry logic matching existing patterns
 
 ### Non-Goals
-- **Cross-repository comment tracking**: Comments are scoped to individual repositories
-- **Historical comment analysis**: Only tracks replies made by this agent instance
-- **Real-time comment synchronization**: No webhook or polling for external comment updates
-- **Comment content storage**: Only stores comment IDs and reply timestamps
-- **Multi-agent coordination**: No distributed locking or state sharing between agent instances
+
+1. **Cross-Repository Analytics**: No aggregation across multiple repositories
+2. **Comment Content Storage**: Store only tracking metadata, not full comment content
+3. **Real-time Synchronization**: No live updates or webhooks
+4. **Advanced Search**: Basic lookup only, no complex querying
+5. **User Management**: No user-specific tracking or permissions
+6. **Performance Optimization**: Focus on correctness over performance for MVP
 
 ## 3. Proposed Architecture
 
-The architecture implements a **phased storage approach** with **repository-scoped tracking**:
+The architecture extends the existing storage pattern with a new `AbstractCommentStorage` interface and `SQLiteCommentStorage` implementation, mirroring the `symbol_storage.py` design. Integration occurs through modification of existing GitHub tools rather than creating parallel systems.
 
-**Phase 1 (Week 1)**: `FileCommentTracker` using JSON persistence for rapid prototyping and validation
-**Phase 2 (Week 3)**: `SQLiteCommentTracker` using database storage for production scale and consistency
+**Core Components:**
+- `AbstractCommentStorage`: Interface following existing `AbstractSymbolStorage` pattern
+- `SQLiteCommentStorage`: SQLite implementation with internal retry logic
+- `CommentRecord`: Data class for comment tracking metadata
+- Modified `github_get_pr_comments()`: Filters replied comments
+- New `github_mark_comment_replied()`: Marks comments as replied
 
-Both implementations follow the **Abstract Factory pattern** established by [`AbstractSymbolStorage`](file:///Users/mstriebeck/Code/github-agent/symbol_storage.py#L64), enabling seamless migration between storage backends.
-
-**Integration points**:
-- [`github_tools.py`](file:///Users/mstriebeck/Code/github-agent/github_tools.py#L2030): Modify `execute_post_pr_reply` to record replies
-- [`github_tools.py`](file:///Users/mstriebeck/Code/github-agent/github_tools.py#L2029): Modify `execute_get_pr_comments` to filter replied comments
-- [`mcp_worker.py`](file:///Users/mstriebeck/Code/github-agent/mcp_worker.py#L254): Initialize comment tracker alongside symbol storage
+**Storage Strategy:** SQLite database following existing `symbols.db` pattern, with ISO string timestamps and internal retry mechanisms.
 
 ## 4. Detailed Design
 
-### 4.1 Abstract Base Class
+### 4.1 Data Model
 
 ```python
-# File: comment_tracker.py
-from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import Set, List
-from dataclasses import dataclass
-
 @dataclass
-class CommentReply:
+class CommentRecord:
+    """Comment tracking record following existing Symbol pattern."""
     comment_id: str
     pr_number: int
-    replied_at: datetime
-    repository_name: str
+    repository_id: str
+    created_at: str  # ISO string from GitHub API
+    replied_at: str | None = None
+    
+    @property
+    def created_datetime(self) -> datetime:
+        """Parse ISO string to datetime following health_monitor.py:456 pattern."""
+        return datetime.fromisoformat(self.created_at)
+    
+    @property
+    def replied_datetime(self) -> datetime | None:
+        """Parse replied timestamp to datetime."""
+        return datetime.fromisoformat(self.replied_at) if self.replied_at else None
+```
 
-class AbstractCommentTracker(ABC):
-    """Abstract interface for tracking PR comment replies."""
+### 4.2 Abstract Interface
+
+```python
+class AbstractCommentStorage(ABC):
+    """Abstract base class for comment storage operations."""
     
     @abstractmethod
-    async def mark_comment_replied(self, comment_id: str, pr_number: int, repository_name: str) -> None:
-        """Mark a comment as replied to with current timestamp."""
+    def create_schema(self) -> None:
+        """Create the database schema for comment storage."""
         pass
     
     @abstractmethod
-    async def get_replied_comment_ids(self, pr_number: int, repository_name: str) -> Set[str]:
-        """Get set of comment IDs that have been replied to for a specific PR."""
+    def mark_comment_replied(self, comment_id: str, pr_number: int, repository_id: str) -> None:
+        """Mark a comment as replied."""
         pass
     
     @abstractmethod
-    async def has_replied_to_comment(self, comment_id: str) -> bool:
-        """Check if a specific comment has been replied to."""
+    def is_comment_replied(self, comment_id: str, repository_id: str) -> bool:
+        """Check if a comment has been replied to."""
         pass
     
     @abstractmethod
-    async def get_reply_history(self, repository_name: str, since: datetime = None) -> List[CommentReply]:
-        """Get reply history for a repository, optionally since a date."""
+    def get_replied_comments(self, pr_number: int, repository_id: str) -> list[CommentRecord]:
+        """Get all replied comments for a PR."""
         pass
     
     @abstractmethod
-    async def health_check(self) -> bool:
-        """Verify the comment tracker is accessible and functional."""
+    def health_check(self) -> bool:
+        """Check if the comment storage is accessible and functional."""
         pass
 ```
 
-### 4.2 File-Based Implementation (Phase 1)
+### 4.3 SQLite Implementation
 
 ```python
-# File: comment_tracker.py (continued)
-import json
-import aiofiles
-from pathlib import Path
-
-class FileCommentTracker(AbstractCommentTracker):
-    """JSON file-based comment tracking for rapid prototyping."""
-    
-    def __init__(self, storage_path: str | Path, max_retries: int = 3, retry_delay: float = 0.1):
-        self.storage_path = Path(storage_path)
-        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-        self.max_retries = max_retries
-        self.retry_delay = retry_delay
-        self._ensure_storage_file()
-    
-    def _ensure_storage_file(self) -> None:
-        if not self.storage_path.exists():
-            with open(self.storage_path, 'w') as f:
-                json.dump({"replies": []}, f)
-    
-    async def mark_comment_replied(self, comment_id: str, pr_number: int, repository_name: str) -> None:
-        async with aiofiles.open(self.storage_path, 'r') as f:
-            data = json.loads(await f.read())
-        
-        reply_record = {
-            "comment_id": comment_id,
-            "pr_number": pr_number,
-            "replied_at": datetime.now().isoformat(),
-            "repository_name": repository_name
-        }
-        data["replies"].append(reply_record)
-        
-        async with aiofiles.open(self.storage_path, 'w') as f:
-            await f.write(json.dumps(data, indent=2))
-    
-    async def get_replied_comment_ids(self, pr_number: int, repository_name: str) -> Set[str]:
-        async with aiofiles.open(self.storage_path, 'r') as f:
-            data = json.loads(await f.read())
-        
-        return {
-            reply["comment_id"] 
-            for reply in data["replies"] 
-            if reply["pr_number"] == pr_number and reply["repository_name"] == repository_name
-        }
-```
-
-### 4.3 SQLite Implementation (Phase 2)
-
-```python
-# File: comment_tracker.py (continued)
-import sqlite3
-import threading
-from pathlib import Path
-
-class SQLiteCommentTracker(AbstractCommentTracker):
-    """SQLite-based comment tracking following SQLiteSymbolStorage patterns."""
+class SQLiteCommentStorage(AbstractCommentStorage):
+    """SQLite implementation following SQLiteSymbolStorage pattern."""
     
     def __init__(self, db_path: str | Path, max_retries: int = 3, retry_delay: float = 0.1):
+        """Initialize following SQLiteSymbolStorage pattern (line 127)."""
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._connection: sqlite3.Connection | None = None
@@ -153,360 +112,334 @@ class SQLiteCommentTracker(AbstractCommentTracker):
         self.retry_delay = retry_delay
         self.create_schema()
     
-    def create_schema(self) -> None:
-        """Create comment_replies table with indexes."""
-        conn = self._get_connection()
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS comment_replies (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                comment_id TEXT NOT NULL,
-                pr_number INTEGER NOT NULL,
-                repository_name TEXT NOT NULL,
-                replied_at TEXT NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(comment_id, repository_name)
-            )
-        """)
+    def _execute_with_retry(self, operation_name: str, operation_func, *args, **kwargs):
+        """Execute with retry following SQLiteSymbolStorage pattern (line 201)."""
+        # Exact implementation from symbol_storage.py lines 201-225
+    
+    def mark_comment_replied(self, comment_id: str, pr_number: int, repository_id: str) -> None:
+        """Mark comment as replied with current timestamp."""
+        def _mark_replied():
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO comment_replies 
+                    (comment_id, pr_number, repository_id, created_at, replied_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (comment_id, pr_number, repository_id, 
+                     datetime.now().isoformat(), datetime.now().isoformat())
+                )
+                conn.commit()
         
-        # Performance indexes
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_pr_repo ON comment_replies(pr_number, repository_name)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_comment_id ON comment_replies(comment_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_repo_date ON comment_replies(repository_name, replied_at)")
-        conn.commit()
-    
-    def _get_connection(self) -> sqlite3.Connection:
-        """Get database connection with retry logic matching SQLiteSymbolStorage."""
-        with self._connection_lock:
-            if self._connection is None:
-                self._connection = sqlite3.connect(str(self.db_path))
-                self._connection.row_factory = sqlite3.Row
-            return self._connection
-    
-    async def mark_comment_replied(self, comment_id: str, pr_number: int, repository_name: str) -> None:
-        conn = self._get_connection()
-        conn.execute("""
-            INSERT OR REPLACE INTO comment_replies 
-            (comment_id, pr_number, repository_name, replied_at)
-            VALUES (?, ?, ?, ?)
-        """, (comment_id, pr_number, repository_name, datetime.now().isoformat()))
-        conn.commit()
-    
-    async def get_replied_comment_ids(self, pr_number: int, repository_name: str) -> Set[str]:
-        conn = self._get_connection()
-        cursor = conn.execute("""
-            SELECT comment_id FROM comment_replies 
-            WHERE pr_number = ? AND repository_name = ?
-        """, (pr_number, repository_name))
-        return {row["comment_id"] for row in cursor.fetchall()}
+        self._execute_with_retry("Mark comment replied", _mark_replied)
 ```
 
-### 4.4 GitHub Tools Integration
+### 4.4 Database Schema
+
+```sql
+CREATE TABLE IF NOT EXISTS comment_replies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    comment_id TEXT NOT NULL,
+    pr_number INTEGER NOT NULL,
+    repository_id TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    replied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(comment_id, repository_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_comment_replies_comment_id 
+ON comment_replies(comment_id);
+
+CREATE INDEX IF NOT EXISTS idx_comment_replies_pr_repository 
+ON comment_replies(pr_number, repository_id);
+
+CREATE INDEX IF NOT EXISTS idx_comment_replies_repository 
+ON comment_replies(repository_id);
+```
+
+### 4.5 GitHub Tool Integration
+
+#### Modified github_get_pr_comments (line 392)
 
 ```python
-# File: github_tools.py - Modifications to existing functions
-
-# Global comment tracker (set by worker)
-comment_tracker: AbstractCommentTracker | None = None
-
-# Modify execute_post_pr_reply function (around line 2030)
-async def execute_post_pr_reply(repo_name: str, comment_id: str, message: str) -> str:
-    """Reply to a PR comment and track the reply."""
+async def execute_get_pr_comments(repo_name: str, pr_number: int) -> str:
+    """Get PR comments, filtering out already replied comments."""
     try:
-        # ... existing GitHub API reply logic ...
+        # ... existing logic through line 478 ...
         
-        # NEW: Track the reply
-        if comment_tracker:
-            # Extract PR number from comment context
-            pr_number = await _get_pr_number_for_comment(repo_name, comment_id)
-            await comment_tracker.mark_comment_replied(comment_id, pr_number, repo_name)
-            logger.info(f"Tracked reply to comment {comment_id} in PR {pr_number}")
+        # NEW: Filter replied comments
+        comment_storage = get_comment_storage(repo_name)
+        
+        # Filter review comments
+        filtered_review_comments = []
+        for comment in formatted_review_comments:
+            if not comment_storage.is_comment_replied(str(comment["id"]), context.repo_name):
+                filtered_review_comments.append(comment)
+        
+        # Filter issue comments  
+        filtered_issue_comments = []
+        for comment in formatted_issue_comments:
+            if not comment_storage.is_comment_replied(str(comment["id"]), context.repo_name):
+                filtered_issue_comments.append(comment)
+        
+        # Return filtered results
+        return json.dumps({
+            "success": True,
+            "pr_number": pr_number,
+            "review_comments": filtered_review_comments,
+            "issue_comments": filtered_issue_comments,
+            "total_unread_comments": len(filtered_review_comments) + len(filtered_issue_comments)
+        })
+```
+
+#### New github_mark_comment_replied Tool
+
+```python
+async def execute_mark_comment_replied(repo_name: str, comment_id: int, pr_number: int) -> str:
+    """Mark a comment as replied to."""
+    try:
+        context = get_github_context(repo_name)
+        comment_storage = get_comment_storage(repo_name)
+        
+        comment_storage.mark_comment_replied(str(comment_id), pr_number, context.repo_name)
         
         return json.dumps({
             "success": True,
             "comment_id": comment_id,
-            "message": "Reply posted and tracked successfully"
+            "pr_number": pr_number,
+            "repository": context.repo_name,
+            "marked_at": datetime.now().isoformat()
         })
     except Exception as e:
-        logger.error(f"Failed to post PR reply: {e}", exc_info=True)
-        return json.dumps({"error": f"Failed to post PR reply: {e}"})
-
-# Modify execute_get_pr_comments function (around line 2029)
-async def execute_get_pr_comments(repo_name: str, pr_number: int, include_replied: bool = False) -> str:
-    """Get PR comments, optionally filtering out already-replied comments."""
-    try:
-        # ... existing GitHub API comment fetching logic ...
-        
-        # NEW: Filter replied comments if requested
-        if not include_replied and comment_tracker:
-            replied_ids = await comment_tracker.get_replied_comment_ids(pr_number, repo_name)
-            comments = [c for c in comments if str(c.id) not in replied_ids]
-            logger.info(f"Filtered {len(replied_ids)} replied comments from PR {pr_number}")
-        
-        return json.dumps({
-            "comments": [{"id": c.id, "body": c.body, "user": c.user.login} for c in comments],
-            "total_comments": len(comments),
-            "replied_comments_filtered": len(replied_ids) if not include_replied else 0
-        })
-    except Exception as e:
-        logger.error(f"Failed to get PR comments: {e}", exc_info=True)
-        return json.dumps({"error": f"Failed to get PR comments: {e}"})
+        return json.dumps({"error": f"Failed to mark comment replied: {e!s}"})
 ```
 
-### 4.5 Worker Process Integration
+#### TOOL_HANDLERS Update (line 880)
 
 ```python
-# File: mcp_worker.py - Add comment tracker initialization
+TOOL_HANDLERS: dict[str, Callable[..., Awaitable[str]]] = {
+    "git_get_current_branch": execute_get_current_branch,
+    "git_get_current_commit": execute_get_current_commit,
+    "github_find_pr_for_branch": execute_find_pr_for_branch,
+    "github_get_pr_comments": execute_get_pr_comments,  # MODIFIED
+    "github_post_pr_reply": execute_post_pr_reply,
+    "github_mark_comment_replied": execute_mark_comment_replied,  # NEW
+    # ... existing handlers
+}
+```
 
-class WorkerManager:
-    def __init__(self, ...):
-        # ... existing initialization ...
-        
-        # NEW: Initialize comment tracker alongside symbol storage
-        comment_db_path = str(self.db_path).replace('.db', '_comments.db')
-        
-        # Phase 1: File-based tracker
-        if GITHUB_AGENT_DEV_MODE:
-            self.comment_tracker = FileCommentTracker(
-                storage_path=comment_db_path.replace('.db', '_comments.json')
-            )
-        else:
-            # Phase 2: SQLite tracker
-            self.comment_tracker = SQLiteCommentTracker(comment_db_path)
-        
-        # Set global reference for github_tools.py
-        import github_tools
-        github_tools.comment_tracker = self.comment_tracker
+### 4.6 Configuration and Factory
+
+```python
+def get_comment_storage(repo_name: str) -> AbstractCommentStorage:
+    """Get comment storage for repository following existing patterns."""
+    if not repo_manager:
+        raise ValueError("Repository manager not initialized")
+    
+    repo_config = repo_manager.get_repository(repo_name)
+    if not repo_config:
+        raise ValueError(f"Repository '{repo_name}' not found")
+    
+    # Use DATA_DIR pattern from constants.py
+    db_path = DATA_DIR / f"comments_{repo_name.replace('/', '_')}.db"
+    return SQLiteCommentStorage(db_path)
 ```
 
 ## 5. Alternatives Considered
 
-### 5.1 Single SQLite Implementation
-**Considered**: Implement only SQLiteCommentTracker from the start
-**Rejected**: Developer peer review emphasized rapid prototyping value; JSON approach enables 30-minute MVP validation
+### 5.1 External Retry Composition (Rejected)
+**Proposed by**: Senior Engineer, Tester analyses
+**Approach**: RetryStrategy interface with dependency injection
+**Rejection Reason**: Conflicts with existing `SQLiteSymbolStorage` internal retry pattern (line 201). Would require architectural changes across the codebase.
 
-### 5.2 Composition-Based Retry Pattern
-**Considered**: Extract retry logic into separate RetryManager class as suggested by Senior Engineer
-**Rejected**: Architect peer review identified this violates existing [`SQLiteSymbolStorage`](file:///Users/mstriebeck/Code/github-agent/symbol_storage.py#L127) patterns; retry logic embedded in storage constructor
+### 5.2 JSON File Storage (Rejected)
+**Proposed by**: Developer analysis
+**Approach**: Simple JSON file persistence
+**Rejection Reason**: Inconsistent with existing SQLite pattern in `symbol_storage.py`. No transaction safety or concurrent access handling.
 
-### 5.3 In-Memory-Only Tracking
-**Considered**: Store replied comment IDs only in worker process memory
-**Rejected**: Loses tracking state across agent restarts; fails persistence requirement
+### 5.3 Date Object Serialization (Rejected)
+**Proposed by**: Senior Engineer analysis  
+**Approach**: Complex serialization boundaries with Date objects
+**Rejection Reason**: Existing codebase uses ISO strings with `datetime.fromisoformat()` parsing (health_monitor.py:456). Over-engineered for simple timestamp storage.
 
-### 5.4 GitHub API Comment Reactions
-**Considered**: Use GitHub API reactions (👍, 🎯) to mark replied comments
-**Rejected**: Pollutes PR comment interface; requires additional API calls; external visibility of internal state
+### 5.4 New CommentTracker Component (Rejected)
+**Proposed by**: Developer analysis
+**Approach**: Separate tracking component independent of GitHub tools
+**Rejection Reason**: Would require parallel systems. Better to extend existing `github_get_pr_comments` function following single responsibility principle.
 
 ## 6. Testing / Validation
 
-### 6.1 Unit Test Structure
+### 6.1 Mock Implementation
 
 ```python
-# File: tests/test_comment_tracker.py
-
-class TestAbstractCommentTracker:
-    """Test suite for AbstractCommentTracker interface compliance."""
+class MockCommentStorage(AbstractCommentStorage):
+    """Mock comment storage following mock_symbol_storage.py pattern."""
     
-    async def test_mark_comment_replied_persists(self, tracker: AbstractCommentTracker):
-        await tracker.mark_comment_replied("123", 456, "test-repo")
-        replied_ids = await tracker.get_replied_comment_ids(456, "test-repo")
-        assert "123" in replied_ids
+    def __init__(self):
+        self.replies: dict[str, CommentRecord] = {}
+        self._health_check_result: bool = True
     
-    async def test_filter_excludes_replied_comments(self, tracker: AbstractCommentTracker):
-        # Setup: Mark comment as replied
-        await tracker.mark_comment_replied("replied-123", 789, "test-repo")
-        
-        # Test: Verify filtering logic
-        all_comment_ids = {"replied-123", "new-456", "new-789"}
-        replied_ids = await tracker.get_replied_comment_ids(789, "test-repo")
-        filtered_ids = all_comment_ids - replied_ids
-        
-        assert "replied-123" not in filtered_ids
-        assert "new-456" in filtered_ids
+    def create_schema(self) -> None:
+        """No-op for mock."""
+        pass
+    
+    def mark_comment_replied(self, comment_id: str, pr_number: int, repository_id: str) -> None:
+        key = f"{comment_id}:{repository_id}"
+        self.replies[key] = CommentRecord(
+            comment_id=comment_id,
+            pr_number=pr_number,
+            repository_id=repository_id,
+            created_at=datetime.now().isoformat(),
+            replied_at=datetime.now().isoformat()
+        )
+    
+    def is_comment_replied(self, comment_id: str, repository_id: str) -> bool:
+        key = f"{comment_id}:{repository_id}"
+        return key in self.replies
+```
 
-class TestFileCommentTracker(TestAbstractCommentTracker):
+### 6.2 Unit Tests
+
+```python
+class TestSQLiteCommentStorage:
+    """Unit tests following test_symbol_storage.py pattern."""
+    
     @pytest.fixture
-    async def tracker(self, tmp_path):
-        return FileCommentTracker(tmp_path / "test_comments.json")
-
-class TestSQLiteCommentTracker(TestAbstractCommentTracker):
-    @pytest.fixture  
-    async def tracker(self, tmp_path):
-        return SQLiteCommentTracker(tmp_path / "test_comments.db")
+    def storage(self, tmp_path):
+        """Create test storage instance."""
+        db_path = tmp_path / "test_comments.db"
+        return SQLiteCommentStorage(db_path)
+    
+    def test_mark_comment_replied(self, storage):
+        """Test marking comment as replied."""
+        storage.mark_comment_replied("123", 456, "owner/repo")
+        assert storage.is_comment_replied("123", "owner/repo") is True
+    
+    def test_comment_not_replied_initially(self, storage):
+        """Test comment not replied by default."""
+        assert storage.is_comment_replied("999", "owner/repo") is False
+    
+    def test_get_replied_comments_for_pr(self, storage):
+        """Test retrieving replied comments for specific PR."""
+        storage.mark_comment_replied("123", 456, "owner/repo")
+        storage.mark_comment_replied("124", 456, "owner/repo")
+        
+        replied = storage.get_replied_comments(456, "owner/repo")
+        assert len(replied) == 2
+        assert all(r.pr_number == 456 for r in replied)
 ```
 
-### 6.2 Integration Test Scenarios
+### 6.3 Integration Tests
 
 ```python
-# File: tests/test_github_comment_integration.py
-
 class TestGitHubCommentIntegration:
-    """Integration tests for GitHub comment tracking workflow."""
+    """Integration tests for GitHub comment workflow."""
     
-    async def test_post_reply_tracks_comment(self, mock_github_api, comment_tracker):
-        # Setup: Mock GitHub API responses
-        mock_github_api.setup_pr_comment("test-comment-123", pr_number=456)
+    @pytest.mark.asyncio
+    async def test_end_to_end_comment_workflow(self, mock_github_context):
+        """Test complete comment reply and filtering workflow."""
+        # Setup mock PR with comments
+        mock_pr_comments = [
+            {"id": 123, "body": "Please fix this", "user": {"login": "reviewer"}},
+            {"id": 124, "body": "Also this", "user": {"login": "reviewer"}}
+        ]
         
-        # Execute: Post reply through github_tools
-        result = await execute_post_pr_reply("test-repo", "test-comment-123", "Test reply")
-        
-        # Verify: Comment is tracked
-        replied_ids = await comment_tracker.get_replied_comment_ids(456, "test-repo")
-        assert "test-comment-123" in replied_ids
-    
-    async def test_get_comments_filters_replied(self, mock_github_api, comment_tracker):
-        # Setup: Pre-populate replied comment
-        await comment_tracker.mark_comment_replied("old-comment", 789, "test-repo")
-        mock_github_api.setup_pr_comments(789, ["old-comment", "new-comment"])
-        
-        # Execute: Get comments with filtering
-        result = await execute_get_pr_comments("test-repo", 789, include_replied=False)
+        # Get initial comments (should return all)
+        result = await execute_get_pr_comments("test-repo", 456)
         data = json.loads(result)
+        assert len(data["review_comments"]) == 2
         
-        # Verify: Only new comments returned
-        comment_ids = [c["id"] for c in data["comments"]]
-        assert "old-comment" not in comment_ids
-        assert "new-comment" in comment_ids
+        # Mark one comment as replied
+        await execute_mark_comment_replied("test-repo", 123, 456)
+        
+        # Get comments again (should filter replied)
+        result = await execute_get_pr_comments("test-repo", 456)
+        data = json.loads(result)
+        assert len(data["review_comments"]) == 1
+        assert data["review_comments"][0]["id"] == 124
 ```
 
-### 6.3 Performance Validation
+### 6.4 Error Handling Tests
 
 ```python
-# File: tests/test_comment_tracker_performance.py
+def test_database_corruption_recovery(self, tmp_path):
+    """Test database corruption recovery following symbol_storage pattern."""
+    db_path = tmp_path / "corrupt.db"
+    
+    # Create corrupted database file
+    with open(db_path, "wb") as f:
+        f.write(b"corrupted data")
+    
+    # Should recover and create new schema
+    storage = SQLiteCommentStorage(db_path)
+    assert storage.health_check() is True
 
-class TestCommentTrackerPerformance:
-    async def test_filter_performance_1000_comments(self, tracker):
-        # Setup: 1000 replied comments
-        for i in range(1000):
-            await tracker.mark_comment_replied(f"comment-{i}", 123, "large-repo")
-        
-        # Measure: Filter query performance
-        start_time = time.time()
-        replied_ids = await tracker.get_replied_comment_ids(123, "large-repo")
-        duration = time.time() - start_time
-        
-        # Verify: Sub-100ms performance
-        assert len(replied_ids) == 1000
-        assert duration < 0.1  # 100ms threshold
+def test_retry_mechanism_on_database_lock(self, tmp_path):
+    """Test retry logic on database lock scenarios."""
+    # Implementation following SQLiteSymbolStorage retry tests
 ```
 
 ## 7. Migration / Deployment & Rollout
 
-### 7.1 Phase 1 Deployment (Week 1)
+### 7.1 Implementation Sequence
 
-**Day 1**: Core Implementation
-1. Create `comment_tracker.py` with `AbstractCommentTracker` and `FileCommentTracker`
-2. Add basic integration to [`github_tools.py`](file:///Users/mstriebeck/Code/github-agent/github_tools.py)
-3. Update [`mcp_worker.py`](file:///Users/mstriebeck/Code/github-agent/mcp_worker.py) initialization
+1. **Step 1**: Create `comment_storage.py` with abstract interface and SQLite implementation
+2. **Step 2**: Add `get_comment_storage()` factory function to `github_tools.py`
+3. **Step 3**: Modify `execute_get_pr_comments()` to filter replied comments
+4. **Step 4**: Add `execute_mark_comment_replied()` function and tool definition
+5. **Step 5**: Update `TOOL_HANDLERS` mapping with new tool
+6. **Step 6**: Add `github_mark_comment_replied` to `get_tools()` function
+7. **Step 7**: Create mock implementation in `tests/mocks/mock_comment_storage.py`
+8. **Step 8**: Add unit and integration tests
 
-**Day 2**: Testing & Integration
-1. Implement unit tests for `FileCommentTracker`
-2. Add integration tests with mock GitHub API
-3. Test with single PR comment workflow
-
-**Day 3**: Validation
-1. Deploy to development environment
-2. Test with real GitHub PR data
-3. Validate performance with 10-50 comments
-
-### 7.2 Phase 2 Migration (Week 3)
-
-**Migration Strategy**: Zero-downtime transition from FileCommentTracker to SQLiteCommentTracker
+### 7.2 Database Migration
 
 ```python
-# File: comment_tracker_migration.py
-
-async def migrate_file_to_sqlite(file_path: Path, db_path: Path) -> None:
-    """Migrate JSON file data to SQLite database."""
-    file_tracker = FileCommentTracker(file_path)
-    sqlite_tracker = SQLiteCommentTracker(db_path)
-    
-    # Read all replies from JSON file
-    async with aiofiles.open(file_path, 'r') as f:
-        data = json.loads(await f.read())
-    
-    # Migrate each reply to SQLite
-    for reply in data["replies"]:
-        await sqlite_tracker.mark_comment_replied(
-            reply["comment_id"],
-            reply["pr_number"], 
-            reply["repository_name"]
-        )
-    
-    logger.info(f"Migrated {len(data['replies'])} comment replies to SQLite")
+def migrate_comment_storage_schema():
+    """Migrate existing databases if needed."""
+    # Check for existing comment_replies table
+    # Add any missing indexes
+    # No data migration required for new feature
 ```
 
-**Rollout Steps**:
-1. Deploy SQLiteCommentTracker implementation
-2. Run migration script for each repository worker
-3. Update worker configuration to use SQLite tracker
-4. Validate migrated data integrity
-5. Remove FileCommentTracker code
+### 7.3 Backward Compatibility
 
-### 7.3 Rollback Plan
+- **Existing Tools**: All existing GitHub tools maintain same interfaces
+- **Configuration**: No configuration changes required
+- **Dependencies**: No new external dependencies
 
-**Immediate Rollback**: Disable comment tracking while preserving existing functionality
-```python
-# Emergency rollback: Set comment_tracker = None in worker
-github_tools.comment_tracker = None
-```
+### 7.4 Rollout Process
 
-**Data Recovery**: JSON files provide backup for SQLite corruption
-```python
-# Restore from JSON backup if SQLite database corrupted
-backup_tracker = FileCommentTracker(backup_path)
-await migrate_file_to_sqlite(backup_path, new_db_path)
-```
+1. **Development**: Implement with comprehensive tests
+2. **Testing**: Verify with real GitHub PR workflows
+3. **Staging**: Deploy to staging environment with existing repositories
+4. **Production**: Enable for specific repositories first, then expand
 
 ## Appendix
 
 ### A.1 Conflict Resolutions
 
-**Storage Technology Conflict (SQLite vs JSON)**:
-- **Resolution**: Phased approach - FileCommentTracker (Week 1) → SQLiteCommentTracker (Week 3)
-- **Decision Point**: 1000 comments or 2-week mark based on performance metrics
-- **Rationale**: Enables rapid prototyping while maintaining upgrade path to production-scale storage
+**Storage Technology Conflict**: Developer advocated JSON files, Architect required SQLite consistency. **Resolution**: Follow existing SQLite pattern for architectural consistency.
 
-**Development Methodology Conflict (Test-First vs Implementation-First)**:
-- **Resolution**: Iterative approach - Day 1: Core + basic tests, Day 2: Integration, Day 3: Comprehensive testing
-- **Priority Tests**: `test_mark_replied_persists()`, `test_fallback_comment_tracked()`, `test_filter_excludes_replied()`
-- **Rationale**: Balances rapid development with quality assurance
+**Development Methodology Conflict**: Developer wanted ship-first approach, Tester demanded test-first. **Resolution**: Implement with comprehensive tests but focus on working functionality over perfect coverage initially.
 
-**Architectural Consistency Conflict**:
-- **Resolution**: Follow [`SQLiteSymbolStorage`](file:///Users/mstriebeck/Code/github-agent/symbol_storage.py#L124) constructor pattern exactly
-- **Implementation**: Both FileCommentTracker and SQLiteCommentTracker use `(storage_path, max_retries, retry_delay)` signature
-- **Rationale**: Maintains codebase consistency while supporting multiple storage backends
+**Abstraction Level Conflict**: Developer wanted simple classes, Senior Engineer wanted complex interfaces. **Resolution**: Use existing abstract base class pattern but keep implementation simple.
 
-### A.2 Performance Benchmarks
+**Integration Strategy Conflict**: Developer wanted new component, Architect wanted existing tool modification. **Resolution**: Extend existing `github_get_pr_comments` function following single responsibility principle.
 
-**Target Metrics**:
-- Comment filtering: <100ms for 1000 comments
-- Reply tracking: <50ms per comment
-- Storage size: <1MB per 10,000 tracked replies
-- Memory usage: <10MB additional per worker process
+**Retry Implementation Conflict**: Multiple approaches proposed. **Resolution**: Follow exact `SQLiteSymbolStorage` internal retry pattern for consistency.
 
-**Monitoring Points**:
-- SQLite query performance on `idx_pr_repo` index
-- JSON file size growth rate
-- Worker process memory usage
-- Comment tracking success rate
+### A.2 File Modifications Required
 
-### A.3 Database Schema Evolution
+- **github_tools.py**: Lines 392-500 (modify `execute_get_pr_comments`), line 880 (update `TOOL_HANDLERS`)
+- **New file**: `comment_storage.py` (complete implementation)
+- **New file**: `tests/mocks/mock_comment_storage.py` (mock implementation)
+- **New file**: `tests/test_comment_storage.py` (unit tests)
 
-**Version 1** (Initial):
-```sql
-CREATE TABLE comment_replies (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    comment_id TEXT NOT NULL,
-    pr_number INTEGER NOT NULL,
-    repository_name TEXT NOT NULL,
-    replied_at TEXT NOT NULL
-);
-```
+### A.3 Database Schema Details
 
-**Version 2** (Future enhancement):
-```sql
--- Add columns for reply context and metadata
-ALTER TABLE comment_replies ADD COLUMN reply_message_preview TEXT;
-ALTER TABLE comment_replies ADD COLUMN github_user TEXT;
-ALTER TABLE comment_replies ADD COLUMN reply_github_id TEXT;
-```
+Database file location: `DATA_DIR / comments_{repository}.db` following existing pattern from `symbol_storage.py:544`.
+
+Total storage overhead: ~50 bytes per replied comment (minimal impact).
+
+Query performance: Indexed on comment_id and repository_id for O(log n) lookup time.
