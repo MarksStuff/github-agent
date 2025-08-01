@@ -41,7 +41,7 @@ The architecture **extends the existing SQLite symbol storage infrastructure** b
 - Modified `execute_get_pr_comments()` function filters replied comments using existing storage
 - New `execute_mark_comment_replied()` tool using existing storage interface
 - Reuse existing `_execute_with_retry()` method from `SQLiteSymbolStorage`
-- Extended mock implementations following `tests/mocks/` patterns
+- Extended in-memory implementations following existing `InMemorySymbolStorage` patterns
 
 **Data Flow**: GitHub API → Comment filtering → Storage persistence → Filtered response
 
@@ -319,7 +319,7 @@ class CommentStorageUnavailableError(CommentStorageError):
 - ✅ Type safety in API interfaces
 - ✅ Automatic validation through datetime constructor
 - ✅ Storage compatibility with ISO string format
-- ✅ Can use `dataclasses.asdict()` with custom datetime handling
+- ✅ Uses `dataclasses.asdict()` with minimal custom datetime handling
 
 ### Testing Approach Alternatives
 
@@ -413,38 +413,6 @@ class TestGitHubToolsCommentIntegration(unittest.TestCase):
         """Verify get_symbol_storage works for comment operations"""
 ```
 
-### Mock Object Extensions
-
-```python
-class MockSymbolStorage(AbstractSymbolStorage):
-    """Extended mock following existing tests/mocks/ patterns"""
-    
-    def __init__(self):
-        super().__init__()
-        self.symbols: dict[str, list[Symbol]] = {}
-        self.comment_replies: list[CommentReply] = []
-        self.should_fail_comment_ops: bool = False
-    
-    # Existing symbol methods remain unchanged
-    
-    async def mark_comment_replied(self, comment_reply: CommentReply) -> None:
-        if self.should_fail_comment_ops:
-            raise CommentStorageError("Mock failure")
-        self.comment_replies.append(comment_reply)
-    
-    async def is_comment_replied(self, comment_id: int, pr_number: int) -> bool:
-        if self.should_fail_comment_ops:
-            raise CommentStorageError("Mock failure")
-        return any(
-            cr.comment_id == comment_id and cr.pr_number == pr_number 
-            for cr in self.comment_replies
-        )
-    
-    def set_comment_failure_mode(self, should_fail: bool) -> None:
-        """Testing helper for simulating failures"""
-        self.should_fail_comment_ops = should_fail
-```
-
 ### Integration Test Requirements
 
 - **Existing Symbol Storage Compatibility**: Verify comment additions don't break existing symbol operations
@@ -518,16 +486,3 @@ async def _create_comment_tables(self) -> None:
 - [ ] New comment functionality tested with in-memory storage
 - [ ] GitHub tools integration preserves existing API behavior
 - [ ] No new configuration or environment variables required
-
-## 8. Summary
-
-This design extends the existing SQLite symbol storage infrastructure to add GitHub PR comment tracking functionality. By reusing the proven `AbstractSymbolStorage` interface, `_execute_with_retry()` method, and in-memory testing patterns, the solution maintains architectural consistency while avoiding infrastructure duplication.
-
-Key implementation points:
-- **Zero Infrastructure Duplication**: Reuses existing database connections, retry mechanisms, and configuration
-- **Type-Safe Domain Model**: `datetime` objects with `dataclasses.asdict()` serialization
-- **Direct GitHub Tools Integration**: Comment filtering integrated into existing `execute_get_pr_comments()` function
-- **Consistent Testing**: Extends `InMemorySymbolStorage` following established patterns
-- **Minimal Configuration**: No new environment variables or configuration required
-
-The approach prioritizes rapid implementation by building on existing, proven components while maintaining the codebase's architectural integrity.
