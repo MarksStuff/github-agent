@@ -6,7 +6,30 @@
       "description": "GitHub Agent repository",
       "language": "python",
       "python_path": "/Users/mstriebeck/Code/github-agent/.venv/bin/python",
-      "lsp_server": "pylsp"
+      "lsp_server": "pylsp",
+      "pre_commit_scripts": [
+        {
+          "name": "ruff-autofix",
+          "script": "scripts/ruff-autofix.sh",
+          "description": "Auto-format Python code using ruff",
+          "required": true,
+          "timeout": 120
+        },
+        {
+          "name": "code-checks",
+          "script": "scripts/run-code-checks.sh",
+          "description": "Run linting checks (ignore bandit warnings)",
+          "required": true,
+          "timeout": 180
+        },
+        {
+          "name": "pytest",
+          "script": "pytest",
+          "description": "Run all tests to ensure functionality",
+          "required": true,
+          "timeout": 300
+        }
+      ]
     },
     "news-reader": {
       "workspace": "/Users/mstriebeck/Code/news_reader",
