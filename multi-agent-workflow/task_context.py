@@ -61,7 +61,12 @@ class AnalysisResult:
 class TaskContext:
     """Maintains shared state and context for the workflow."""
 
-    def __init__(self, feature_spec: FeatureSpec, codebase_state: CodebaseState, repo_path: str | None = None):
+    def __init__(
+        self,
+        feature_spec: FeatureSpec,
+        codebase_state: CodebaseState,
+        repo_path: str | None = None,
+    ):
         """Initialize task context.
 
         Args:
@@ -118,7 +123,8 @@ class TaskContext:
             comment_id=feedback_data["id"],
             author=author,
             content=feedback_data["body"],
-            file_path=feedback_data.get("file") or feedback_data.get("path"),  # Try 'file' first, then 'path'
+            file_path=feedback_data.get("file")
+            or feedback_data.get("path"),  # Try 'file' first, then 'path'
             line_number=feedback_data.get("line"),
             created_at=feedback_data.get("created_at", ""),
         )
@@ -143,7 +149,9 @@ class TaskContext:
                 "acceptance_criteria": self.feature_spec.acceptance_criteria,
                 "constraints": self.feature_spec.constraints,
             },
-            "codebase_analysis_path": str((self.repo_path / ".workflow/codebase_analysis.md").resolve()),
+            "codebase_analysis_path": str(
+                (self.repo_path / ".workflow/codebase_analysis.md").resolve()
+            ),
             "repository": self.codebase_state.repository,
             "branch": self.codebase_state.branch,
             "patterns": self.codebase_state.patterns_identified,

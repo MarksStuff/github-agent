@@ -128,36 +128,36 @@ class WorkflowOrchestrator:
         # Set the global repo_manager in github_tools
         github_tools.repo_manager = repo_manager
         logger.info(f"Configured repository manager for {self.repo_name}")
-    
+
     def get_absolute_path(self, relative_path: str) -> Path:
         """Get absolute path for a file relative to the repository root.
-        
+
         Args:
             relative_path: Path relative to repository root
-            
+
         Returns:
             Absolute Path object
         """
         return (self.repo_path / relative_path).resolve()
-    
+
     async def analyze_codebase(self) -> dict[str, Any]:
         """Have senior engineer analyze the codebase structure and patterns.
-        
+
         This should be run once at the beginning of the workflow to understand:
         - Design patterns
-        - High-level architecture  
+        - High-level architecture
         - Naming conventions
         - Testing practices
         - Code structure
-        
+
         Returns:
             Dictionary with codebase analysis
         """
         if self._codebase_analysis:
             return self._codebase_analysis
-            
+
         logger.info("Starting codebase analysis with Senior Engineer...")
-        
+
         analysis_prompt = f"""## Task: Comprehensive Codebase Design Investigation
 
 As a Senior Engineer, you must investigate the existing codebase and create a comprehensive design summary that will serve as the foundation for all future development decisions.
@@ -191,7 +191,7 @@ REQUIRED ANALYSIS SECTIONS:
 - Identify the entry points (main files, CLI scripts)
 - Map out the module organization
 
-### 2. Key Classes and Modules  
+### 2. Key Classes and Modules
 - Name the most important classes and their responsibilities
 - List the main modules and what they do
 - Identify the core abstractions and interfaces
@@ -236,7 +236,7 @@ REQUIRED ANALYSIS SECTIONS:
 - **Integration Guidelines**: How should new components integrate with the existing system?
 - **Architectural Principles**: What architectural decisions guide this codebase?
 
-CRITICAL: 
+CRITICAL:
 - Examine actual files and provide concrete examples with file paths and code snippets
 - This analysis will be provided to all other agents for every task - make it comprehensive
 - No generic statements - everything must be grounded in the actual codebase
@@ -245,7 +245,9 @@ CRITICAL:
         senior = self.agents["senior_engineer"]
         context = {
             "repo_path": str(self.repo_path),
-            "codebase_analysis_path": str(self.get_absolute_path(".workflow/codebase_analysis.md")),
+            "codebase_analysis_path": str(
+                self.get_absolute_path(".workflow/codebase_analysis.md")
+            ),
             "codebase_summary": "Initial codebase analysis",
             "repository": self.repo_name,
             "branch": "main",
@@ -253,17 +255,21 @@ CRITICAL:
             "workflow_phase": "codebase_analysis",
             "pr_number": None,
         }
-        
+
         # Log the codebase analysis prompt for debugging
-        logger.debug(f"Codebase analysis prompt (length={len(analysis_prompt)}):\n{analysis_prompt}\n============================")
-        
+        logger.debug(
+            f"Codebase analysis prompt (length={len(analysis_prompt)}):\n{analysis_prompt}\n============================"
+        )
+
         # Call the persona directly to avoid double-prompt wrapping
         try:
             analysis_result = senior.persona.ask(analysis_prompt)
-            
+
             # Log the raw response for debugging
-            logger.debug(f"Codebase analysis raw response (length={len(analysis_result) if analysis_result else 0}):\n{analysis_result}\n============================")
-            
+            logger.debug(
+                f"Codebase analysis raw response (length={len(analysis_result) if analysis_result else 0}):\n{analysis_result}\n============================"
+            )
+
             result = {
                 "agent_type": "senior_engineer",
                 "analysis": analysis_result,
@@ -272,18 +278,18 @@ CRITICAL:
         except Exception as e:
             logger.error(f"Codebase analysis failed: {e}")
             result = {
-                "agent_type": "senior_engineer", 
+                "agent_type": "senior_engineer",
                 "analysis": "",
                 "status": "error",
                 "error": str(e),
             }
         self._codebase_analysis = result.get("analysis", "")
-        
+
         # Save the analysis for reference
         analysis_path = self.get_absolute_path(".workflow/codebase_analysis.md")
         analysis_path.parent.mkdir(parents=True, exist_ok=True)
         analysis_path.write_text(f"# Codebase Analysis\n\n{self._codebase_analysis}")
-        
+
         logger.info(f"Codebase analysis completed and saved to {analysis_path}")
         return {"status": "success", "analysis": self._codebase_analysis}
 
@@ -742,9 +748,7 @@ All analysis documents are in `.workflow/round_1_analysis/`
                         logger.warning(
                             f"Could not parse analysis content from {analysis_file}"
                         )
-                        results[
-                            agent_type
-                        ] = f"Error: Could not parse existing analysis"
+                        results[agent_type] = "Error: Could not parse existing analysis"
                 except Exception as e:
                     logger.error(f"Failed to load {agent_type} analysis: {e}")
                     results[agent_type] = f"Error: {e}"
@@ -802,28 +806,30 @@ All analysis documents are in `.workflow/round_1_analysis/`
 
         return analysis
 
-    def _analyze_agent_alignment(self, analysis_results: dict[str, str]) -> tuple[list[str], list[dict]]:
+    def _analyze_agent_alignment(
+        self, analysis_results: dict[str, str]
+    ) -> tuple[list[str], list[dict]]:
         """Analyze where agents agree and disagree.
-        
+
         Args:
             analysis_results: Raw analysis text by agent type
-            
+
         Returns:
             Tuple of (consensus_points, disagreements)
         """
         consensus_points = []
         disagreements = []
-        
+
         # Common topics to check for alignment
         topics = {
-            'database': ['sqlite', 'database', 'storage', 'persist'],
-            'pattern': ['pattern', 'abstract', 'interface', 'base class'],
-            'testing': ['test', 'mock', 'pytest', 'coverage'],
-            'implementation': ['implement', 'create', 'modify', 'extend'],
-            'files': ['file', '.py', 'directory', 'module'],
-            'approach': ['approach', 'strategy', 'method', 'solution']
+            "database": ["sqlite", "database", "storage", "persist"],
+            "pattern": ["pattern", "abstract", "interface", "base class"],
+            "testing": ["test", "mock", "pytest", "coverage"],
+            "implementation": ["implement", "create", "modify", "extend"],
+            "files": ["file", ".py", "directory", "module"],
+            "approach": ["approach", "strategy", "method", "solution"],
         }
-        
+
         # Extract agent positions on each topic
         agent_positions = {}
         for agent_type, analysis in analysis_results.items():
@@ -831,144 +837,169 @@ All analysis documents are in `.workflow/round_1_analysis/`
                 continue
             analysis_lower = analysis.lower()
             agent_positions[agent_type] = {}
-            
+
             # Check specific patterns for common recommendations
-            if 'sqlite' in analysis_lower and 'symbol_storage' in analysis_lower:
-                agent_positions[agent_type]['storage_pattern'] = 'sqlite_symbol_storage'
-            elif 'sqlite' in analysis_lower:
-                agent_positions[agent_type]['storage_pattern'] = 'sqlite_other'
-            elif 'database' in analysis_lower:
-                agent_positions[agent_type]['storage_pattern'] = 'other_database'
-                
-            if 'abstract' in analysis_lower and 'base class' in analysis_lower:
-                agent_positions[agent_type]['abstraction'] = 'abstract_base_class'
-            elif 'interface' in analysis_lower:
-                agent_positions[agent_type]['abstraction'] = 'interface'
-                
-            if 'dependency injection' in analysis_lower:
-                agent_positions[agent_type]['di'] = True
-                
-            if 'repository' in analysis_lower and 'scoped' in analysis_lower:
-                agent_positions[agent_type]['repo_scope'] = True
-                
+            if "sqlite" in analysis_lower and "symbol_storage" in analysis_lower:
+                agent_positions[agent_type]["storage_pattern"] = "sqlite_symbol_storage"
+            elif "sqlite" in analysis_lower:
+                agent_positions[agent_type]["storage_pattern"] = "sqlite_other"
+            elif "database" in analysis_lower:
+                agent_positions[agent_type]["storage_pattern"] = "other_database"
+
+            if "abstract" in analysis_lower and "base class" in analysis_lower:
+                agent_positions[agent_type]["abstraction"] = "abstract_base_class"
+            elif "interface" in analysis_lower:
+                agent_positions[agent_type]["abstraction"] = "interface"
+
+            if "dependency injection" in analysis_lower:
+                agent_positions[agent_type]["di"] = True
+
+            if "repository" in analysis_lower and "scoped" in analysis_lower:
+                agent_positions[agent_type]["repo_scope"] = True
+
             # Look for test file counts
             import re
-            test_files = re.findall(r'(\d+)\s*(?:test|unit)\s*(?:file|test)', analysis_lower)
+
+            test_files = re.findall(
+                r"(\d+)\s*(?:test|unit)\s*(?:file|test)", analysis_lower
+            )
             if test_files:
-                agent_positions[agent_type]['test_count'] = int(test_files[0])
-                
+                agent_positions[agent_type]["test_count"] = int(test_files[0])
+
         # Find consensus points
-        if all(agent_positions.get(agent, {}).get('storage_pattern') == 'sqlite_symbol_storage' 
-               for agent in agent_positions if 'storage_pattern' in agent_positions.get(agent, {})):
-            consensus_points.append("Use SQLite storage pattern following existing `symbol_storage.py` architecture")
-            
-        if all(agent_positions.get(agent, {}).get('abstraction') == 'abstract_base_class' 
-               for agent in agent_positions if 'abstraction' in agent_positions.get(agent, {})):
-            consensus_points.append("Create abstract base classes with concrete implementations")
-            
-        if all(agent_positions.get(agent, {}).get('di') 
-               for agent in agent_positions if 'di' in agent_positions.get(agent, {})):
+        if all(
+            agent_positions.get(agent, {}).get("storage_pattern")
+            == "sqlite_symbol_storage"
+            for agent in agent_positions
+            if "storage_pattern" in agent_positions.get(agent, {})
+        ):
+            consensus_points.append(
+                "Use SQLite storage pattern following existing `symbol_storage.py` architecture"
+            )
+
+        if all(
+            agent_positions.get(agent, {}).get("abstraction") == "abstract_base_class"
+            for agent in agent_positions
+            if "abstraction" in agent_positions.get(agent, {})
+        ):
+            consensus_points.append(
+                "Create abstract base classes with concrete implementations"
+            )
+
+        if all(
+            agent_positions.get(agent, {}).get("di")
+            for agent in agent_positions
+            if "di" in agent_positions.get(agent, {})
+        ):
             consensus_points.append("Implement dependency injection for testability")
-            
-        if all(agent_positions.get(agent, {}).get('repo_scope') 
-               for agent in agent_positions if 'repo_scope' in agent_positions.get(agent, {})):
+
+        if all(
+            agent_positions.get(agent, {}).get("repo_scope")
+            for agent in agent_positions
+            if "repo_scope" in agent_positions.get(agent, {})
+        ):
             consensus_points.append("Maintain repository-scoped data isolation")
-            
+
         # Find disagreements
         # Check for different test counts
         test_counts = {}
         for agent, positions in agent_positions.items():
-            if 'test_count' in positions:
-                test_counts[agent] = positions['test_count']
-                
+            if "test_count" in positions:
+                test_counts[agent] = positions["test_count"]
+
         if len(set(test_counts.values())) > 1:
-            disagreements.append({
-                'topic': 'Number of test files',
-                'positions': test_counts
-            })
-            
+            disagreements.append(
+                {"topic": "Number of test files", "positions": test_counts}
+            )
+
         # Check for implementation approach differences
-        if 'developer' in analysis_results and 'architect' in analysis_results:
-            dev_analysis = analysis_results['developer'].lower()
-            arch_analysis = analysis_results['architect'].lower()
-            
-            if 'incremental' in dev_analysis and 'comprehensive' in arch_analysis:
-                disagreements.append({
-                    'topic': 'Implementation approach',
-                    'positions': {
-                        'developer': 'Incremental MVP approach',
-                        'architect': 'Comprehensive design-first approach'
+        if "developer" in analysis_results and "architect" in analysis_results:
+            dev_analysis = analysis_results["developer"].lower()
+            arch_analysis = analysis_results["architect"].lower()
+
+            if "incremental" in dev_analysis and "comprehensive" in arch_analysis:
+                disagreements.append(
+                    {
+                        "topic": "Implementation approach",
+                        "positions": {
+                            "developer": "Incremental MVP approach",
+                            "architect": "Comprehensive design-first approach",
+                        },
                     }
-                })
-                
+                )
+
         return consensus_points, disagreements
-    
+
     def _format_consensus_points(self, consensus_points: list[str]) -> str:
         """Format consensus points for display."""
         if not consensus_points:
             return "No clear consensus points identified. Review individual analyses for alignment."
-        
+
         formatted = "All agents agree on:\n"
         for point in consensus_points:
             formatted += f"- {point}\n"
         return formatted.strip()
-    
+
     def _format_disagreements(self, disagreements: list[dict]) -> str:
         """Format disagreements for display."""
         if not disagreements:
             return "No significant disagreements identified. The agents are well-aligned on the approach."
-        
+
         formatted = ""
         for disagreement in disagreements:
             formatted += f"### {disagreement['topic']}\n"
-            for agent, position in disagreement['positions'].items():
+            for agent, position in disagreement["positions"].items():
                 formatted += f"- **{agent.replace('_', ' ').title()}**: {position}\n"
             formatted += "\n"
         return formatted.strip()
-    
+
     def _extract_key_insights(self, analysis_results: dict[str, str]) -> dict[str, str]:
         """Extract key insights from each agent's analysis.
-        
+
         Args:
             analysis_results: Raw analysis text by agent type
-            
+
         Returns:
             Dictionary of summarized insights by agent type
         """
         insights = {}
-        
+
         for agent_type, analysis in analysis_results.items():
             if not analysis or analysis.strip() == "":
                 insights[agent_type] = "Analysis not available"
                 continue
-                
+
             # Extract first few meaningful paragraphs or bullet points
-            lines = analysis.strip().split('\n')
+            lines = analysis.strip().split("\n")
             key_lines = []
             bullet_count = 0
-            
+
             for line in lines:
                 line = line.strip()
                 if not line:
                     continue
-                    
+
                 # Capture headers and first few bullet points
-                if line.startswith('#'):
+                if line.startswith("#"):
                     if key_lines and bullet_count >= 3:
                         break
                     key_lines.append(line)
                     bullet_count = 0
-                elif line.startswith(('-', '*', '•')) or (len(key_lines) < 5 and not line.startswith('```')):
+                elif line.startswith(("-", "*", "•")) or (
+                    len(key_lines) < 5 and not line.startswith("```")
+                ):
                     key_lines.append(line)
-                    if line.startswith(('-', '*', '•')):
+                    if line.startswith(("-", "*", "•")):
                         bullet_count += 1
                     if len(key_lines) >= 8:  # Limit to reasonable summary
                         break
-                        
-            insights[agent_type] = '\n'.join(key_lines) if key_lines else "No specific recommendations"
-            
+
+            insights[agent_type] = (
+                "\n".join(key_lines) if key_lines else "No specific recommendations"
+            )
+
         return insights
-    
+
     async def _commit_analysis_artifacts(
         self, context: TaskContext, analysis_results: dict[str, str]
     ):
@@ -1018,10 +1049,12 @@ All analysis documents are in `.workflow/round_1_analysis/`
         if not summary_path.exists():
             # Extract key insights from each analysis
             insights = self._extract_key_insights(analysis_results)
-            
+
             # Find consensus and disagreement points
-            consensus_points, disagreements = self._analyze_agent_alignment(analysis_results)
-            
+            consensus_points, disagreements = self._analyze_agent_alignment(
+                analysis_results
+            )
+
             summary_content = f"""# Round 1 Analysis Summary
 
 **Feature**: {context.feature_spec.name}
@@ -1085,11 +1118,11 @@ All analysis documents are in `.workflow/round_1_analysis/`
                 text=True,
                 check=True,
             )
-            
+
             if not status_result.stdout.strip():
                 logger.info("No changes to commit in .workflow directory")
                 return
-            
+
             # Add the workflow directory
             subprocess.run(
                 ["git", "add", ".workflow"],
@@ -1120,7 +1153,7 @@ Analysis documents available in {self.repo_path}/.workflow/round_1_analysis/
                 capture_output=True,
                 text=True,
             )
-            
+
             if result.returncode == 0:
                 logger.info("Successfully committed analysis artifacts")
             else:
@@ -1131,9 +1164,9 @@ Analysis documents available in {self.repo_path}/.workflow/round_1_analysis/
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to commit artifacts: {e}")
-            if hasattr(e, 'stdout') and e.stdout:
+            if hasattr(e, "stdout") and e.stdout:
                 logger.error(f"stdout: {e.stdout}")
-            if hasattr(e, 'stderr') and e.stderr:
+            if hasattr(e, "stderr") and e.stderr:
                 logger.error(f"stderr: {e.stderr}")
             # Don't raise exception - workflow can continue without commit
 
@@ -1176,10 +1209,14 @@ Analysis documents available in {self.repo_path}/.workflow/round_1_analysis/
             conflicts_path = design_dir / "conflict_resolution.md"
             if conflicts_path.exists() and conflicts_path.read_text().strip():
                 logger.info("Conflict resolution already exists, loading from file")
-                conflicts, resolution = await self._load_existing_conflict_resolution(conflicts_path)
+                conflicts, resolution = await self._load_existing_conflict_resolution(
+                    conflicts_path
+                )
             else:
                 logger.info("Identifying and resolving conflicts")
-                conflicts, resolution = await self._resolve_conflicts(peer_reviews, context)
+                conflicts, resolution = await self._resolve_conflicts(
+                    peer_reviews, context
+                )
 
             # Step 4: Generate consolidated design (already has existence check)
             design_path = design_dir / "consolidated_design.md"
@@ -1195,7 +1232,9 @@ Analysis documents available in {self.repo_path}/.workflow/round_1_analysis/
             # Step 6: Post replies to individual comments and summary (if there was human feedback)
             if human_feedback:
                 # Post individual replies to each comment
-                await self._post_consolidated_feedback_replies(context, consolidated_design)
+                await self._post_consolidated_feedback_replies(
+                    context, consolidated_design
+                )
                 # Post overall summary
                 await self._post_feedback_summary(context, consolidated_design)
 
@@ -1295,7 +1334,9 @@ Analysis documents available in {self.repo_path}/.workflow/round_1_analysis/
 
         # Debug: check current analysis content lengths
         for agent_type, result in context.analysis_results.items():
-            logger.info(f"Pre-feedback: {agent_type} analysis has {len(result.content)} chars")
+            logger.info(
+                f"Pre-feedback: {agent_type} analysis has {len(result.content)} chars"
+            )
 
         for agent_type, agent in self.agents.items():
             # Filter feedback relevant to this agent (simplified)
@@ -1330,14 +1371,16 @@ Analysis documents available in {self.repo_path}/.workflow/round_1_analysis/
 
                 if response.get("status") == "success":
                     updated_content = response.get("updated_analysis", "")
-                    
+
                     # Only update analysis if we got meaningful content back
                     if updated_content and len(updated_content.strip()) > 10:
                         context.analysis_results[agent_type].content = updated_content
                         logger.info(f"{agent_type} successfully incorporated feedback")
                         # Don't post individual agent replies - we'll post a consolidated reply later
                     else:
-                        logger.warning(f"{agent_type} generated empty feedback response, keeping original analysis")
+                        logger.warning(
+                            f"{agent_type} generated empty feedback response, keeping original analysis"
+                        )
                 else:
                     logger.error(
                         f"{agent_type} failed to process feedback: {response.get('error')}"
@@ -1511,7 +1554,7 @@ Status: {resolution.get('status', 'unknown')}
 """
         # Get all recommendations
         recommendations = resolution.get("recommendations", [])
-        
+
         # For each conflict, find its matching recommendation and display together
         for i, conflict in enumerate(conflicts, 1):
             content += f"""### Conflict {i}
@@ -1522,14 +1565,16 @@ Status: {resolution.get('status', 'unknown')}
 """
             # Find the recommendation that matches this conflict
             if i <= len(recommendations):
-                rec = recommendations[i-1]
+                rec = recommendations[i - 1]
                 content += f"""**Resolution**: {rec.get('resolution', 'No resolution')}
 **Action**: {rec.get('action', 'No action')}
 
 """
             else:
-                content += "**Resolution**: No recommendation found for this conflict\n\n"
-        
+                content += (
+                    "**Resolution**: No recommendation found for this conflict\n\n"
+                )
+
         # Add overall resolution summary
         content += f"""
 ## Overall Resolution Summary
@@ -1862,11 +1907,13 @@ Repository Pattern with SQLite persistence, following existing infrastructure pa
                 text=True,
                 check=True,
             )
-            
+
             if not status_result.stdout.strip():
-                logger.info("No changes to commit in .workflow/round_2_design directory")
+                logger.info(
+                    "No changes to commit in .workflow/round_2_design directory"
+                )
                 return
-            
+
             # Add only the specific workflow files that have changed
             subprocess.run(
                 ["git", "add", ".workflow/round_2_design"],
@@ -1895,7 +1942,7 @@ Phase 2 artifacts available in {self.repo_path}/.workflow/round_2_design/
                 capture_output=True,
                 text=True,
             )
-            
+
             if result.returncode == 0:
                 logger.info("Successfully committed Phase 2 design artifacts")
             else:
@@ -1906,180 +1953,202 @@ Phase 2 artifacts available in {self.repo_path}/.workflow/round_2_design/
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to commit design artifacts: {e}")
-            if hasattr(e, 'stdout') and e.stdout:
+            if hasattr(e, "stdout") and e.stdout:
                 logger.error(f"stdout: {e.stdout}")
-            if hasattr(e, 'stderr') and e.stderr:
+            if hasattr(e, "stderr") and e.stderr:
                 logger.error(f"stderr: {e.stderr}")
             # Don't raise exception - workflow can continue without commit
 
-    async def _load_existing_peer_reviews(self, peer_reviews_path: Path) -> dict[str, dict]:
+    async def _load_existing_peer_reviews(
+        self, peer_reviews_path: Path
+    ) -> dict[str, dict]:
         """Load existing peer reviews from file.
-        
+
         Args:
             peer_reviews_path: Path to existing peer reviews file
-            
+
         Returns:
             Dictionary of peer reviews by agent type
         """
         try:
             content = peer_reviews_path.read_text()
-            logger.info(f"Loaded existing peer reviews from {peer_reviews_path} ({len(content)} chars)")
-            
+            logger.info(
+                f"Loaded existing peer reviews from {peer_reviews_path} ({len(content)} chars)"
+            )
+
             # Parse the markdown file to extract individual agent reviews
             peer_reviews = {}
             current_agent = None
             current_content = []
-            
-            lines = content.split('\n')
+
+            lines = content.split("\n")
             for line in lines:
-                if line.startswith('## ') and 'Peer Review' in line:
+                if line.startswith("## ") and "Peer Review" in line:
                     # Save previous agent's content
                     if current_agent and current_content:
                         peer_reviews[current_agent] = {
                             "agent_type": current_agent,
-                            "peer_review": '\n'.join(current_content).strip(),
-                            "status": "success"
+                            "peer_review": "\n".join(current_content).strip(),
+                            "status": "success",
                         }
-                    
+
                     # Start new agent
-                    agent_title = line.replace('## ', '').replace(' Peer Review', '').strip()
-                    current_agent = agent_title.lower().replace(' ', '_')
+                    agent_title = (
+                        line.replace("## ", "").replace(" Peer Review", "").strip()
+                    )
+                    current_agent = agent_title.lower().replace(" ", "_")
                     current_content = []
-                elif current_agent and not line.startswith('**Status**') and line.strip() != '---':
+                elif (
+                    current_agent
+                    and not line.startswith("**Status**")
+                    and line.strip() != "---"
+                ):
                     current_content.append(line)
-            
+
             # Save last agent's content
             if current_agent and current_content:
                 peer_reviews[current_agent] = {
                     "agent_type": current_agent,
-                    "peer_review": '\n'.join(current_content).strip(),
-                    "status": "success"
+                    "peer_review": "\n".join(current_content).strip(),
+                    "status": "success",
                 }
-            
+
             return peer_reviews
-            
+
         except Exception as e:
             logger.error(f"Failed to load existing peer reviews: {e}")
             return {}
 
-    async def _load_existing_conflict_resolution(self, conflicts_path: Path) -> tuple[list, dict]:
+    async def _load_existing_conflict_resolution(
+        self, conflicts_path: Path
+    ) -> tuple[list, dict]:
         """Load existing conflict resolution from file.
-        
+
         Args:
             conflicts_path: Path to existing conflict resolution file
-            
+
         Returns:
             Tuple of (conflicts list, resolution dict)
         """
         try:
             content = conflicts_path.read_text()
-            logger.info(f"Loaded existing conflict resolution from {conflicts_path} ({len(content)} chars)")
-            
+            logger.info(
+                f"Loaded existing conflict resolution from {conflicts_path} ({len(content)} chars)"
+            )
+
             # Parse basic information from the file
             conflicts = []
             resolution = {
                 "status": "resolved",
                 "strategy": "consensus",
                 "resolution": "Conflicts resolved from existing document",
-                "recommendations": []
+                "recommendations": [],
             }
-            
+
             # Extract strategy from content
-            lines = content.split('\n')
+            lines = content.split("\n")
             for line in lines:
-                if line.startswith('Strategy:'):
-                    resolution["strategy"] = line.replace('Strategy:', '').strip()
+                if line.startswith("Strategy:"):
+                    resolution["strategy"] = line.replace("Strategy:", "").strip()
                     break
-            
+
             # For now, return basic structure since parsing the full conflict data
             # would require more complex parsing. The important thing is that
             # we detected the file exists and has content.
-            
+
             return conflicts, resolution
-            
+
         except Exception as e:
             logger.error(f"Failed to load existing conflict resolution: {e}")
             return [], {"status": "error", "error": str(e)}
 
     async def consolidate_design(self, context: TaskContext) -> dict[str, Any]:
         """Consolidate agent analyses into a unified design document.
-        
+
         This is a wrapper for continue_to_design_phase that provides a cleaner
         interface for step2_create_design_document.py
-        
+
         Args:
             context: Task context with completed analyses
-            
+
         Returns:
             Design consolidation results
         """
         # Check for any human feedback that needs to be processed
         human_feedback = []
-        if hasattr(context, 'human_feedback') and context.human_feedback:
+        if hasattr(context, "human_feedback") and context.human_feedback:
             human_feedback = context.human_feedback
-            
+
         # Call the existing design phase method
         result = await self.continue_to_design_phase(context, human_feedback)
-        
+
         # Transform result to expected format
         if result["status"] == "success":
             design_artifacts = {}
             design_dir = self.workflow_dir / "round_2_design"
-            
+
             # List the created artifacts
             if (design_dir / "peer_reviews.md").exists():
                 design_artifacts["peer_reviews"] = str(design_dir / "peer_reviews.md")
             if (design_dir / "conflict_resolution.md").exists():
-                design_artifacts["conflict_resolution"] = str(design_dir / "conflict_resolution.md")
+                design_artifacts["conflict_resolution"] = str(
+                    design_dir / "conflict_resolution.md"
+                )
             if (design_dir / "consolidated_design.md").exists():
-                design_artifacts["consolidated_design"] = str(design_dir / "consolidated_design.md")
-                
+                design_artifacts["consolidated_design"] = str(
+                    design_dir / "consolidated_design.md"
+                )
+
             result["design_artifacts"] = design_artifacts
-            
+
             # Add statistics
             if "conflicts" in result:
                 result["conflicts_resolved"] = len(result.get("conflicts", []))
-            
+
         return result
 
-    async def _fetch_pr_comments_for_context(self, context: TaskContext, pr_number: int):
+    async def _fetch_pr_comments_for_context(
+        self, context: TaskContext, pr_number: int
+    ):
         """Fetch PR comments from GitHub and add them to context as human feedback.
-        
+
         Args:
             context: Task context to update with PR comments
             pr_number: PR number to fetch comments from
         """
         try:
-            from github_tools import execute_tool
             import json
+
+            from github_tools import execute_tool
+
             logger.info(f"Fetching PR comments for PR #{pr_number}")
-            
-            # Get new feedback from GitHub  
+
+            # Get new feedback from GitHub
             comments_result = await execute_tool(
                 "github_get_pr_comments",
                 repo_name=self.repo_name,
                 pr_number=pr_number,
             )
-            
+
             comments_data = json.loads(comments_result)
-            
+
             # Process new feedback
             new_feedback_count = 0
             filtered_count = 0
-            
+
             # Define exact step 1 files that we care about
             step1_files = [
                 ".workflow/round_1_analysis/architect_analysis.md",
-                ".workflow/round_1_analysis/developer_analysis.md", 
+                ".workflow/round_1_analysis/developer_analysis.md",
                 ".workflow/round_1_analysis/senior_engineer_analysis.md",
                 ".workflow/round_1_analysis/tester_analysis.md",
                 ".workflow/round_1_analysis/codebase_analysis.md",
                 ".workflow/round_1_analysis/analysis_summary.md",
                 # Also check for files in the root .workflow directory (in case they're there)
                 ".workflow/codebase_analysis.md",
-                ".workflow/analysis_summary.md"
+                ".workflow/analysis_summary.md",
             ]
-            
+
             # Process review comments (comments on specific files/lines)
             for comment in comments_data.get("review_comments", []):
                 # Check if we've already processed this comment
@@ -2088,15 +2157,19 @@ Phase 2 artifacts available in {self.repo_path}/.workflow/round_2_design/
                     # Filter by exact file path - only include comments on step 1 files
                     # The GitHub API returns the file path under 'file' key, not 'path'
                     file_path = comment.get("file", "")
-                    
+
                     if file_path in step1_files:
                         context.add_human_feedback(comment)
                         new_feedback_count += 1
-                        logger.info(f"✅ Including review comment on step1 file: {file_path}")
+                        logger.info(
+                            f"✅ Including review comment on step1 file: {file_path}"
+                        )
                     else:
                         filtered_count += 1
-                        logger.info(f"❌ Filtered out comment on non-step1 file: '{file_path}'")
-            
+                        logger.info(
+                            f"❌ Filtered out comment on non-step1 file: '{file_path}'"
+                        )
+
             # Process issue comments (general PR comments)
             # Issue comments don't have file paths, so we skip them entirely
             # since they're not tied to specific step 1 files
@@ -2106,52 +2179,65 @@ Phase 2 artifacts available in {self.repo_path}/.workflow/round_2_design/
                 if comment["id"] not in existing_ids:
                     # Issue comments don't have file paths, so filter them out
                     filtered_count += 1
-                    logger.debug(f"Filtered out issue comment (no file association): #{comment['id']}")
-            
-            logger.info(f"Added {new_feedback_count} new PR comments to context, filtered out {filtered_count}")
-            
+                    logger.debug(
+                        f"Filtered out issue comment (no file association): #{comment['id']}"
+                    )
+
+            logger.info(
+                f"Added {new_feedback_count} new PR comments to context, filtered out {filtered_count}"
+            )
+
             if new_feedback_count > 0:
-                print(f"✅ Found {new_feedback_count} relevant PR comments to incorporate into design")
+                print(
+                    f"✅ Found {new_feedback_count} relevant PR comments to incorporate into design"
+                )
                 if filtered_count > 0:
                     print(f"   (Filtered out {filtered_count} irrelevant comments)")
             else:
                 print("ℹ️  No new relevant PR comments found")
                 if filtered_count > 0:
                     print(f"   (Filtered out {filtered_count} irrelevant comments)")
-                
+
         except Exception as e:
             logger.error(f"Failed to fetch PR comments: {e}")
             print(f"⚠️  Failed to fetch PR comments: {e}")
             print("Continuing with design consolidation without new PR feedback...")
 
-    async def _post_consolidated_feedback_replies(self, context: TaskContext, consolidated_design: str):
+    async def _post_consolidated_feedback_replies(
+        self, context: TaskContext, consolidated_design: str
+    ):
         """Post consolidated replies to each PR comment explaining how it was addressed.
-        
+
         Args:
             context: Task context containing human feedback
             consolidated_design: The final consolidated design document
         """
         try:
             from github_tools import execute_tool
-            
-            if not hasattr(context, 'pr_number') or not context.pr_number:
+
+            if not hasattr(context, "pr_number") or not context.pr_number:
                 logger.warning("No PR number available, cannot post replies")
                 return
-                
-            logger.info(f"Posting consolidated replies to {len(context.human_feedback)} PR comments")
-            
+
+            logger.info(
+                f"Posting consolidated replies to {len(context.human_feedback)} PR comments"
+            )
+
             # For each feedback item, generate and post a consolidated reply
             for feedback in context.human_feedback:
                 comment_id = feedback.comment_id
                 author = feedback.author
                 content = feedback.content
                 file_path = feedback.file_path
-                
+
                 # Skip if this is a bot comment
-                if any(bot in author.lower() for bot in ["bot", "codecov", "github-actions"]):
+                if any(
+                    bot in author.lower()
+                    for bot in ["bot", "codecov", "github-actions"]
+                ):
                     logger.debug(f"Skipping reply to bot comment from {author}")
                     continue
-                
+
                 # Generate a consolidated reply based on the design
                 reply_prompt = f"""Based on the PR comment below and the consolidated design document, write a professional reply explaining how this feedback was addressed in the design.
 
@@ -2167,62 +2253,70 @@ Write a concise reply (2-4 sentences) that:
 3. References the relevant section of the design if applicable
 
 Keep the tone professional but direct. Avoid excessive politeness or thanking."""
-                
+
                 # Use the architect agent to generate the consolidated reply
                 if "architect" in self.agents:
                     architect = self.agents["architect"]
                     reply_response = architect.persona.ask(reply_prompt)
-                    
+
                     if reply_response and len(reply_response.strip()) > 10:
                         # Post the reply
                         comment_body = f"""{reply_response}
 
 ---
 *This response reflects how your feedback was incorporated into the [consolidated design document](.workflow/round_2_design/consolidated_design.md).*"""
-                        
+
                         try:
                             result = await execute_tool(
                                 "github_post_pr_reply",
                                 repo_name=self.repo_name,
                                 comment_id=comment_id,
-                                message=comment_body
+                                message=comment_body,
                             )
-                            logger.info(f"Posted consolidated reply to comment #{comment_id}")
-                            
+                            logger.info(
+                                f"Posted consolidated reply to comment #{comment_id}"
+                            )
+
                         except Exception as e:
-                            logger.error(f"Failed to post reply to comment #{comment_id}: {e}")
+                            logger.error(
+                                f"Failed to post reply to comment #{comment_id}: {e}"
+                            )
                     else:
-                        logger.warning(f"Generated empty reply for comment #{comment_id}")
+                        logger.warning(
+                            f"Generated empty reply for comment #{comment_id}"
+                        )
                 else:
                     logger.error("Architect agent not available for reply generation")
-                    
+
         except Exception as e:
             logger.error(f"Failed to post consolidated feedback replies: {e}")
             print(f"⚠️  Failed to post feedback replies: {e}")
 
     # Removed _post_agent_pr_replies - we now use _post_consolidated_feedback_replies instead
 
-    async def _post_feedback_summary(self, context: TaskContext, consolidated_design: str):
+    async def _post_feedback_summary(
+        self, context: TaskContext, consolidated_design: str
+    ):
         """Post a summary comment explaining how PR feedback was addressed in the design.
-        
+
         Args:
             context: Task context containing human feedback and design
             consolidated_design: The final consolidated design document content
         """
         try:
-            from github_tools import execute_tool
-            import json
             logger.info("Generating feedback address summary for PR")
-            
+
             # Generate summary of how feedback was addressed
             feedback_items = []
             for feedback in context.human_feedback:
-                feedback_items.append(f"- Comment #{feedback.comment_id} by {feedback.author}: {feedback.content[:100]}...")
-            
+                feedback_items.append(
+                    f"- Comment #{feedback.comment_id} by {feedback.author}: {feedback.content[:100]}..."
+                )
+
             if not feedback_items:
                 logger.info("No human feedback to summarize")
                 return
-                
+
             summary_prompt = f"""Based on the PR comments received and the consolidated design document created, provide a summary comment explaining how each piece of feedback was addressed in the final design.
 
 PR Comments Received:
@@ -2242,20 +2336,25 @@ Format as a GitHub comment that can be posted to the PR."""
             # Use the architect agent to generate the summary (they're good at high-level summaries)
             if "architect" in self.agents:
                 architect = self.agents["architect"]
-                
-                logger.debug(f"Feedback summary prompt (length={len(summary_prompt)}):\n{summary_prompt}\n============================")
-                
+
+                logger.debug(
+                    f"Feedback summary prompt (length={len(summary_prompt)}):\n{summary_prompt}\n============================"
+                )
+
                 summary_response = architect.persona.ask(summary_prompt)
-                
-                logger.debug(f"Feedback summary response (length={len(summary_response) if summary_response else 0}):\n{summary_response}\n============================")
-                
+
+                logger.debug(
+                    f"Feedback summary response (length={len(summary_response) if summary_response else 0}):\n{summary_response}\n============================"
+                )
+
                 if summary_response and len(summary_response.strip()) > 10:
                     # Post the summary as a PR comment
-                    if hasattr(context, 'pr_number') and context.pr_number:
+                    if hasattr(context, "pr_number") and context.pr_number:
                         # Post as a general PR comment (not a reply to a specific comment)
                         from github_tools import execute_tool as github_execute_tool
+
                         comment_result = await github_execute_tool(
-                            "github_post_issue_comment",  
+                            "github_post_issue_comment",
                             repo_name=self.repo_name,
                             issue_number=context.pr_number,
                             body=f"""## Feedback Integration Summary
@@ -2263,56 +2362,62 @@ Format as a GitHub comment that can be posted to the PR."""
 {summary_response}
 
 ---
-*This summary was generated automatically by the multi-agent design workflow after incorporating all PR feedback into the consolidated design document.*"""
+*This summary was generated automatically by the multi-agent design workflow after incorporating all PR feedback into the consolidated design document.*""",
                         )
-                        
+
                         logger.info("Posted feedback integration summary to PR")
                         print("✅ Posted summary of how PR feedback was addressed")
                     else:
-                        logger.warning("No PR number available, cannot post feedback summary")
+                        logger.warning(
+                            "No PR number available, cannot post feedback summary"
+                        )
                 else:
                     logger.warning("Generated feedback summary was empty or too short")
             else:
-                logger.warning("Architect agent not available for feedback summary generation")
-                
+                logger.warning(
+                    "Architect agent not available for feedback summary generation"
+                )
+
         except Exception as e:
             logger.error(f"Failed to post feedback summary: {e}")
             print(f"⚠️  Failed to post feedback summary: {e}")
 
-    async def finalize_design(self, context: TaskContext, github_feedback: list) -> dict[str, Any]:
+    async def finalize_design(
+        self, context: TaskContext, github_feedback: list
+    ) -> dict[str, Any]:
         """Finalize the design document by incorporating GitHub feedback.
-        
+
         This is Step 3 in the workflow - takes feedback from GitHub PR comments
         and updates the consolidated design document to address all concerns.
-        
+
         Args:
             context: Task context with existing design
             github_feedback: List of feedback items from GitHub PR comments
-            
+
         Returns:
             Finalization results including updated design path
         """
         logger.info("Starting Step 3: Finalizing design with GitHub feedback")
-        
+
         try:
             design_dir = self.workflow_dir / "round_2_design"
-            
+
             # Check if design exists
             design_path = design_dir / "consolidated_design.md"
             if not design_path.exists():
                 return {
                     "status": "error",
-                    "error": "No consolidated design found. Run step 2 first."
+                    "error": "No consolidated design found. Run step 2 first.",
                 }
-            
+
             # Check if already finalized
             final_design_path = design_dir / "consolidated_design_final.md"
             if final_design_path.exists():
                 logger.info("Design already finalized, checking if update needed")
-                
+
             # Read current design
             current_design = design_path.read_text()
-            
+
             # Process feedback if any
             if not github_feedback:
                 logger.info("No GitHub feedback to process")
@@ -2321,15 +2426,15 @@ Format as a GitHub comment that can be posted to the PR."""
                 return {
                     "status": "success",
                     "finalized_design": str(final_design_path),
-                    "feedback_processed": 0
+                    "feedback_processed": 0,
                 }
-            
+
             # Create feedback summary
             feedback_summary = self._create_feedback_summary(github_feedback)
-            
+
             # Update design using architect agent
             logger.info(f"Processing {len(github_feedback)} feedback items")
-            
+
             update_prompt = f"""
 ## Current Design Document
 
@@ -2348,23 +2453,23 @@ Please update the design document to address all the feedback provided. For each
 
 Maintain the overall structure and quality of the document while incorporating the improvements.
 """
-            
+
             # Use architect agent to update the design
             architect = self.agents["architect"]
             agent_context = context.get_context_for_agent("architect")
-            
+
             # Run the update
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 None, architect.review_and_update, agent_context, update_prompt
             )
-            
+
             if result["status"] == "success":
                 updated_design = result["content"]
-                
+
                 # Save finalized design
                 final_design_path.write_text(updated_design)
-                
+
                 # Create feedback summary document
                 feedback_doc_path = design_dir / "feedback_addressed.md"
                 feedback_doc = f"""# Design Feedback Addressed
@@ -2387,60 +2492,57 @@ The following changes were made to address the feedback:
 ✅ Design finalized and ready for implementation
 """
                 feedback_doc_path.write_text(feedback_doc)
-                
+
                 logger.info(f"Created finalized design: {final_design_path}")
                 logger.info(f"Created feedback summary: {feedback_doc_path}")
-                
+
                 return {
                     "status": "success",
                     "finalized_design": str(final_design_path),
                     "feedback_doc": str(feedback_doc_path),
-                    "feedback_processed": len(github_feedback)
+                    "feedback_processed": len(github_feedback),
                 }
             else:
                 return {
                     "status": "error",
-                    "error": f"Failed to update design: {result.get('error', 'Unknown error')}"
+                    "error": f"Failed to update design: {result.get('error', 'Unknown error')}",
                 }
-                
+
         except Exception as e:
             logger.error(f"Design finalization failed: {e}")
-            return {
-                "status": "error",
-                "error": str(e)
-            }
-    
+            return {"status": "error", "error": str(e)}
+
     def _create_feedback_summary(self, feedback_items: list) -> str:
         """Create a formatted summary of feedback items."""
         if not feedback_items:
             return "No feedback provided"
-            
+
         summary_parts = ["### Feedback Items\n"]
-        
+
         for i, item in enumerate(feedback_items, 1):
             author = item.get("author", "Unknown")
             content = item.get("content", item.get("body", ""))
             path = item.get("path", "General")
-            
+
             summary_parts.append(f"**{i}. {author}** (on {path}):")
             summary_parts.append(f"{content}\n")
-            
+
         return "\n".join(summary_parts)
 
     async def implement_feature(self, pr_number: int | None = None) -> dict[str, Any]:
         """Execute Phase 3: Implementation based on approved design.
-        
+
         This method reads the consolidated design document from Phase 2 and
         uses the coding agents to generate actual implementation code.
-        
+
         Args:
             pr_number: PR number containing the approved design (optional)
-            
+
         Returns:
             Implementation results including generated files
         """
         logger.info("Starting Phase 3: Implementation workflow")
-        
+
         try:
             # Initialize context for implementation
             if not pr_number:
@@ -2448,187 +2550,238 @@ The following changes were made to address the feedback:
                 pr_number = await self._find_latest_pr()
                 if not pr_number:
                     raise ValueError("No PR found. Please specify PR number.")
-            
+
             # Create minimal context for implementation phase
             context = TaskContext(
                 FeatureSpec("Implementation Phase", "", [], [], []),
                 CodebaseState({}, {}, {}, {}),
-                str(self.repo_path)
+                str(self.repo_path),
             )
             context.set_pr_number(pr_number)
-                
+
             context.update_phase("round_3_implementation")
-            
+
             # Load the consolidated design document
             design_doc = await self._load_design_document(pr_number)
             if not design_doc:
                 raise ValueError(f"No design document found for PR #{pr_number}")
-                
+
             logger.info(f"Loaded design document ({len(design_doc)} characters)")
-            
+
             # Parse implementation tasks from design
             implementation_tasks = await self._parse_implementation_tasks(design_doc)
             logger.info(f"Identified {len(implementation_tasks)} implementation tasks")
-            
+
             # Execute implementation cycles
             implementation_results = []
             for i, task in enumerate(implementation_tasks, 1):
-                logger.info(f"Executing implementation cycle {i}/{len(implementation_tasks)}: {task['title']}")
+                logger.info(
+                    f"Executing implementation cycle {i}/{len(implementation_tasks)}: {task['title']}"
+                )
                 result = await self._execute_implementation_cycle(context, task, i)
                 implementation_results.append(result)
-                
+
             # Generate tests for implemented features
             test_results = await self._generate_tests(context, implementation_results)
-            
+
             # Commit implementation to PR
-            await self._commit_implementation(context, implementation_results, test_results)
-            
+            await self._commit_implementation(
+                context, implementation_results, test_results
+            )
+
             return {
                 "status": "success",
                 "pr_number": pr_number,
                 "phase": "implementation",
                 "tasks_completed": len(implementation_results),
-                "files_created": sum(len(r.get("files_created", [])) for r in implementation_results),
+                "files_created": sum(
+                    len(r.get("files_created", [])) for r in implementation_results
+                ),
                 "tests_created": len(test_results.get("test_files", [])),
                 "implementation_results": implementation_results,
-                "test_results": test_results
+                "test_results": test_results,
             }
-            
+
         except Exception as e:
             logger.error(f"Implementation workflow failed: {e}")
-            return {
-                "status": "failed", 
-                "error": str(e),
-                "pr_number": pr_number
-            }
-    
+            return {"status": "failed", "error": str(e), "pr_number": pr_number}
+
     async def _load_design_document(self, pr_number: int) -> str | None:
         """Load the consolidated design document from Phase 2."""
         try:
             # Look for the design document in the workflow directory
-            design_path = self.workflow_dir / "round_2_design" / "consolidated_design.md"
-            
+            design_path = (
+                self.workflow_dir / "round_2_design" / "consolidated_design.md"
+            )
+
             if not design_path.exists():
                 # Try alternative location
-                design_path = self.repo_path / ".workflow" / f"pr_{pr_number}" / "round_2_design" / "consolidated_design.md"
-            
+                design_path = (
+                    self.repo_path
+                    / ".workflow"
+                    / f"pr_{pr_number}"
+                    / "round_2_design"
+                    / "consolidated_design.md"
+                )
+
             if design_path.exists():
-                with open(design_path, "r") as f:
+                with open(design_path) as f:
                     return f.read()
-                    
+
             # If not found locally, try to fetch from GitHub
             logger.info("Design document not found locally, checking GitHub...")
             # This would use github_tools to fetch the file from the PR
             # For now, return None
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to load design document: {e}")
             return None
-    
-    async def _parse_implementation_tasks(self, design_doc: str) -> list[dict[str, Any]]:
+
+    async def _parse_implementation_tasks(
+        self, design_doc: str
+    ) -> list[dict[str, Any]]:
         """Parse implementation tasks from ANY design document generically."""
         tasks = []
-        
+
         # Generic parser that works with any design document structure
         lines = design_doc.split("\n")
-        
+
         # Look for common implementation markers across any design
         implementation_markers = [
-            "## Implementation", "### Implementation", "# Implementation",
-            "## Code Structure", "### Code Structure", 
-            "## Components", "### Components",
-            "## Classes", "### Classes",
-            "## Modules", "### Modules",
-            "## Files", "### Files"
+            "## Implementation",
+            "### Implementation",
+            "# Implementation",
+            "## Code Structure",
+            "### Code Structure",
+            "## Components",
+            "### Components",
+            "## Classes",
+            "### Classes",
+            "## Modules",
+            "### Modules",
+            "## Files",
+            "### Files",
         ]
-        
+
         current_section = None
         current_content = []
-        
+
         for line in lines:
             line_stripped = line.strip()
-            
+
             # Check if this line is an implementation marker
             is_implementation_marker = any(
                 line_stripped.startswith(marker) for marker in implementation_markers
             )
-            
+
             if is_implementation_marker:
                 # Save previous section if it exists
                 if current_section and current_content:
-                    tasks.append({
-                        "title": f"Implement {current_section}",
-                        "description": "\n".join(current_content),
-                        "requirements": self._extract_requirements_from_content(current_content),
-                        "files_to_create": self._extract_files_from_content(current_content),
-                        "section_type": current_section.lower()
-                    })
-                
+                    tasks.append(
+                        {
+                            "title": f"Implement {current_section}",
+                            "description": "\n".join(current_content),
+                            "requirements": self._extract_requirements_from_content(
+                                current_content
+                            ),
+                            "files_to_create": self._extract_files_from_content(
+                                current_content
+                            ),
+                            "section_type": current_section.lower(),
+                        }
+                    )
+
                 # Start new section
-                current_section = line_stripped.replace("#", "").replace("Implementation", "").strip()
+                current_section = (
+                    line_stripped.replace("#", "").replace("Implementation", "").strip()
+                )
                 current_content = []
             elif current_section:
                 # Add content to current section
                 if line_stripped:
                     current_content.append(line_stripped)
-        
+
         # Add final section
         if current_section and current_content:
-            tasks.append({
-                "title": f"Implement {current_section}",
-                "description": "\n".join(current_content),
-                "requirements": self._extract_requirements_from_content(current_content),
-                "files_to_create": self._extract_files_from_content(current_content),
-                "section_type": current_section.lower()
-            })
-            
+            tasks.append(
+                {
+                    "title": f"Implement {current_section}",
+                    "description": "\n".join(current_content),
+                    "requirements": self._extract_requirements_from_content(
+                        current_content
+                    ),
+                    "files_to_create": self._extract_files_from_content(
+                        current_content
+                    ),
+                    "section_type": current_section.lower(),
+                }
+            )
+
         # If no structured sections found, create a single comprehensive task
         if not tasks:
-            tasks.append({
-                "title": "Implement Complete System",
-                "description": "Implement all functionality described in the design document",
-                "requirements": ["Implement all specified functionality", "Follow design patterns", "Include comprehensive tests"],
-                "files_to_create": [],
-                "section_type": "complete_system"
-            })
-            
+            tasks.append(
+                {
+                    "title": "Implement Complete System",
+                    "description": "Implement all functionality described in the design document",
+                    "requirements": [
+                        "Implement all specified functionality",
+                        "Follow design patterns",
+                        "Include comprehensive tests",
+                    ],
+                    "files_to_create": [],
+                    "section_type": "complete_system",
+                }
+            )
+
         return tasks
-    
+
     def _extract_requirements_from_content(self, content_lines: list[str]) -> list[str]:
         """Extract requirements from content lines."""
         requirements = []
         for line in content_lines:
             # Look for bullet points, numbered lists, or requirement keywords
-            if (line.startswith(("- ", "* ", "• ")) or 
-                line.lower().startswith(("must ", "should ", "shall ", "will ")) or
-                "requirement" in line.lower()):
+            if (
+                line.startswith(("- ", "* ", "• "))
+                or line.lower().startswith(("must ", "should ", "shall ", "will "))
+                or "requirement" in line.lower()
+            ):
                 req = line.lstrip("- * • ").strip()
                 if req:
                     requirements.append(req)
         return requirements
-    
+
     def _extract_files_from_content(self, content_lines: list[str]) -> list[str]:
         """Extract file names from content lines."""
         files = []
         for line in content_lines:
             # Look for file patterns
-            if (".py" in line or ".js" in line or ".ts" in line or 
-                ".java" in line or ".cpp" in line or ".go" in line or
-                "file:" in line.lower() or "filename:" in line.lower()):
+            if (
+                ".py" in line
+                or ".js" in line
+                or ".ts" in line
+                or ".java" in line
+                or ".cpp" in line
+                or ".go" in line
+                or "file:" in line.lower()
+                or "filename:" in line.lower()
+            ):
                 # Try to extract filename
                 import re
-                file_matches = re.findall(r'[\w/]+\.\w+', line)
+
+                file_matches = re.findall(r"[\w/]+\.\w+", line)
                 files.extend(file_matches)
         return files
-    
-    async def _execute_implementation_cycle(self, context: TaskContext, task: dict, cycle_num: int) -> dict[str, Any]:
+
+    async def _execute_implementation_cycle(
+        self, context: TaskContext, task: dict, cycle_num: int
+    ) -> dict[str, Any]:
         """Execute a single implementation cycle."""
         logger.info(f"Starting implementation cycle {cycle_num}: {task['title']}")
-        
+
         # Load the design document content to include in the prompt
         design_doc = await self._load_design_document(context.pr_number)
-        
+
         # Create completely generic implementation prompt
         prompt = f"""
 # Generic Code Implementation Task
@@ -2647,10 +2800,10 @@ The following changes were made to address the feedback:
 ## Section Type: {task.get('section_type', 'general')}
 
 ## Full Design Context
-{design_doc[:5000]}...  
+{design_doc[:5000]}...
 
 ## Your Mission
-You are a coding agent that can implement ANY type of software functionality. 
+You are a coding agent that can implement ANY type of software functionality.
 
 **Based on the design document above, implement the requested functionality.**
 
@@ -2668,7 +2821,7 @@ Output Format:
 [Your complete code here]
 ```
 
-**Important**: 
+**Important**:
 - Make each code block a complete, runnable file
 - Include file paths that make sense for the project structure
 - Don't just create templates - create full implementations
@@ -2676,16 +2829,18 @@ Output Format:
 
 Begin implementation now.
 """
-        
+
         # Use developer agent to generate implementation
         dev_result = await self.agents["developer"].implement_code(context, prompt)
         logger.debug(f"Developer result length: {len(dev_result['content'])}")
         logger.debug(f"Developer result preview: {dev_result['content'][:200]}...")
-        
+
         # Use senior engineer to review
         review_prompt = f"Review this implementation:\n\n{dev_result['content']}"
-        sr_review = await self.agents["senior_engineer"].review_code(context, review_prompt)
-        
+        sr_review = await self.agents["senior_engineer"].review_code(
+            context, review_prompt
+        )
+
         # Apply any suggested improvements
         if sr_review["suggestions"]:
             final_result = await self.agents["developer"].refine_implementation(
@@ -2693,35 +2848,39 @@ Begin implementation now.
             )
         else:
             final_result = dev_result
-            
+
         # Extract code blocks and create files
         files_created = await self._create_implementation_files(final_result["content"])
-        
+
         return {
             "cycle": cycle_num,
-            "task": task['title'],
+            "task": task["title"],
             "status": "completed",
             "files_created": files_created,
             "implementation": final_result["content"],
-            "review": sr_review["content"]
+            "review": sr_review["content"],
         }
-    
-    async def _create_implementation_files(self, implementation_content: str) -> list[str]:
+
+    async def _create_implementation_files(
+        self, implementation_content: str
+    ) -> list[str]:
         """Extract code blocks from implementation and create actual files - completely generic."""
         files_created = []
-        
-        logger.info(f"Parsing implementation content ({len(implementation_content)} chars) for code blocks...")
-        
+
+        logger.info(
+            f"Parsing implementation content ({len(implementation_content)} chars) for code blocks..."
+        )
+
         # More flexible regex to catch various code block formats
         import re
-        
+
         # Try multiple patterns to find code blocks
         patterns = [
-            r'```(\w+)?\s*\n#\s*File:\s*([^\n]+)\n(.*?)\n```',  # With explicit file declaration
-            r'```(\w+)?\s*\n([^#].*?)\n```',  # Standard code blocks
-            r'```(\w+)?\n(.*?)\n```',  # Simple code blocks
+            r"```(\w+)?\s*\n#\s*File:\s*([^\n]+)\n(.*?)\n```",  # With explicit file declaration
+            r"```(\w+)?\s*\n([^#].*?)\n```",  # Standard code blocks
+            r"```(\w+)?\n(.*?)\n```",  # Simple code blocks
         ]
-        
+
         all_matches = []
         for pattern in patterns:
             matches = re.findall(pattern, implementation_content, re.DOTALL)
@@ -2732,135 +2891,147 @@ Begin implementation now.
                 elif len(match) == 2:  # No explicit file path
                     lang, code = match
                     all_matches.append((lang, code, None))
-        
+
         logger.info(f"Found {len(all_matches)} potential code blocks")
-        
+
         for i, (lang, code, explicit_filepath) in enumerate(all_matches):
             if not code.strip():
                 continue
-                
-            logger.info(f"Processing code block {i+1}: language={lang or 'unknown'}, length={len(code)}")
-            
+
+            logger.info(
+                f"Processing code block {i+1}: language={lang or 'unknown'}, length={len(code)}"
+            )
+
             # Determine filename
             if explicit_filepath:
                 filename = explicit_filepath
             else:
                 # Smart filename generation based on language and content
-                filename = self._generate_smart_filename(code, lang, i+1)
-                
+                filename = self._generate_smart_filename(code, lang, i + 1)
+
             # Ensure we have a valid filename
             if not filename or filename == "None":
-                filename = f"generated_code_{i+1}.{self._get_extension_for_language(lang)}"
-            
+                filename = (
+                    f"generated_code_{i+1}.{self._get_extension_for_language(lang)}"
+                )
+
             # Create the file with proper directory structure
             file_path = self.repo_path / filename
             file_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             # Clean up the code (remove file declaration comments if present)
             clean_code = self._clean_code_content(code)
-            
+
             try:
-                with open(file_path, 'w', encoding='utf-8') as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     f.write(clean_code)
-                
+
                 files_created.append(str(file_path))
                 logger.info(f"✅ Created file: {filename}")
-                
+
             except Exception as e:
                 logger.error(f"❌ Failed to create file {filename}: {e}")
-            
+
         return files_created
-    
+
     def _generate_smart_filename(self, code: str, language: str, index: int) -> str:
         """Generate intelligent filename based on code content."""
         import re
-        
+
         # Try to extract class names, function names, or other identifiers
-        if language in ['python', 'py']:
+        if language in ["python", "py"]:
             # Look for class definitions
-            class_match = re.search(r'class\s+(\w+)', code)
+            class_match = re.search(r"class\s+(\w+)", code)
             if class_match:
                 return f"{class_match.group(1).lower()}.py"
-            
+
             # Look for main function definitions
-            func_match = re.search(r'def\s+(\w+)', code)
+            func_match = re.search(r"def\s+(\w+)", code)
             if func_match:
                 return f"{func_match.group(1)}.py"
-                
-        elif language in ['javascript', 'js']:
+
+        elif language in ["javascript", "js"]:
             # Look for class or function exports
-            export_match = re.search(r'export\s+(?:class|function)\s+(\w+)', code)
+            export_match = re.search(r"export\s+(?:class|function)\s+(\w+)", code)
             if export_match:
                 return f"{export_match.group(1).lower()}.js"
-                
-        elif language in ['java']:
+
+        elif language in ["java"]:
             # Look for public class
-            class_match = re.search(r'public\s+class\s+(\w+)', code)
+            class_match = re.search(r"public\s+class\s+(\w+)", code)
             if class_match:
                 return f"{class_match.group(1)}.java"
-        
+
         # Look for file patterns in comments
-        file_comment = re.search(r'#.*?(\w+\.\w+)', code)
+        file_comment = re.search(r"#.*?(\w+\.\w+)", code)
         if file_comment:
             return file_comment.group(1)
-            
+
         # Default fallback
         ext = self._get_extension_for_language(language)
         return f"implementation_{index}.{ext}"
-    
+
     def _get_extension_for_language(self, language: str) -> str:
         """Get file extension for programming language."""
         lang_map = {
-            'python': 'py', 'py': 'py',
-            'javascript': 'js', 'js': 'js',
-            'typescript': 'ts', 'ts': 'ts', 
-            'java': 'java',
-            'cpp': 'cpp', 'c++': 'cpp',
-            'c': 'c',
-            'go': 'go',
-            'rust': 'rs',
-            'ruby': 'rb',
-            'php': 'php',
-            'swift': 'swift',
-            'kotlin': 'kt',
-            'scala': 'scala',
-            'html': 'html',
-            'css': 'css',
-            'sql': 'sql',
-            'yaml': 'yaml', 'yml': 'yml',
-            'json': 'json',
-            'xml': 'xml',
-            'markdown': 'md', 'md': 'md'
+            "python": "py",
+            "py": "py",
+            "javascript": "js",
+            "js": "js",
+            "typescript": "ts",
+            "ts": "ts",
+            "java": "java",
+            "cpp": "cpp",
+            "c++": "cpp",
+            "c": "c",
+            "go": "go",
+            "rust": "rs",
+            "ruby": "rb",
+            "php": "php",
+            "swift": "swift",
+            "kotlin": "kt",
+            "scala": "scala",
+            "html": "html",
+            "css": "css",
+            "sql": "sql",
+            "yaml": "yaml",
+            "yml": "yml",
+            "json": "json",
+            "xml": "xml",
+            "markdown": "md",
+            "md": "md",
         }
-        
-        return lang_map.get(language.lower() if language else '', 'txt')
-    
+
+        return lang_map.get(language.lower() if language else "", "txt")
+
     def _clean_code_content(self, code: str) -> str:
         """Clean code content by removing file declaration comments."""
-        lines = code.split('\n')
-        
+        lines = code.split("\n")
+
         # Remove file declaration comments
-        if lines and lines[0].strip().startswith('#') and 'File:' in lines[0]:
+        if lines and lines[0].strip().startswith("#") and "File:" in lines[0]:
             lines = lines[1:]
-            
+
         # Remove leading/trailing empty lines
         while lines and not lines[0].strip():
             lines = lines[1:]
         while lines and not lines[-1].strip():
             lines = lines[:-1]
-            
-        return '\n'.join(lines)
-    
-    async def _generate_tests(self, context: TaskContext, implementation_results: list) -> dict[str, Any]:
+
+        return "\n".join(lines)
+
+    async def _generate_tests(
+        self, context: TaskContext, implementation_results: list
+    ) -> dict[str, Any]:
         """Generate tests for the implemented features."""
         logger.info("Generating tests for implemented features...")
-        
+
         test_files = []
-        
+
         for impl_result in implementation_results:
             if impl_result.get("status") != "completed":
                 continue
-                
+
             # Create test prompt based on implementation
             test_prompt = f"""
 Generate comprehensive tests for the following implementation:
@@ -2873,72 +3044,77 @@ Implementation details:
 
 Please create unit tests, integration tests, and any necessary test fixtures.
 """
-            
+
             # Use tester agent
             test_result = await self.agents["tester"].create_tests(context, test_prompt)
-            
+
             # Create test files
             test_files_created = await self._create_test_files(test_result["content"])
             test_files.extend(test_files_created)
-            
+
         return {
             "test_files": test_files,
-            "coverage": "Comprehensive test coverage for all implemented features"
+            "coverage": "Comprehensive test coverage for all implemented features",
         }
-    
+
     async def _create_test_files(self, test_content: str) -> list[str]:
         """Create test files from test content."""
         files_created = []
-        
+
         # Similar to _create_implementation_files but for tests
         import re
-        code_blocks = re.findall(r'```(\w+)?\n(.*?)\n```', test_content, re.DOTALL)
-        
+
+        code_blocks = re.findall(r"```(\w+)?\n(.*?)\n```", test_content, re.DOTALL)
+
         for lang, code in code_blocks:
             # Extract filename or generate test filename
-            filename_match = re.search(r'#\s*(?:File|Filename):\s*(.+)', code)
+            filename_match = re.search(r"#\s*(?:File|Filename):\s*(.+)", code)
             if filename_match:
                 filename = filename_match.group(1).strip()
             else:
                 filename = f"test_implementation_{len(files_created) + 1}.py"
-                
+
             # Ensure test files go in tests directory
             if not filename.startswith("tests/"):
                 filename = f"tests/{filename}"
-                
+
             file_path = self.repo_path / filename
             file_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(file_path, 'w') as f:
-                code_lines = code.split('\n')
-                if code_lines and 'File:' in code_lines[0]:
+
+            with open(file_path, "w") as f:
+                code_lines = code.split("\n")
+                if code_lines and "File:" in code_lines[0]:
                     code_lines = code_lines[1:]
-                f.write('\n'.join(code_lines))
-                
+                f.write("\n".join(code_lines))
+
             files_created.append(str(file_path))
             logger.info(f"Created test file: {filename}")
-            
+
         return files_created
-    
-    async def _commit_implementation(self, context: TaskContext, implementation_results: list, test_results: dict):
+
+    async def _commit_implementation(
+        self, context: TaskContext, implementation_results: list, test_results: dict
+    ):
         """Commit implementation and tests to the PR."""
         logger.info("Committing implementation to PR...")
-        
+
         try:
             # Stage all created files
             all_files = []
             for result in implementation_results:
                 all_files.extend(result.get("files_created", []))
             all_files.extend(test_results.get("test_files", []))
-            
+
             if not all_files:
                 logger.warning("No files to commit")
                 return
-                
+
             # Git add all files
             for file_path in all_files:
-                subprocess.run(["git", "add", file_path], cwd=self.repo_path, check=True)
-                
+                subprocess.run(
+                    ["git", "add", file_path], cwd=self.repo_path, check=True
+                )
+
             # Create commit message
             commit_message = f"""Implement Phase 3: Code generation from design
 
@@ -2949,29 +3125,27 @@ Please create unit tests, integration tests, and any necessary test fixtures.
 Implementation tasks completed:
 {chr(10).join(f"- {r['task']}" for r in implementation_results if r.get('status') == 'completed')}
 """
-            
+
             # Commit
             subprocess.run(
-                ["git", "commit", "-m", commit_message],
-                cwd=self.repo_path,
-                check=True
+                ["git", "commit", "-m", commit_message], cwd=self.repo_path, check=True
             )
-            
+
             # Push to PR branch
             if context.pr_number:
                 branch_name = f"pr-{context.pr_number}-implementation"
                 subprocess.run(
                     ["git", "push", "origin", f"HEAD:{branch_name}"],
                     cwd=self.repo_path,
-                    check=True
+                    check=True,
                 )
-                
+
             logger.info("Successfully committed implementation")
-            
+
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to commit implementation: {e}")
             raise
-    
+
     async def _find_latest_pr(self) -> int | None:
         """Find the latest PR number from workflow state."""
         try:
@@ -2986,12 +3160,12 @@ Implementation tasks completed:
                         pr_numbers.append(pr_num)
                     except:
                         continue
-                        
+
                 if pr_numbers:
                     return max(pr_numbers)
-                    
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to find latest PR: {e}")
             return None
@@ -3115,7 +3289,9 @@ async def resume_workflow(repo_name: str, repo_path: str, pr_number: int | None 
 
         if phase2_result.get("status") == "success":
             print("\n✅ Phase 2 Complete!")
-            print(f"📁 Design artifacts saved to {self.repo_path}/.workflow/round_2_design/")
+            print(
+                f"📁 Design artifacts saved to {self.repo_path}/.workflow/round_2_design/"
+            )
             print(
                 f"🔍 {len(phase2_result.get('conflicts', []))} conflicts identified and resolved"
             )
@@ -3133,58 +3309,59 @@ async def resume_workflow(repo_name: str, repo_path: str, pr_number: int | None 
 
 if __name__ == "__main__":
     import sys
+
     from logging_config import setup_logging
-    
+
     # Setup logging
     log_dir = Path.home() / ".local" / "share" / "multi-agent-workflow" / "logs"
     setup_logging(log_level="INFO", log_file=log_dir / "workflow_orchestrator.log")
-    
+
     if len(sys.argv) < 2:
         print("Usage:")
         print("  python workflow_orchestrator.py analyze-feature <task_spec>")
         print("  python workflow_orchestrator.py implement-feature [pr_number]")
         print("  python workflow_orchestrator.py resume [pr_number]")
         sys.exit(1)
-    
+
     command = sys.argv[1]
-    
+
     # Get repo info from environment or defaults
     repo_name = os.environ.get("GITHUB_REPO", "github-agent")
     repo_path = os.environ.get("REPO_PATH", str(Path.cwd()))
-    
+
     if command == "analyze-feature":
         if len(sys.argv) < 3:
             print("Error: Task specification required")
             sys.exit(1)
         task_spec = " ".join(sys.argv[2:])
-        
+
         orchestrator = WorkflowOrchestrator(repo_name, repo_path)
         result = asyncio.run(orchestrator.analyze_feature(task_spec))
-        
+
         if result["status"] == "success":
             print(f"✅ Analysis complete! PR #{result['pr_number']}")
         else:
             print(f"❌ Analysis failed: {result.get('error')}")
             sys.exit(1)
-            
+
     elif command == "implement-feature":
         pr_number = int(sys.argv[2]) if len(sys.argv) > 2 else None
-        
+
         orchestrator = WorkflowOrchestrator(repo_name, repo_path)
         result = asyncio.run(orchestrator.implement_feature(pr_number))
-        
+
         if result["status"] == "success":
-            print(f"✅ Implementation complete!")
+            print("✅ Implementation complete!")
             print(f"   Files created: {result['files_created']}")
             print(f"   Tests created: {result['tests_created']}")
         else:
             print(f"❌ Implementation failed: {result.get('error')}")
             sys.exit(1)
-            
+
     elif command == "resume":
         pr_number = int(sys.argv[2]) if len(sys.argv) > 2 else None
         asyncio.run(resume_workflow(repo_name, repo_path, pr_number))
-        
+
     else:
         print(f"Unknown command: {command}")
         sys.exit(1)

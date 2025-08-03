@@ -559,10 +559,11 @@ def mcp_master_factory():
     This fixture returns a function that creates MCPMaster instances with proper
     dependency injection, using the same pattern as the main() function.
     """
+    from startup_orchestrator import CodebaseStartupOrchestrator
+
     import mcp_master
     from repository_manager import RepositoryManager
     from shutdown_simple import SimpleHealthMonitor, SimpleShutdownCoordinator
-    from startup_orchestrator import CodebaseStartupOrchestrator
     from symbol_storage import ProductionSymbolStorage
 
     def create_mcp_master(config_file_path: str) -> mcp_master.MCPMaster:

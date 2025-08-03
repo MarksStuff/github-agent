@@ -13,8 +13,8 @@ Usage:
     python multi-agent-workflow/run_phase3_implementation.py [--pr-number PR]
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
 import os
 import sys
@@ -24,59 +24,54 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
-from workflow_orchestrator import WorkflowOrchestrator
 from logging_config import setup_logging
+from workflow_orchestrator import WorkflowOrchestrator
 
 logger = logging.getLogger(__name__)
 
 
 class Phase3ImplementationRunner:
     """Orchestrates the Phase 3 implementation workflow."""
-    
+
     def __init__(self, pr_number: int | None = None):
         """Initialize the Phase 3 runner.
-        
+
         Args:
             pr_number: PR number (optional, auto-detects if not provided)
         """
         self.pr_number = pr_number
-        
+
         # Get repository information
         self.repo_path = os.environ.get("REPO_PATH", str(Path.cwd().parent))
         self.repo_name = os.environ.get("GITHUB_REPO", "github-agent")
-        
+
         # Initialize workflow orchestrator
         self.workflow = WorkflowOrchestrator(
-            repo_name=self.repo_name,
-            repo_path=self.repo_path
+            repo_name=self.repo_name, repo_path=self.repo_path
         )
-        
+
         logger.info(f"Initialized Phase 3 runner for {self.repo_name}")
-    
+
     async def run(self) -> dict:
         """Run the Phase 3 implementation workflow."""
         logger.info("🚀 Starting Phase 3 (Round 3) Implementation Cycles")
-        
+
         try:
             # Call the workflow orchestrator's implement_feature method
             result = await self.workflow.implement_feature(self.pr_number)
-            
+
             if result["status"] == "success":
                 logger.info("✅ Phase 3 Implementation completed successfully!")
                 self._log_summary(result)
             else:
                 logger.error(f"❌ Phase 3 Implementation failed: {result.get('error')}")
-                
+
             return result
-            
+
         except Exception as e:
             logger.error(f"Phase 3 workflow failed: {e}")
-            return {
-                "status": "failed",
-                "error": str(e),
-                "pr_number": self.pr_number
-            }
-    
+            return {"status": "failed", "error": str(e), "pr_number": self.pr_number}
+
     def _log_summary(self, result: dict):
         """Log implementation summary."""
         logger.info("=" * 60)
@@ -86,13 +81,13 @@ class Phase3ImplementationRunner:
         logger.info(f"Tasks Completed: {result.get('tasks_completed')}")
         logger.info(f"Files Created: {result.get('files_created')}")
         logger.info(f"Tests Created: {result.get('tests_created')}")
-        
+
         # Log implementation details
         for impl in result.get("implementation_results", []):
             logger.info(f"  ✓ {impl.get('task')}")
             for file in impl.get("files_created", []):
                 logger.info(f"    - Created: {file}")
-                
+
         logger.info("=" * 60)
 
 
@@ -105,36 +100,38 @@ async def main():
 Examples:
   python multi-agent-workflow/run_phase3_implementation.py
   python multi-agent-workflow/run_phase3_implementation.py --pr-number 123
-        """
+        """,
     )
-    
+
     parser.add_argument(
         "--pr-number",
         type=int,
-        help="PR number containing the approved design (optional - auto-detects if not provided)"
+        help="PR number containing the approved design (optional - auto-detects if not provided)",
     )
     parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         default="INFO",
-        help="Set the logging level"
+        help="Set the logging level",
     )
-    
+
     args = parser.parse_args()
-    
-    # Setup logging  
+
+    # Setup logging
     log_dir = Path.home() / ".local" / "share" / "multi-agent-workflow" / "logs"
-    setup_logging(log_level=args.log_level, log_file=log_dir / "phase3_implementation.log")
-    
+    setup_logging(
+        log_level=args.log_level, log_file=log_dir / "phase3_implementation.log"
+    )
+
     try:
         # Run Phase 3 implementation workflow
         runner = Phase3ImplementationRunner(args.pr_number)
         result = await runner.run()
-        
+
         # Exit with appropriate code
         exit_code = 0 if result["status"] == "success" else 1
         sys.exit(exit_code)
-        
+
     except KeyboardInterrupt:
         logger.info("Phase 3 workflow interrupted by user")
         sys.exit(1)

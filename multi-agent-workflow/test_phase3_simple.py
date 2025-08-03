@@ -9,48 +9,49 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent / "multi-agent-workflow"))
 sys.path.append(str(Path(__file__).parent))
 
+from task_context import CodebaseState, FeatureSpec, TaskContext
 from workflow_orchestrator import WorkflowOrchestrator
-from task_context import TaskContext, FeatureSpec, CodebaseState
 
 
 async def test_simple_implementation():
     """Test implementation with a simple design."""
-    
+
     # Create orchestrator
     orchestrator = WorkflowOrchestrator("test-repo", str(Path.cwd()))
-    
+
     # Create simple context
     context = TaskContext(
         FeatureSpec("Simple Calculator", "Test implementation", [], [], []),
         CodebaseState({}, {}, {}, {}),
-        str(Path.cwd())
+        str(Path.cwd()),
     )
     context.set_pr_number(999)  # Test PR number
-    
+
     # Simple task
     task = {
         "title": "Create Calculator",
         "description": "Create a simple calculator class with basic operations",
         "requirements": ["Support addition and subtraction", "Include error handling"],
-        "files_to_create": ["calculator.py", "test_calculator.py"]
+        "files_to_create": ["calculator.py", "test_calculator.py"],
     }
-    
+
     print("🧪 Testing Phase 3 implementation with simple task...")
-    
+
     try:
         # Test the implementation cycle
         result = await orchestrator._execute_implementation_cycle(context, task, 1)
-        
+
         print(f"✅ Task: {result['task']}")
         print(f"✅ Status: {result['status']}")
         print(f"✅ Files created: {len(result['files_created'])}")
         print(f"✅ Implementation length: {len(result['implementation'])}")
-        
+
         return result
-        
+
     except Exception as e:
         print(f"❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return None
 

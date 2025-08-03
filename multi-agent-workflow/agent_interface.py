@@ -36,15 +36,19 @@ class AgentInterface(ABC):
             Analysis results including content and metadata
         """
         prompt = self._build_analysis_prompt(context, task_spec)
-        
+
         # Log the full prompt for debugging
-        logger.debug(f"{self.agent_type} analysis prompt (length={len(prompt)}):\n{prompt}\n============================")
+        logger.debug(
+            f"{self.agent_type} analysis prompt (length={len(prompt)}):\n{prompt}\n============================"
+        )
 
         try:
             response = self.persona.ask(prompt)
-            
+
             # Log the raw response for debugging
-            logger.debug(f"{self.agent_type} raw response (length={len(response) if response else 0}):\n{response}\n============================")
+            logger.debug(
+                f"{self.agent_type} raw response (length={len(response) if response else 0}):\n{response}\n============================"
+            )
 
             return {
                 "agent_type": self.agent_type,
@@ -88,13 +92,17 @@ class AgentInterface(ABC):
         prompt = self._build_peer_review_prompt(peer_analyses, context)
 
         # Log the full prompt for debugging
-        logger.debug(f"{self.agent_type} peer review prompt (length={len(prompt)}):\n{prompt}\n============================")
+        logger.debug(
+            f"{self.agent_type} peer review prompt (length={len(prompt)}):\n{prompt}\n============================"
+        )
 
         try:
             response = self.persona.ask(prompt)
-            
+
             # Log the raw response for debugging
-            logger.debug(f"{self.agent_type} peer review raw response (length={len(response) if response else 0}):\n{response}\n============================")
+            logger.debug(
+                f"{self.agent_type} peer review raw response (length={len(response) if response else 0}):\n{response}\n============================"
+            )
 
             logger.info(
                 f"{self.agent_type} peer review response length: {len(response) if response else 0}"
@@ -130,15 +138,19 @@ class AgentInterface(ABC):
             Updated analysis incorporating feedback
         """
         prompt = self._build_feedback_response_prompt(feedback_items, context)
-        
+
         # Log the full prompt for debugging
-        logger.debug(f"{self.agent_type} feedback response prompt (length={len(prompt)}):\n{prompt}\n============================")
+        logger.debug(
+            f"{self.agent_type} feedback response prompt (length={len(prompt)}):\n{prompt}\n============================"
+        )
 
         try:
             response = self.persona.ask(prompt)
-            
+
             # Log the raw response for debugging
-            logger.debug(f"{self.agent_type} feedback response raw result (length={len(response) if response else 0}):\n{response}\n============================")
+            logger.debug(
+                f"{self.agent_type} feedback response raw result (length={len(response) if response else 0}):\n{response}\n============================"
+            )
 
             return {
                 "agent_type": self.agent_type,
@@ -172,72 +184,79 @@ class AgentInterface(ABC):
         """Clean up the persona resources."""
         if hasattr(self.persona, "_cleanup"):
             self.persona._cleanup()
-    
-    async def implement_code(self, context: dict[str, Any], prompt: str) -> dict[str, Any]:
+
+    async def implement_code(
+        self, context: dict[str, Any], prompt: str
+    ) -> dict[str, Any]:
         """Implement code based on design specifications.
-        
+
         Args:
             context: Task context
             prompt: Implementation prompt
-            
+
         Returns:
             Implementation result with code content
         """
         # Log the full prompt for debugging
-        logger.debug(f"{self.agent_type} implement code prompt (length={len(prompt)}):\n{prompt}\n============================")
-        
+        logger.debug(
+            f"{self.agent_type} implement code prompt (length={len(prompt)}):\n{prompt}\n============================"
+        )
+
         # Make it async-compatible but actually synchronous
         result = self.persona.ask(prompt)
-        
+
         # Log the raw response for debugging
-        logger.debug(f"{self.agent_type} implement code raw result (length={len(result) if result else 0}):\n{result}\n============================")
-        
-        return {
-            "content": result,
-            "status": "success"
-        }
-    
+        logger.debug(
+            f"{self.agent_type} implement code raw result (length={len(result) if result else 0}):\n{result}\n============================"
+        )
+
+        return {"content": result, "status": "success"}
+
     async def review_code(self, context: dict[str, Any], prompt: str) -> dict[str, Any]:
         """Review code implementation.
-        
+
         Args:
             context: Task context
             prompt: Review prompt
-            
+
         Returns:
             Review result with suggestions
         """
         # Log the full prompt for debugging
-        logger.debug(f"{self.agent_type} review code prompt (length={len(prompt)}):\n{prompt}\n============================")
-        
+        logger.debug(
+            f"{self.agent_type} review code prompt (length={len(prompt)}):\n{prompt}\n============================"
+        )
+
         result = self.persona.ask(prompt)
-        
+
         # Log the raw response for debugging
-        logger.debug(f"{self.agent_type} review code raw result (length={len(result) if result else 0}):\n{result}\n============================")
-        
+        logger.debug(
+            f"{self.agent_type} review code raw result (length={len(result) if result else 0}):\n{result}\n============================"
+        )
+
         # Parse suggestions from the review
         suggestions = []
         if "suggest" in result.lower() or "improve" in result.lower():
             # Extract suggestions - simple heuristic
-            lines = result.split('\n')
+            lines = result.split("\n")
             for line in lines:
-                if line.strip().startswith(('-', '*', '•')) and ('should' in line or 'could' in line):
+                if line.strip().startswith(("-", "*", "•")) and (
+                    "should" in line or "could" in line
+                ):
                     suggestions.append(line.strip())
-        
-        return {
-            "content": result,
-            "suggestions": suggestions,
-            "status": "success"
-        }
-    
-    async def refine_implementation(self, context: dict[str, Any], original: dict, suggestions: list) -> dict[str, Any]:
+
+        return {"content": result, "suggestions": suggestions, "status": "success"}
+
+    async def refine_implementation(
+        self, context: dict[str, Any], original: dict, suggestions: list
+    ) -> dict[str, Any]:
         """Refine implementation based on review suggestions.
-        
+
         Args:
             context: Task context
             original: Original implementation
             suggestions: Review suggestions
-            
+
         Returns:
             Refined implementation
         """
@@ -250,42 +269,46 @@ Suggestions:
 {chr(10).join(f"- {s}" for s in suggestions)}
 
 Please provide the improved implementation addressing these suggestions."""
-        
+
         # Log the full prompt for debugging
-        logger.debug(f"{self.agent_type} refine implementation prompt (length={len(prompt)}):\n{prompt}\n============================")
-        
+        logger.debug(
+            f"{self.agent_type} refine implementation prompt (length={len(prompt)}):\n{prompt}\n============================"
+        )
+
         result = self.persona.ask(prompt)
-        
+
         # Log the raw response for debugging
-        logger.debug(f"{self.agent_type} refine implementation raw result (length={len(result) if result else 0}):\n{result}\n============================")
-        
-        return {
-            "content": result,
-            "status": "success"
-        }
-    
-    async def create_tests(self, context: dict[str, Any], prompt: str) -> dict[str, Any]:
+        logger.debug(
+            f"{self.agent_type} refine implementation raw result (length={len(result) if result else 0}):\n{result}\n============================"
+        )
+
+        return {"content": result, "status": "success"}
+
+    async def create_tests(
+        self, context: dict[str, Any], prompt: str
+    ) -> dict[str, Any]:
         """Create tests for implemented features.
-        
+
         Args:
             context: Task context
             prompt: Test creation prompt
-            
+
         Returns:
             Test creation result
         """
         # Log the full prompt for debugging
-        logger.debug(f"{self.agent_type} create tests prompt (length={len(prompt)}):\n{prompt}\n============================")
-        
+        logger.debug(
+            f"{self.agent_type} create tests prompt (length={len(prompt)}):\n{prompt}\n============================"
+        )
+
         result = self.persona.ask(prompt)
-        
+
         # Log the raw response for debugging
-        logger.debug(f"{self.agent_type} create tests raw result (length={len(result) if result else 0}):\n{result}\n============================")
-        
-        return {
-            "content": result,
-            "status": "success"
-        }
+        logger.debug(
+            f"{self.agent_type} create tests raw result (length={len(result) if result else 0}):\n{result}\n============================"
+        )
+
+        return {"content": result, "status": "success"}
 
 
 class ArchitectAgent(AgentInterface):
@@ -295,15 +318,18 @@ class ArchitectAgent(AgentInterface):
         super().__init__(CodingPersonas.architect, "architect")
 
     def _build_analysis_prompt(self, context: dict[str, Any], task_spec: str) -> str:
-        codebase_analysis_path = context.get('codebase_analysis_path')
+        codebase_analysis_path = context.get("codebase_analysis_path")
         if not codebase_analysis_path:
             # Fallback to absolute path if not provided in context
             from pathlib import Path
-            codebase_analysis_path = str((Path.cwd() / '.workflow/codebase_analysis.md').resolve())
-        
+
+            codebase_analysis_path = str(
+                (Path.cwd() / ".workflow/codebase_analysis.md").resolve()
+            )
+
         # Get repo path for direct file access
-        repo_path = context.get('repo_path', '/Users/mstriebeck/Code/github-agent')
-        
+        repo_path = context.get("repo_path", "/Users/mstriebeck/Code/github-agent")
+
         prompt = f"""TASK FOCUS: System architecture and design patterns analysis.
 
 TASK SPECIFICATION:
@@ -352,11 +378,14 @@ STEP 4: Provide specific architectural guidance for this feature
     def _build_peer_review_prompt(
         self, peer_analyses: dict[str, str], context: dict[str, Any]
     ) -> str:
-        codebase_analysis_path = context.get('codebase_analysis_path')
+        codebase_analysis_path = context.get("codebase_analysis_path")
         if not codebase_analysis_path:
             # Fallback to absolute path if not provided in context
             from pathlib import Path
-            codebase_analysis_path = str((Path.cwd() / '.workflow/codebase_analysis.md').resolve())
+
+            codebase_analysis_path = str(
+                (Path.cwd() / ".workflow/codebase_analysis.md").resolve()
+            )
         prompt = f"""TASK FOCUS: Architectural consistency and design patterns review.
 
 CODEBASE ANALYSIS:
@@ -435,11 +464,14 @@ class DeveloperAgent(AgentInterface):
         super().__init__(CodingPersonas.fast_coder, "developer")
 
     def _build_analysis_prompt(self, context: dict[str, Any], task_spec: str) -> str:
-        codebase_analysis_path = context.get('codebase_analysis_path')
+        codebase_analysis_path = context.get("codebase_analysis_path")
         if not codebase_analysis_path:
             # Fallback to absolute path if not provided in context
             from pathlib import Path
-            codebase_analysis_path = str((Path.cwd() / '.workflow/codebase_analysis.md').resolve())
+
+            codebase_analysis_path = str(
+                (Path.cwd() / ".workflow/codebase_analysis.md").resolve()
+            )
         prompt = f"""TASK FOCUS: Implementation approach analysis - HOW to solve the problem, not generating actual code.
 
 TASK SPECIFICATION:
@@ -456,7 +488,7 @@ Read the codebase analysis at: {codebase_analysis_path}
 - **Class Design**: What classes are needed and how do they fit existing abstractions?
 - **Integration Points**: Where does this feature hook into existing workflows?
 
-### 2. Existing Code Leverage Analysis  
+### 2. Existing Code Leverage Analysis
 - **Reusable Components**: Which existing classes can be extended or composed?
 - **Utility Functions**: What helper functions already exist that can be reused?
 - **Patterns to Follow**: Which existing implementation patterns should be mirrored?
@@ -562,11 +594,14 @@ class SeniorEngineerAgent(AgentInterface):
         super().__init__(CodingPersonas.senior_engineer, "senior_engineer")
 
     def _build_analysis_prompt(self, context: dict[str, Any], task_spec: str) -> str:
-        codebase_analysis_path = context.get('codebase_analysis_path')
+        codebase_analysis_path = context.get("codebase_analysis_path")
         if not codebase_analysis_path:
             # Fallback to absolute path if not provided in context
             from pathlib import Path
-            codebase_analysis_path = str((Path.cwd() / '.workflow/codebase_analysis.md').resolve())
+
+            codebase_analysis_path = str(
+                (Path.cwd() / ".workflow/codebase_analysis.md").resolve()
+            )
         prompt = f"""TASK FOCUS: Code quality and maintainability analysis.
 
 TASK SPECIFICATION:
@@ -690,11 +725,14 @@ class TesterAgent(AgentInterface):
         super().__init__(CodingPersonas.test_focused_coder, "tester")
 
     def _build_analysis_prompt(self, context: dict[str, Any], task_spec: str) -> str:
-        codebase_analysis_path = context.get('codebase_analysis_path')
+        codebase_analysis_path = context.get("codebase_analysis_path")
         if not codebase_analysis_path:
             # Fallback to absolute path if not provided in context
             from pathlib import Path
-            codebase_analysis_path = str((Path.cwd() / '.workflow/codebase_analysis.md').resolve())
+
+            codebase_analysis_path = str(
+                (Path.cwd() / ".workflow/codebase_analysis.md").resolve()
+            )
         prompt = f"""TASK FOCUS: Testing strategy and comprehensive test specifications.
 
 TASK SPECIFICATION:
