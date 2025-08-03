@@ -330,34 +330,40 @@ Implementation: {task['description'] if task['description'] else 'See design doc
             with open(context_file, "w") as f:
                 f.write(context_prompt)
 
-            print(f"\nContext written to: {context_file}")
-            print("\nStarting interactive amp session...")
-            print("The developer persona will be loaded with the task context.")
-            print(f"You can now implement Task {task_number}: {task['title']}")
-            print("\nTo exit the session, type '/exit' or press Ctrl+C")
-            print("-" * 60)
+            # Create the prompt for the user to copy
+            implementation_prompt = f"""Read {codebase_analysis_path}
+
+Then read {design_doc_path}
+
+Now implement Task {task_number}: {task['title']}
+
+{task['description'] if task['description'] else 'Implementation details are in the design document.'}
+
+Focus only on implementing this specific task. Create or modify the necessary files to complete the implementation."""
+
+            print("\n" + "="*70)
+            print("COPY THIS PROMPT FOR CLAUDE:")
+            print("="*70)
+            print(implementation_prompt)
+            print("="*70)
+            print("\nInstructions:")
+            print("1. Copy the prompt above")
+            print("2. Claude chat will open in a moment")
+            print("3. Paste the prompt into Claude")
+            print("4. Work with Claude to implement the task")
+            print("5. Exit with Ctrl+D when done")
+            print("\nPress Enter when you've copied the prompt...")
+            input()
 
             # Start amp in interactive mode with the developer persona
             # We need to run this in the repo directory so the agent has access to files
             original_cwd = os.getcwd()
             os.chdir(self.repo_path)
 
-            # Save context to a file that can be piped to claude
-            print(f"\nContext saved to: {context_file}")
-
-            # Launch claude CLI in chat mode
+            # Launch claude CLI in chat mode WITHOUT any initial context
             print(f"\nLaunching Claude chat for Task {task_number}...")
-            print(f"Task: {task['title']}")
-            print("\n⚠️  IMPORTANT - Manual interaction to avoid auto-CI checking:")
-            print("1. Claude chat will open and wait for your input")
-            print("2. Start with a simple greeting like: 'Hello'")
-            print("3. Then give Claude these instructions manually:")
-            print(f"   a) Read {codebase_analysis_path}")
-            print(f"   b) Read {design_doc_path}")
-            print(f"   c) Implement: {task['title']}")
-            print("4. If Claude tries to check CI/build, redirect it to the task")
-            print("5. Exit with Ctrl+D when done")
-            print(f"\n(Context file saved at: {context_file} for reference)")
+            print("Claude should open and wait for your input.")
+            print("Paste the prompt you copied above.")
             print("-" * 60)
 
             # Start claude chat with the context file
