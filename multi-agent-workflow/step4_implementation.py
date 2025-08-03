@@ -299,20 +299,16 @@ class InteractiveDevelopmentProcessor:
         codebase_analysis_path = self.workflow_dir / "codebase_analysis.md"
 
         # Create implementation context prompt for the interactive session
+        # IMPORTANT: We're creating a minimal prompt to avoid triggering Claude's 
+        # automatic CI/build checking behavior
         context_prompt = f"""
-Read {codebase_analysis_path}
+Task: {task['title']}
 
-After reading that file, read {design_doc_path}
+Files needed:
+- Codebase patterns: {codebase_analysis_path}
+- Design document: {design_doc_path}
 
-Then implement this specific task:
-
-# Task {task_number}: {task['title']}
-
-{task['description'] if task['description'] else 'Implement as described in the design document.'}
-
-Files to work on: {', '.join(task.get('components', [])) if task.get('components') else 'See design document'}
-
-Just read the two documents and write the code. Nothing else.
+Implementation: {task['description'] if task['description'] else 'See design document'}
         """
 
         print("\n" + "=" * 60)
@@ -352,11 +348,16 @@ Just read the two documents and write the code. Nothing else.
             # Launch claude CLI in chat mode
             print(f"\nLaunching Claude chat for Task {task_number}...")
             print(f"Task: {task['title']}")
-            print("\nINSTRUCTIONS:")
-            print("1. Claude chat will open")
-            print(f"2. Copy and paste the context from: {context_file}")
-            print("3. Work with Claude to implement the task")
-            print("4. Exit with Ctrl+D when done")
+            print("\n⚠️  IMPORTANT - Manual interaction to avoid auto-CI checking:")
+            print("1. Claude chat will open and wait for your input")
+            print("2. Start with a simple greeting like: 'Hello'")
+            print("3. Then give Claude these instructions manually:")
+            print(f"   a) Read {codebase_analysis_path}")
+            print(f"   b) Read {design_doc_path}")
+            print(f"   c) Implement: {task['title']}")
+            print("4. If Claude tries to check CI/build, redirect it to the task")
+            print("5. Exit with Ctrl+D when done")
+            print(f"\n(Context file saved at: {context_file} for reference)")
             print("-" * 60)
 
             # Start claude chat with the context file
