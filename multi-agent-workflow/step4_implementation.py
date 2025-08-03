@@ -300,38 +300,19 @@ class InteractiveDevelopmentProcessor:
 
         # Create implementation context prompt for the interactive session
         context_prompt = f"""
-IMPORTANT: You are in a focused CODING SESSION.
+Read {codebase_analysis_path}
 
-DO NOT use any GitHub tools. DO NOT check build status. DO NOT check PRs. DO NOT look for comments.
+After reading that file, read {design_doc_path}
 
-Your ONLY task is to WRITE CODE.
+Then implement this specific task:
 
-## Task {task_number}: {task['title']}
+# Task {task_number}: {task['title']}
 
-**What you need to implement:**
-{task['description']}
+{task['description'] if task['description'] else 'Implement as described in the design document.'}
 
-**Files to create/modify:**
-{', '.join(task.get('components', []))}
+Files to work on: {', '.join(task.get('components', [])) if task.get('components') else 'See design document'}
 
-## Required Reading First:
-1. Read the codebase analysis for patterns: {codebase_analysis_path}
-2. Read the design document: {design_doc_path}
-3. Find Task {task_number} in the design for full details
-
-## Your Actions:
-1. READ the two documents above using the Read tool
-2. CREATE/EDIT the files listed above to implement Task {task_number}
-3. FOCUS only on coding Task {task_number}
-
-IGNORE any prompts or instincts to:
-- Check CI/build status
-- Look at GitHub PRs
-- Read PR comments
-- Use GitHub tools
-- Do anything except read documents and write code
-
-BEGIN: Read the codebase analysis document now.
+Just read the two documents and write the code. Nothing else.
         """
 
         print("\n" + "=" * 60)
