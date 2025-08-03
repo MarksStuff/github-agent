@@ -141,7 +141,7 @@ class TaskContext:
         Returns:
             Context dictionary for the agent
         """
-        context = {
+        context: dict[str, Any] = {
             "feature_spec": {
                 "name": self.feature_spec.name,
                 "description": self.feature_spec.description,

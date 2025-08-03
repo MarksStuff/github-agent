@@ -1,7 +1,7 @@
 """Conflict resolution for multi-agent workflow disagreements."""
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from coding_personas import CodingPersonas
 
@@ -119,7 +119,7 @@ Otherwise, list each conflict clearly with the format above."""
 
         # More robust parsing - handle various formats
         lines = analysis.split("\n")
-        current_conflict = {}
+        current_conflict: dict[str, Any] = {}
 
         for line in lines:
             line = line.strip()
@@ -256,7 +256,7 @@ Otherwise, list each conflict clearly with the format above."""
 
         logger.info(f"Resolving {len(conflicts)} conflicts using {strategy} strategy")
 
-        return self.resolution_strategies[strategy](conflicts, peer_reviews)
+        return cast(dict[str, Any], self.resolution_strategies[strategy](conflicts, peer_reviews))
 
     def _consensus_resolution(
         self, conflicts: list[dict], peer_reviews: dict

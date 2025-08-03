@@ -52,7 +52,7 @@ class DesignFinalizer:
 
             if result.get("error"):
                 logger.error(f"Failed to fetch PR comments: {result['error']}")
-                return None
+                return []
 
             # Extract comments from the correct fields in the result
             review_comments = result.get("review_comments", [])
@@ -118,14 +118,14 @@ class DesignFinalizer:
 
         except Exception as e:
             logger.error(f"Error fetching GitHub comments: {e}")
-            # Return None to distinguish from empty list (no comments)
-            return None
+            # Return empty list on error
+            return []
 
     async def analyze_feedback(
         self, comments: list[dict[str, Any]]
-    ) -> dict[str, list[str]]:
+    ) -> dict[str, list[Any]]:
         """Categorize and analyze feedback comments."""
-        feedback_categories = {
+        feedback_categories: dict[str, list[Any]] = {
             "architecture": [],
             "implementation": [],
             "testing": [],
@@ -135,11 +135,8 @@ class DesignFinalizer:
         }
 
         for comment in comments:
-            # Handle case where comment might not be a dict
-            if isinstance(comment, dict):
-                body = comment.get("body", "").lower()
-            else:
-                body = str(comment).lower()
+            # Get comment body
+            body = comment.get("body", "").lower()
 
             # Categorize based on content
             if any(

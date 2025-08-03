@@ -51,7 +51,7 @@ class InteractiveDevelopmentProcessor:
         self.round4_dir.mkdir(parents=True, exist_ok=True)
 
         # Store tasks list for reference
-        self.all_tasks = []
+        self.all_tasks: list[dict[str, Any]] = []
 
         logger.info(f"Initialized development processor for PR #{pr_number}")
 
@@ -137,12 +137,12 @@ class InteractiveDevelopmentProcessor:
     ) -> list[dict[str, Any]]:
         """Parse implementation tasks from the design document."""
         # Manual parsing of tasks from the design document
-        tasks = []
+        tasks: list[dict[str, Any]] = []
 
         # Look for sections that indicate implementation tasks
         # Common patterns in design documents
         lines = design_content.split("\n")
-        current_task = None
+        current_task: dict[str, Any] | None = None
         in_implementation_section = False
 
         for line in lines:

@@ -8,7 +8,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 # Add parent directory to path to import github_tools
 sys.path.append(str(Path(__file__).parent.parent))
@@ -158,7 +158,7 @@ class WorkflowOrchestrator:
             Dictionary with codebase analysis
         """
         if self._codebase_analysis:
-            return self._codebase_analysis
+            return self._codebase_analysis  # type: ignore[unreachable]
 
         logger.info("Starting codebase analysis with Senior Engineer...")
 
@@ -578,7 +578,7 @@ CRITICAL:
 
         if pr_data.get("pr_number"):
             logger.info(f"Found existing PR #{pr_data['pr_number']}")
-            return pr_data["pr_number"]
+            return cast(int, pr_data["pr_number"])
 
         # Create PR automatically
         logger.info(f"No PR found for branch '{current_branch}'. Creating PR...")
@@ -684,7 +684,7 @@ All analysis documents are in `.workflow/round_1_analysis/`
                 logger.info(
                     f"Successfully created PR #{pr_number}: {pr_info['html_url']}"
                 )
-                return pr_number
+                return cast(int, pr_number)
             else:
                 logger.error(
                     f"Failed to create PR: {response.status_code} - {response.text}"
@@ -808,7 +808,7 @@ All analysis documents are in `.workflow/round_1_analysis/`
             None, agent.analyze_task, agent_context, context.feature_spec.description
         )
 
-        return analysis
+        return cast(dict[str, Any], analysis)
 
     def _analyze_agent_alignment(
         self, analysis_results: dict[str, str]
@@ -835,7 +835,7 @@ All analysis documents are in `.workflow/round_1_analysis/`
         }
 
         # Extract agent positions on each topic
-        agent_positions = {}
+        agent_positions: dict[str, Any] = {}
         for agent_type, analysis in analysis_results.items():
             if not analysis:
                 continue
@@ -975,7 +975,7 @@ All analysis documents are in `.workflow/round_1_analysis/`
 
             # Extract first few meaningful paragraphs or bullet points
             lines = analysis.strip().split("\n")
-            key_lines = []
+            key_lines: list[str] = []
             bullet_count = 0
 
             for line in lines:
@@ -1446,7 +1446,7 @@ Analysis documents available in {self.repo_path}/.workflow/round_1_analysis/
             f"Peer review result for {agent.agent_type}: status={review.get('status')}, content_len={len(review.get('peer_review', ''))}"
         )
 
-        return review
+        return cast(dict[Any, Any], review)
 
     async def _resolve_conflicts(
         self, peer_reviews: dict, context: TaskContext
@@ -1638,7 +1638,7 @@ Status: {resolution.get('status', 'unknown')}
             logger.info(
                 f"Generated consolidated design document ({len(design_document)} chars)"
             )
-            return design_document
+            return cast(str, design_document)
         except Exception as e:
             logger.error(f"Failed to generate design document: {e}")
             # Fallback to basic template
@@ -1983,7 +1983,7 @@ Phase 2 artifacts available in {self.repo_path}/.workflow/round_2_design/
             # Parse the markdown file to extract individual agent reviews
             peer_reviews = {}
             current_agent = None
-            current_content = []
+            current_content: list[str] = []
 
             lines = content.split("\n")
             for line in lines:
@@ -2041,7 +2041,7 @@ Phase 2 artifacts available in {self.repo_path}/.workflow/round_2_design/
             )
 
             # Parse basic information from the file
-            conflicts = []
+            conflicts: list[dict[str, Any]] = []
             resolution = {
                 "status": "resolved",
                 "strategy": "consensus",
@@ -2669,7 +2669,7 @@ The following changes were made to address the feedback:
         ]
 
         current_section = None
-        current_content = []
+        current_content: list[str] = []
 
         for line in lines:
             line_stripped = line.strip()
@@ -2808,7 +2808,7 @@ The following changes were made to address the feedback:
 ## Section Type: {task.get('section_type', 'general')}
 
 ## Full Design Context
-{design_doc[:5000]}...
+{design_doc[:5000] if design_doc else "Design document not available"}...
 
 ## Your Mission
 You are a coding agent that can implement ANY type of software functionality.
@@ -2873,7 +2873,7 @@ Begin implementation now.
         self, implementation_content: str
     ) -> list[str]:
         """Extract code blocks from implementation and create actual files - completely generic."""
-        files_created = []
+        files_created: list[str] = []
 
         logger.info(
             f"Parsing implementation content ({len(implementation_content)} chars) for code blocks..."
@@ -3067,7 +3067,7 @@ Please create unit tests, integration tests, and any necessary test fixtures.
 
     async def _create_test_files(self, test_content: str) -> list[str]:
         """Create test files from test content."""
-        files_created = []
+        files_created: list[str] = []
 
         # Similar to _create_implementation_files but for tests
         import re

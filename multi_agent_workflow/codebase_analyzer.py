@@ -23,7 +23,7 @@ class CodebaseAnalyzer:
         if not self.repo_path.exists():
             raise ValueError(f"Repository path does not exist: {repo_path}")
 
-        self.analysis_results = {
+        self.analysis_results: dict[str, Any] = {
             "structure": {},
             "patterns": [],
             "technologies": [],
@@ -61,7 +61,7 @@ class CodebaseAnalyzer:
 
     def _analyze_structure(self):
         """Analyze directory structure of the codebase."""
-        structure = {
+        structure: dict[str, Any] = {
             "directories": [],
             "key_files": [],
             "file_count": 0,
