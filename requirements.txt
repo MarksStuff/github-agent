@@ -1,6 +1,7 @@
 # When adding pip's to this file, do it in a separate PR that can be merged before the code that needs it.
 # Because we need to rebuild the docker image for our CI builds with this pip to make the new code pass.
 aiohttp>=3.8.0
+anthropic
 bandit
 black
 cachetools>=5.0.0

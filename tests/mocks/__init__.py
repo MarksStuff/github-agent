@@ -10,6 +10,8 @@ from .mock_symbol_extractor import MockSymbolExtractor
 from .mock_symbol_storage import MockSymbolStorage
 from .mock_time_provider import MockTimeProvider
 from .mock_transport import MockTransport
+from .mock_comment_repository import MockCommentRepository
+from .mock_github_api import MockGitHubAPI
 
 __all__ = [
     "MockLSPClient",
@@ -22,4 +24,6 @@ __all__ = [
     "MockCodebaseTools",
     "MockGitHubAPIContext",
     "MockLSPClientForTests",
+    "MockCommentRepository",
+    "MockGitHubAPI",
 ]
