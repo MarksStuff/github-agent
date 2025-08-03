@@ -299,7 +299,7 @@ class InteractiveDevelopmentProcessor:
         codebase_analysis_path = self.workflow_dir / "codebase_analysis.md"
 
         # Create implementation context prompt for the interactive session
-        # IMPORTANT: We're creating a minimal prompt to avoid triggering Claude's 
+        # IMPORTANT: We're creating a minimal prompt to avoid triggering Claude's
         # automatic CI/build checking behavior
         context_prompt = f"""
 Task: {task['title']}
