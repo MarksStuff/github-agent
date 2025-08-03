@@ -13,20 +13,24 @@ from typing import Any
 # Add parent directory to path to import github_tools
 sys.path.append(str(Path(__file__).parent.parent))
 
-from agent_interface import (
+from agent_interface import (  # noqa: E402
     ArchitectAgent,
     DeveloperAgent,
     SeniorEngineerAgent,
     TesterAgent,
 )
-from codebase_analyzer import CodebaseAnalyzer
-from conflict_resolver import ConflictResolver
-from dotenv import load_dotenv
-from task_context import CodebaseState, FeatureSpec, TaskContext
+from codebase_analyzer import CodebaseAnalyzer  # noqa: E402
+from conflict_resolver import ConflictResolver  # noqa: E402
+from dotenv import load_dotenv  # noqa: E402
+from task_context import CodebaseState, FeatureSpec, TaskContext  # noqa: E402
 
-import github_tools
-from github_tools import execute_tool
-from repository_manager import Language, RepositoryConfig, RepositoryManager
+import github_tools  # noqa: E402
+from github_tools import execute_tool  # noqa: E402
+from repository_manager import (  # noqa: E402
+    Language,
+    RepositoryConfig,
+    RepositoryManager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -243,7 +247,7 @@ CRITICAL:
 - Focus on patterns that new development should follow"""
 
         senior = self.agents["senior_engineer"]
-        context = {
+        _ = {
             "repo_path": str(self.repo_path),
             "codebase_analysis_path": str(
                 self.get_absolute_path(".workflow/codebase_analysis.md")
@@ -821,7 +825,7 @@ All analysis documents are in `.workflow/round_1_analysis/`
         disagreements = []
 
         # Common topics to check for alignment
-        topics = {
+        _ = {
             "database": ["sqlite", "database", "storage", "persist"],
             "pattern": ["pattern", "abstract", "interface", "base class"],
             "testing": ["test", "mock", "pytest", "coverage"],
@@ -2194,7 +2198,7 @@ Phase 2 artifacts available in {self.repo_path}/.workflow/round_2_design/
                 if filtered_count > 0:
                     print(f"   (Filtered out {filtered_count} irrelevant comments)")
             else:
-                print("ℹ️  No new relevant PR comments found")
+                print("i  No new relevant PR comments found")
                 if filtered_count > 0:
                     print(f"   (Filtered out {filtered_count} irrelevant comments)")
 
@@ -2267,7 +2271,7 @@ Keep the tone professional but direct. Avoid excessive politeness or thanking.""
 *This response reflects how your feedback was incorporated into the [consolidated design document](.workflow/round_2_design/consolidated_design.md).*"""
 
                         try:
-                            result = await execute_tool(
+                            await execute_tool(
                                 "github_post_pr_reply",
                                 repo_name=self.repo_name,
                                 comment_id=comment_id,
@@ -2353,7 +2357,7 @@ Format as a GitHub comment that can be posted to the PR."""
                         # Post as a general PR comment (not a reply to a specific comment)
                         from github_tools import execute_tool as github_execute_tool
 
-                        comment_result = await github_execute_tool(
+                        await github_execute_tool(
                             "github_post_issue_comment",
                             repo_name=self.repo_name,
                             issue_number=context.pr_number,
@@ -2746,7 +2750,11 @@ The following changes were made to address the feedback:
                 or line.lower().startswith(("must ", "should ", "shall ", "will "))
                 or "requirement" in line.lower()
             ):
-                req = line.lstrip("- * • ").strip()
+                req = line.strip()
+                for prefix in ["- ", "* ", "• "]:
+                    if req.startswith(prefix):
+                        req = req[len(prefix):]
+                        break
                 if req:
                     requirements.append(req)
         return requirements
@@ -3066,7 +3074,7 @@ Please create unit tests, integration tests, and any necessary test fixtures.
 
         code_blocks = re.findall(r"```(\w+)?\n(.*?)\n```", test_content, re.DOTALL)
 
-        for lang, code in code_blocks:
+        for _, code in code_blocks:
             # Extract filename or generate test filename
             filename_match = re.search(r"#\s*(?:File|Filename):\s*(.+)", code)
             if filename_match:
@@ -3158,7 +3166,7 @@ Implementation tasks completed:
                     try:
                         pr_num = int(d.name.split("_")[1])
                         pr_numbers.append(pr_num)
-                    except:
+                    except (ValueError, IndexError):
                         continue
 
                 if pr_numbers:
@@ -3290,7 +3298,7 @@ async def resume_workflow(repo_name: str, repo_path: str, pr_number: int | None 
         if phase2_result.get("status") == "success":
             print("\n✅ Phase 2 Complete!")
             print(
-                f"📁 Design artifacts saved to {self.repo_path}/.workflow/round_2_design/"
+                f"📁 Design artifacts saved to {repo_path}/.workflow/round_2_design/"
             )
             print(
                 f"🔍 {len(phase2_result.get('conflicts', []))} conflicts identified and resolved"

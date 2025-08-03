@@ -15,7 +15,6 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -146,7 +145,7 @@ class InteractiveDevelopmentProcessor:
         current_task = None
         in_implementation_section = False
 
-        for i, line in enumerate(lines):
+        for line in lines:
             # Look for implementation task markers
             if "implementation task" in line.lower() or "task:" in line.lower():
                 if current_task:
@@ -252,7 +251,7 @@ class InteractiveDevelopmentProcessor:
 
             # Part 3: Human Review Break
             print("\n--- Part 3: Human Review Break ---")
-            part3_result = await self._part3_human_review_break(task, task_number)
+            await self._part3_human_review_break(task, task_number)
 
             # Part 4: PR Comment Integration
             print("\n--- Part 4: PR Comment Integration ---")
@@ -320,9 +319,6 @@ Implementation: {task['description'] if task['description'] else 'See design doc
         )
         print("The agent knows about the task and will help you implement it.")
         print("=" * 60)
-
-        # Get the developer agent
-        developer = self.orchestrator.agents["developer"]
 
         try:
             # Create a temporary file with the context for the interactive session
@@ -427,7 +423,6 @@ Focus only on implementing this specific task. Create or modify the necessary fi
         implemented_files = part1_result.get("files_created", [])
 
         reviews = {}
-        refinements = []
 
         # Architect Review
         print("  - Architect reviewing...")
@@ -630,7 +625,6 @@ Apply the refinements now.
 
             # Filter for recent comments (added in the last hour)
             recent_comments = []
-            current_time = datetime.now()
 
             for comment in all_comments:
                 if isinstance(comment, dict):

@@ -270,7 +270,7 @@ You need to produce a COMPLETE, UPDATED design document that incorporates the Gi
 
         # Collect all comments from all categories
         all_comments = []
-        for category, comments in feedback_categories.items():
+        for _, comments in feedback_categories.items():
             all_comments.extend(comments)
 
         # Filter out bot comments
@@ -326,7 +326,7 @@ Keep the tone professional but direct. Avoid excessive politeness or thanking.""
                     try:
                         from github_tools import execute_post_pr_reply
 
-                        result = await execute_post_pr_reply(
+                        await execute_post_pr_reply(
                             repo_name=self.repo_name,
                             comment_id=comment_id,
                             message=comment_body,
