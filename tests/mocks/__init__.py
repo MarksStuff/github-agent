@@ -1,8 +1,6 @@
 """Mock objects for testing."""
 
 from .mock_codebase_tools import MockCodebaseTools
-from .mock_comment_repository import MockCommentRepository
-from .mock_github_api import MockGitHubAPI
 from .mock_github_api_context import MockGitHubAPIContext
 from .mock_lsp_client import MockLSPClient
 from .mock_lsp_client_for_tests import MockLSPClientForTests
@@ -24,6 +22,4 @@ __all__ = [
     "MockCodebaseTools",
     "MockGitHubAPIContext",
     "MockLSPClientForTests",
-    "MockCommentRepository",
-    "MockGitHubAPI",
 ]
