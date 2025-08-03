@@ -1,15 +1,9 @@
 
-Read /Users/mstriebeck/Code/github-agent/.workflow/codebase_analysis.md
+Task: Implement comment methods in `SQLiteSymbolStorage` and `InMemorySymbolStorage`
 
-After reading that file, read /Users/mstriebeck/Code/github-agent/.workflow/round_3_design/finalized_design.md
+Files needed:
+- Codebase patterns: /Users/mstriebeck/Code/github-agent/.workflow/codebase_analysis.md
+- Design document: /Users/mstriebeck/Code/github-agent/.workflow/round_3_design/finalized_design.md
 
-Then implement this specific task:
-
-# Task 1: Implement comment methods in `SQLiteSymbolStorage` and `InMemorySymbolStorage`
-
-Implement as described in the design document.
-
-Files to work on: See design document
-
-Just read the two documents and write the code. Nothing else.
+Implementation: See design document
         
