@@ -10,17 +10,17 @@ import time
 from pathlib import Path
 
 import pytest
+
+from constants import Language
+from python_symbol_extractor import PythonSymbolExtractor
+from repository_indexer import PythonRepositoryIndexer
+from repository_manager import RepositoryConfig
 from startup_orchestrator import (
     CodebaseStartupOrchestrator,
     IndexingStatus,
     IndexingStatusEnum,
     StartupResult,
 )
-
-from constants import Language
-from python_symbol_extractor import PythonSymbolExtractor
-from repository_indexer import PythonRepositoryIndexer
-from repository_manager import RepositoryConfig
 from symbol_storage import SQLiteSymbolStorage
 
 

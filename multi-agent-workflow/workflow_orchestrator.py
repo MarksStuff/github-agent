@@ -2753,7 +2753,7 @@ The following changes were made to address the feedback:
                 req = line.strip()
                 for prefix in ["- ", "* ", "• "]:
                     if req.startswith(prefix):
-                        req = req[len(prefix):]
+                        req = req[len(prefix) :]
                         break
                 if req:
                     requirements.append(req)
@@ -3297,9 +3297,7 @@ async def resume_workflow(repo_name: str, repo_path: str, pr_number: int | None 
 
         if phase2_result.get("status") == "success":
             print("\n✅ Phase 2 Complete!")
-            print(
-                f"📁 Design artifacts saved to {repo_path}/.workflow/round_2_design/"
-            )
+            print(f"📁 Design artifacts saved to {repo_path}/.workflow/round_2_design/")
             print(
                 f"🔍 {len(phase2_result.get('conflicts', []))} conflicts identified and resolved"
             )

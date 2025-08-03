@@ -27,7 +27,6 @@ from typing import Any
 
 import aiohttp
 from dotenv import load_dotenv
-from startup_orchestrator import CodebaseStartupOrchestrator
 
 # codebase_tools imported locally where needed
 import github_tools
@@ -42,6 +41,7 @@ from shutdown_simple import (
     SimpleHealthMonitor,
     SimpleShutdownCoordinator,
 )
+from startup_orchestrator import CodebaseStartupOrchestrator
 from symbol_storage import ProductionSymbolStorage, SQLiteSymbolStorage
 from system_utils import MicrosecondFormatter, log_system_state
 
