@@ -139,77 +139,81 @@ class InteractiveDevelopmentProcessor:
         """Parse implementation tasks from the design document."""
         # Manual parsing of tasks from the design document
         tasks = []
-        
+
         # Look for sections that indicate implementation tasks
         # Common patterns in design documents
-        lines = design_content.split('\n')
+        lines = design_content.split("\n")
         current_task = None
         in_implementation_section = False
-        
+
         for i, line in enumerate(lines):
             # Look for implementation task markers
-            if 'implementation task' in line.lower() or 'task:' in line.lower():
+            if "implementation task" in line.lower() or "task:" in line.lower():
                 if current_task:
                     tasks.append(current_task)
-                
+
                 # Extract task title from the line
-                title = line.replace('Task:', '').replace('task:', '').strip()
-                title = re.sub(r'^\d+\.?\s*', '', title)  # Remove numbering
-                title = title.replace('#', '').strip()
-                
+                title = line.replace("Task:", "").replace("task:", "").strip()
+                title = re.sub(r"^\d+\.?\s*", "", title)  # Remove numbering
+                title = title.replace("#", "").strip()
+
                 current_task = {
                     "title": title or f"Task {len(tasks) + 1}",
                     "description": "",
                     "components": [],
-                    "dependencies": []
+                    "dependencies": [],
                 }
                 in_implementation_section = True
-            
+
             # Look for numbered implementation steps
-            elif re.match(r'^\d+\.\s+', line) and 'implement' in line.lower():
+            elif re.match(r"^\d+\.\s+", line) and "implement" in line.lower():
                 if current_task:
                     tasks.append(current_task)
-                
-                title = re.sub(r'^\d+\.\s+', '', line).strip()
+
+                title = re.sub(r"^\d+\.\s+", "", line).strip()
                 current_task = {
                     "title": title,
                     "description": "",
                     "components": [],
-                    "dependencies": []
+                    "dependencies": [],
                 }
-            
+
             # Collect description and components
             elif current_task and in_implementation_section:
-                if 'file' in line.lower() or '.py' in line:
+                if "file" in line.lower() or ".py" in line:
                     # Extract file names
-                    file_matches = re.findall(r'[\w/]+\.py', line)
+                    file_matches = re.findall(r"[\w/]+\.py", line)
                     current_task["components"].extend(file_matches)
-                elif line.strip() and not line.startswith('#'):
+                elif line.strip() and not line.startswith("#"):
                     # Add to description
                     if len(current_task["description"]) < 500:
                         current_task["description"] += line.strip() + " "
-        
+
         # Add the last task if exists
         if current_task:
             tasks.append(current_task)
-        
+
         # If no tasks found, try to extract from headers
         if not tasks:
             # Look for ## Implementation or ### sections
             implementation_sections = re.findall(
-                r'###+\s*(?:Implementation|Development|Task|Step)\s*\d*:?\s*([^\n]+)',
+                r"###+\s*(?:Implementation|Development|Task|Step)\s*\d*:?\s*([^\n]+)",
                 design_content,
-                re.IGNORECASE
+                re.IGNORECASE,
             )
-            
-            for i, section in enumerate(implementation_sections[:5], 1):  # Limit to 5 tasks
-                tasks.append({
-                    "title": section.strip(),
-                    "description": f"Implement the {section.strip()} as described in the design document",
-                    "components": [f"implementation_{i}.py"],
-                    "dependencies": []
-                })
-        
+
+            for i, section in enumerate(
+                implementation_sections[:5], 1
+            ):  # Limit to 5 tasks
+                tasks.append(
+                    {
+                        "title": section.strip(),
+                        "description": f"Implement the {section.strip()} as described in the design document",
+                        "components": [f"implementation_{i}.py"],
+                        "dependencies": [],
+                    }
+                )
+
         # If still no tasks, create a single comprehensive task
         if not tasks:
             logger.info("No specific tasks found, creating single comprehensive task")
@@ -221,7 +225,7 @@ class InteractiveDevelopmentProcessor:
                     "dependencies": [],
                 }
             ]
-        
+
         logger.info(f"Parsed {len(tasks)} tasks from design")
         return tasks
 
