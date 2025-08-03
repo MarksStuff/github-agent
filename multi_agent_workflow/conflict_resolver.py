@@ -256,7 +256,10 @@ Otherwise, list each conflict clearly with the format above."""
 
         logger.info(f"Resolving {len(conflicts)} conflicts using {strategy} strategy")
 
-        return cast(dict[str, Any], self.resolution_strategies[strategy](conflicts, peer_reviews))
+        return cast(
+            dict[str, Any],
+            self.resolution_strategies[strategy](conflicts, peer_reviews),
+        )
 
     def _consensus_resolution(
         self, conflicts: list[dict], peer_reviews: dict
