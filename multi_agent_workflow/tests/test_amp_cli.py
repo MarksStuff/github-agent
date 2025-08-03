@@ -2,6 +2,11 @@
 """Test script to verify AmpCLI is working correctly."""
 
 import logging
+import sys
+from pathlib import Path
+
+# Add parent directory to Python path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from amp_cli_wrapper import AmpCLI, AmpCLIError
 

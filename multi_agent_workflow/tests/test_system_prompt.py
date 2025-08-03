@@ -3,6 +3,12 @@
 Test script for AmpCLI system prompt functionality.
 """
 
+import sys
+from pathlib import Path
+
+# Add parent directory to Python path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from amp_cli_wrapper import AmpCLI, AmpCLIError
 
 
