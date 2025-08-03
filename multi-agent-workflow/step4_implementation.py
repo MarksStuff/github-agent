@@ -341,11 +341,11 @@ Now implement Task {task_number}: {task['title']}
 
 Focus only on implementing this specific task. Create or modify the necessary files to complete the implementation."""
 
-            print("\n" + "="*70)
+            print("\n" + "=" * 70)
             print("COPY THIS PROMPT FOR CLAUDE:")
-            print("="*70)
+            print("=" * 70)
             print(implementation_prompt)
-            print("="*70)
+            print("=" * 70)
             print("\nInstructions:")
             print("1. Copy the prompt above")
             print("2. Claude chat will open in a moment")
