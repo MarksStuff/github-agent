@@ -137,55 +137,93 @@ class InteractiveDevelopmentProcessor:
         self, design_content: str
     ) -> list[dict[str, Any]]:
         """Parse implementation tasks from the design document."""
-        # Use architect agent to parse the design and extract tasks
-        parse_prompt = f"""
-Analyze this design document and extract specific implementation tasks.
-
-Design Document:
-{design_content}
-
-Extract discrete implementation tasks that can be coded independently. For each task, provide:
-1. A clear title (one line)
-2. A detailed description of what needs to be implemented
-3. Key components/files that need to be created or modified
-4. Dependencies on other tasks (if any)
-
-Return the tasks as a JSON array with this structure:
-[
-  {{
-    "title": "Task title",
-    "description": "Detailed description",
-    "components": ["file1.py", "file2.py"],
-    "dependencies": ["Task 1", "Task 2"]
-  }}
-]
-
-Only return the JSON array, no other text.
-        """
-
-        architect = self.orchestrator.agents["architect"]
-        response = architect.persona.ask(parse_prompt)
-
-        try:
-            # Extract JSON from response
-            json_match = re.search(r"\[.*\]", response, re.DOTALL)
-            if json_match:
-                tasks_json = json_match.group(0)
-                tasks = json.loads(tasks_json)
-                logger.info(f"Parsed {len(tasks)} tasks from design")
-                return tasks
-        except Exception as e:
-            logger.error(f"Failed to parse tasks JSON: {e}")
-
-        # Fallback: create a single task from the entire design
-        return [
-            {
-                "title": "Implement Complete Feature",
-                "description": "Implement the complete feature as described in the design document",
-                "components": ["main implementation"],
-                "dependencies": [],
-            }
-        ]
+        # Manual parsing of tasks from the design document
+        tasks = []
+        
+        # Look for sections that indicate implementation tasks
+        # Common patterns in design documents
+        lines = design_content.split('\n')
+        current_task = None
+        in_implementation_section = False
+        
+        for i, line in enumerate(lines):
+            # Look for implementation task markers
+            if 'implementation task' in line.lower() or 'task:' in line.lower():
+                if current_task:
+                    tasks.append(current_task)
+                
+                # Extract task title from the line
+                title = line.replace('Task:', '').replace('task:', '').strip()
+                title = re.sub(r'^\d+\.?\s*', '', title)  # Remove numbering
+                title = title.replace('#', '').strip()
+                
+                current_task = {
+                    "title": title or f"Task {len(tasks) + 1}",
+                    "description": "",
+                    "components": [],
+                    "dependencies": []
+                }
+                in_implementation_section = True
+            
+            # Look for numbered implementation steps
+            elif re.match(r'^\d+\.\s+', line) and 'implement' in line.lower():
+                if current_task:
+                    tasks.append(current_task)
+                
+                title = re.sub(r'^\d+\.\s+', '', line).strip()
+                current_task = {
+                    "title": title,
+                    "description": "",
+                    "components": [],
+                    "dependencies": []
+                }
+            
+            # Collect description and components
+            elif current_task and in_implementation_section:
+                if 'file' in line.lower() or '.py' in line:
+                    # Extract file names
+                    file_matches = re.findall(r'[\w/]+\.py', line)
+                    current_task["components"].extend(file_matches)
+                elif line.strip() and not line.startswith('#'):
+                    # Add to description
+                    if len(current_task["description"]) < 500:
+                        current_task["description"] += line.strip() + " "
+        
+        # Add the last task if exists
+        if current_task:
+            tasks.append(current_task)
+        
+        # If no tasks found, try to extract from headers
+        if not tasks:
+            # Look for ## Implementation or ### sections
+            implementation_sections = re.findall(
+                r'###+\s*(?:Implementation|Development|Task|Step)\s*\d*:?\s*([^\n]+)',
+                design_content,
+                re.IGNORECASE
+            )
+            
+            for i, section in enumerate(implementation_sections[:5], 1):  # Limit to 5 tasks
+                tasks.append({
+                    "title": section.strip(),
+                    "description": f"Implement the {section.strip()} as described in the design document",
+                    "components": [f"implementation_{i}.py"],
+                    "dependencies": []
+                })
+        
+        # If still no tasks, create a single comprehensive task
+        if not tasks:
+            logger.info("No specific tasks found, creating single comprehensive task")
+            tasks = [
+                {
+                    "title": "Implement Complete Feature",
+                    "description": "Implement the complete feature as described in the design document",
+                    "components": ["main implementation"],
+                    "dependencies": [],
+                }
+            ]
+        
+        logger.info(f"Parsed {len(tasks)} tasks from design")
+        return tasks
 
     async def _execute_four_part_cycle(
         self, task: dict[str, Any], task_number: int
