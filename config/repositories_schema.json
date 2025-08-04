@@ -17,12 +17,71 @@
               "description": "Absolute path to the git repository (relative paths not allowed)",
               "pattern": "^/"
             },
+            "workspace": {
+              "type": "string",
+              "description": "Absolute path to the git repository workspace (relative paths not allowed)",
+              "pattern": "^/"
+            },
+            "port": {
+              "type": "integer",
+              "description": "Port number for the MCP server",
+              "minimum": 1024,
+              "maximum": 65535
+            },
+            "language": {
+              "type": "string",
+              "description": "Programming language of the repository",
+              "enum": ["python", "javascript", "typescript", "swift", "rust", "go"]
+            },
+            "python_path": {
+              "type": "string",
+              "description": "Path to Python executable for this repository"
+            },
+            "lsp_server": {
+              "type": "string",
+              "description": "LSP server type to use",
+              "enum": ["pylsp", "pyright"]
+            },
             "description": {
               "type": "string",
               "description": "Human-readable description of the repository"
+            },
+            "pre_commit_scripts": {
+              "type": "array",
+              "description": "Scripts to run before committing code, in the order they should be executed",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Human-readable name for the script"
+                  },
+                  "script": {
+                    "type": "string",
+                    "description": "Script path relative to repository root or absolute command"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Optional description of what this script does"
+                  },
+                  "required": {
+                    "type": "boolean",
+                    "description": "Whether this script must pass for commit to proceed",
+                    "default": true
+                  },
+                  "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds for script execution",
+                    "default": 300,
+                    "minimum": 1
+                  }
+                },
+                "required": ["name", "script"],
+                "additionalProperties": false
+              }
             }
           },
-          "required": ["path"],
+          "required": ["workspace", "language", "port", "python_path"],
           "additionalProperties": false
         }
       },

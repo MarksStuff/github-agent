@@ -10,7 +10,8 @@ import sqlite3
 import threading
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -59,6 +60,29 @@ class Symbol:
             "repository_id": self.repository_id,
             "docstring": self.docstring,
         }
+
+
+@dataclass
+class CommentReply:
+    """Domain model for a replied comment with timestamp tracking."""
+
+    comment_id: int
+    pr_number: int
+    replied_at: datetime
+    repository_id: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to dict using dataclasses.asdict with datetime conversion."""
+        data = asdict(self)
+        data["replied_at"] = self.replied_at.isoformat()
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "CommentReply":
+        """Deserialize from dict with datetime parsing."""
+        data = data.copy()
+        data["replied_at"] = datetime.fromisoformat(data["replied_at"])
+        return cls(**data)
 
 
 class AbstractSymbolStorage(ABC):
@@ -118,6 +142,52 @@ class AbstractSymbolStorage(ABC):
     @abstractmethod
     def health_check(self) -> bool:
         """Check if the symbol storage is accessible and functional."""
+        pass
+
+    @abstractmethod
+    def mark_comment_replied(self, comment_reply: CommentReply) -> None:
+        """Mark a comment as replied.
+
+        Args:
+            comment_reply: CommentReply object containing comment details
+        """
+        pass
+
+    @abstractmethod
+    def is_comment_replied(self, comment_id: int, pr_number: int) -> bool:
+        """Check if a comment has been replied to.
+
+        Args:
+            comment_id: GitHub comment ID
+            pr_number: Pull request number
+
+        Returns:
+            bool: True if comment has been replied to, False otherwise
+        """
+        pass
+
+    @abstractmethod
+    def get_replied_comment_ids(self, pr_number: int) -> set[int]:
+        """Get all replied comment IDs for a PR.
+
+        Args:
+            pr_number: Pull request number
+
+        Returns:
+            set[int]: Set of comment IDs that have been replied to
+        """
+        pass
+
+    @abstractmethod
+    def cleanup_old_comment_replies(self, days_old: int = 30) -> int:
+        """Clean up old comment reply records.
+
+        Args:
+            days_old: Number of days after which to clean up records
+
+        Returns:
+            int: Number of records cleaned up
+        """
         pass
 
 
@@ -303,6 +373,36 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
             CREATE INDEX IF NOT EXISTS idx_symbols_name_repo
             ON symbols(name, repository_id)
             """
+            )
+
+            # Create comment replies table
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS comment_replies (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    comment_id INTEGER NOT NULL,
+                    pr_number INTEGER NOT NULL,
+                    repository_id TEXT NOT NULL,
+                    replied_at TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(comment_id, pr_number, repository_id)
+                )
+                """
+            )
+
+            # Create indexes for comment replies
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_comment_replies_pr
+                ON comment_replies(pr_number, repository_id)
+                """
+            )
+
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_comment_replies_comment
+                ON comment_replies(comment_id)
+                """
             )
 
             conn.commit()
@@ -532,6 +632,71 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
                 )
                 for row in rows
             ]
+
+    def mark_comment_replied(self, comment_reply: CommentReply) -> None:
+        """Mark comment as replied using existing retry mechanism."""
+
+        def _mark_replied():
+            with self._get_connection() as conn:
+                conn.execute(
+                    """INSERT OR REPLACE INTO comment_replies
+                       (comment_id, pr_number, repository_id, replied_at)
+                       VALUES (?, ?, ?, ?)""",
+                    (
+                        comment_reply.comment_id,
+                        comment_reply.pr_number,
+                        comment_reply.repository_id,
+                        comment_reply.replied_at.isoformat(),
+                    ),
+                )
+                conn.commit()
+
+        self._execute_with_retry("mark_comment_replied", _mark_replied)
+
+    def is_comment_replied(self, comment_id: int, pr_number: int) -> bool:
+        """Check if comment is replied using existing retry mechanism."""
+
+        def _check_replied():
+            with self._get_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT 1 FROM comment_replies WHERE comment_id = ? AND pr_number = ?",
+                    (comment_id, pr_number),
+                )
+                result = cursor.fetchone()
+                return result is not None
+
+        return self._execute_with_retry("is_comment_replied", _check_replied)
+
+    def get_replied_comment_ids(self, pr_number: int) -> set[int]:
+        """Get all replied comment IDs for a PR using existing retry mechanism."""
+
+        def _get_replied_ids():
+            with self._get_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT comment_id FROM comment_replies WHERE pr_number = ?",
+                    (pr_number,),
+                )
+                rows = cursor.fetchall()
+                return {row[0] for row in rows}
+
+        return self._execute_with_retry("get_replied_comment_ids", _get_replied_ids)
+
+    def cleanup_old_comment_replies(self, days_old: int = 30) -> int:
+        """Clean up old comment reply records."""
+
+        def _cleanup_old_replies():
+            with self._get_connection() as conn:
+                cursor = conn.execute(
+                    """DELETE FROM comment_replies
+                       WHERE julianday('now') - julianday(replied_at) > ?""",
+                    (days_old,),
+                )
+                conn.commit()
+                return cursor.rowcount
+
+        return self._execute_with_retry(
+            "cleanup_old_comment_replies", _cleanup_old_replies
+        )
 
 
 class ProductionSymbolStorage(SQLiteSymbolStorage):

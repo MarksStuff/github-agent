@@ -1,6 +1,8 @@
 """Mock symbol storage for testing."""
 
-from symbol_storage import AbstractSymbolStorage, Symbol
+from datetime import UTC, datetime
+
+from symbol_storage import AbstractSymbolStorage, CommentReply, Symbol
 
 
 class MockSymbolStorage(AbstractSymbolStorage):
@@ -11,6 +13,7 @@ class MockSymbolStorage(AbstractSymbolStorage):
         self.symbols: list[Symbol] = []
         self.deleted_repositories: list[str] = []
         self._health_check_result: bool = True
+        self._comment_replies: dict[tuple[int, int], CommentReply] = {}
 
     def create_schema(self) -> None:
         """Create schema (no-op for mock)."""
@@ -75,3 +78,43 @@ class MockSymbolStorage(AbstractSymbolStorage):
     def set_health_check_result(self, result: bool) -> None:
         """Set the health check result for testing."""
         self._health_check_result = result
+
+    def mark_comment_replied(self, comment_reply: CommentReply) -> None:
+        """Mark comment as replied in memory."""
+        key = (comment_reply.comment_id, comment_reply.pr_number)
+        self._comment_replies[key] = comment_reply
+
+    def is_comment_replied(self, comment_id: int, pr_number: int) -> bool:
+        """Check if comment is replied in memory."""
+        key = (comment_id, pr_number)
+        return key in self._comment_replies
+
+    def get_replied_comment_ids(self, pr_number: int) -> set[int]:
+        """Get all replied comment IDs for a PR from memory."""
+        return {
+            comment_id
+            for (comment_id, pr_num) in self._comment_replies.keys()
+            if pr_num == pr_number
+        }
+
+    def cleanup_old_comment_replies(self, days_old: int = 30) -> int:
+        """Clean up old comment reply records from memory."""
+        now = datetime.now(UTC)
+        old_keys = []
+        for key, reply in self._comment_replies.items():
+            days_diff = (now - reply.replied_at).days
+            if days_diff > days_old:
+                old_keys.append(key)
+
+        for key in old_keys:
+            del self._comment_replies[key]
+
+        return len(old_keys)
+
+    def get_all_comment_replies(self) -> list[CommentReply]:
+        """Testing helper method to get all comment replies."""
+        return list(self._comment_replies.values())
+
+    def clear_comment_replies(self) -> None:
+        """Testing helper method to clear all comment replies."""
+        self._comment_replies.clear()

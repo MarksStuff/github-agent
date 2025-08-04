@@ -1,16 +1,72 @@
 {
   "repositories": {
-    "my-project": {
-      "path": "/Users/bob/code/my-project",
-      "description": "Personal project repository"
+    "my-python-project": {
+      "workspace": "/Users/bob/code/my-python-project",
+      "port": 8081,
+      "description": "Personal Python project with comprehensive pre-commit checks",
+      "language": "python",
+      "python_path": "/Users/bob/code/my-python-project/.venv/bin/python",
+      "lsp_server": "pylsp",
+      "pre_commit_scripts": [
+        {
+          "name": "ruff-autofix",
+          "script": "scripts/ruff-autofix.sh",
+          "description": "Auto-format Python code using ruff",
+          "required": true,
+          "timeout": 120
+        },
+        {
+          "name": "code-checks",
+          "script": "scripts/run-code-checks.sh",
+          "description": "Run linting checks (ignore bandit warnings as needed)",
+          "required": true,
+          "timeout": 180
+        },
+        {
+          "name": "pytest",
+          "script": "pytest",
+          "description": "Run all tests to ensure functionality",
+          "required": true,
+          "timeout": 300
+        }
+      ]
     },
-    "work-stuff": {
-      "path": "/Users/bob/work/complex-repository", 
-      "description": "Work-related code"
+    "work-nodejs-app": {
+      "workspace": "/Users/bob/work/node-api-server",
+      "port": 8082,
+      "description": "Work Node.js API with custom pre-commit hooks",
+      "language": "javascript",
+      "python_path": "/usr/bin/python3",
+      "pre_commit_scripts": [
+        {
+          "name": "eslint-fix",
+          "script": "npm run lint:fix",
+          "description": "Auto-fix ESLint issues",
+          "required": true,
+          "timeout": 60
+        },
+        {
+          "name": "prettier",
+          "script": "npm run format",
+          "description": "Format code with Prettier",
+          "required": true,
+          "timeout": 30
+        },
+        {
+          "name": "tests",
+          "script": "npm test",
+          "description": "Run Jest test suite",
+          "required": true,
+          "timeout": 240
+        }
+      ]
     },
-    "github-agent": {
-      "path": "/Volumes/Code/github-agent",
-      "description": "GitHub MCP Agent"
+    "simple-swift-project": {
+      "workspace": "/Users/bob/ios/swift-app",
+      "port": 8083,
+      "description": "iOS Swift project without pre-commit scripts",
+      "language": "swift",
+      "python_path": "/usr/bin/python3"
     }
   }
 }
