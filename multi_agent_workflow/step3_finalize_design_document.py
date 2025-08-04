@@ -17,7 +17,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from common_utils import add_common_arguments, print_step_header, setup_common_environment
+from common_utils import (
+    add_common_arguments,
+    print_step_header,
+    setup_common_environment,
+)
 from task_context import TaskContext
 from workflow_orchestrator import WorkflowOrchestrator
 
@@ -501,10 +505,7 @@ Example:
     repo_name = env["repo_name"]
 
     print_step_header(
-        "Step 3",
-        "Finalize Design Document",
-        repository=repo_name,
-        pr_number=args.pr
+        "Step 3", "Finalize Design Document", repository=repo_name, pr_number=args.pr
     )
 
     # Create orchestrator

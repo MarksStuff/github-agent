@@ -18,7 +18,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from common_utils import add_common_arguments, print_step_header, setup_common_environment
+from common_utils import (
+    add_common_arguments,
+    print_step_header,
+    setup_common_environment,
+)
 from workflow_orchestrator import WorkflowOrchestrator
 
 from github_tools import execute_get_pr_comments, execute_post_pr_reply
@@ -822,7 +826,7 @@ Example:
         "Interactive Development Process",
         pr_number=args.pr,
         repository=repo_name,
-        path=repo_path
+        path=repo_path,
     )
 
     # Check prerequisites

@@ -11,17 +11,19 @@ from typing import Any
 from logging_config import setup_logging
 
 
-def setup_common_environment(step_name: str, args: argparse.Namespace) -> dict[str, Any]:
+def setup_common_environment(
+    step_name: str, args: argparse.Namespace
+) -> dict[str, Any]:
     """Setup common environment for all step scripts.
-    
+
     Args:
         step_name: Name of the step (e.g., "step1_analysis", "step2_design")
         args: Parsed command line arguments with log_level attribute
-        
+
     Returns:
         Dictionary containing:
             - repo_path: Repository path
-            - repo_name: Repository name  
+            - repo_name: Repository name
             - log_dir: Log directory path
     """
     # Setup logging
@@ -41,7 +43,7 @@ def setup_common_environment(step_name: str, args: argparse.Namespace) -> dict[s
 
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     """Add common command line arguments to a parser.
-    
+
     Args:
         parser: ArgumentParser to add arguments to
     """
@@ -55,7 +57,7 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
 
 def print_step_header(step_name: str, step_description: str, **kwargs: Any) -> None:
     """Print a standardized header for step scripts.
-    
+
     Args:
         step_name: Name of the step (e.g., "Step 1")
         step_description: Description of what the step does
@@ -64,7 +66,7 @@ def print_step_header(step_name: str, step_description: str, **kwargs: Any) -> N
     print("=" * 60)
     print(f"{step_name}: {step_description}")
     print("=" * 60)
-    
+
     for key, value in kwargs.items():
         # Convert snake_case to Title Case for display
         display_key = key.replace("_", " ").title()

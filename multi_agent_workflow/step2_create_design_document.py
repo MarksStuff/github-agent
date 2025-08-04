@@ -10,11 +10,14 @@ Usage:
 import argparse
 import asyncio
 import logging
-import os
 import sys
 from pathlib import Path
 
-from common_utils import add_common_arguments, print_step_header, setup_common_environment
+from common_utils import (
+    add_common_arguments,
+    print_step_header,
+    setup_common_environment,
+)
 from task_context import TaskContext
 from workflow_orchestrator import WorkflowOrchestrator
 
@@ -56,9 +59,9 @@ Example:
 
     print_step_header(
         "Step 2",
-        "Create Consolidated Design Document", 
+        "Create Consolidated Design Document",
         repository=repo_name,
-        pr_number=args.pr
+        pr_number=args.pr,
     )
 
     # Create orchestrator

@@ -10,11 +10,14 @@ Usage:
 
 import argparse
 import asyncio
-import os
 import sys
 from pathlib import Path
 
-from common_utils import add_common_arguments, print_step_header, setup_common_environment
+from common_utils import (
+    add_common_arguments,
+    print_step_header,
+    setup_common_environment,
+)
 from workflow_orchestrator import WorkflowOrchestrator
 
 
@@ -53,10 +56,7 @@ Examples:
     repo_name = env["repo_name"]
 
     print_step_header(
-        "Step 1", 
-        "Multi-Agent Analysis",
-        repository=repo_name,
-        path=repo_path
+        "Step 1", "Multi-Agent Analysis", repository=repo_name, path=repo_path
     )
 
     # Load task specification (skip if only doing codebase analysis)
