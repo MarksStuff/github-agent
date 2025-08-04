@@ -9,7 +9,7 @@ from pathlib import Path
 # Add parent directory to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from coding_personas import CodingPersonas
+from coding_personas import CodingPersonas  # noqa: E402
 
 
 def quick_persona_test():
