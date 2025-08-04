@@ -26,3 +26,4 @@ ruff==0.1.13
 types-requests
 uvicorn[standard]>=0.24.0
 watchdog>=3.0.0
+
