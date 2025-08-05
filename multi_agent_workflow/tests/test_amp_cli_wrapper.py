@@ -270,7 +270,7 @@ class TestAmpCLIIsolation:
             assert cont2 == "continue2"
 
             # Verify correct thread IDs were used
-            continue_calls = [call for call in mock_run.call_args_list[4:]]
+            continue_calls = list(mock_run.call_args_list[4:])
 
             # First continue should use thread-1
             assert "thread-1" in continue_calls[0][0][0]
@@ -316,7 +316,7 @@ class TestAmpCLIIsolation:
     def test_non_isolated_instances_skip_cleanup_registration(self):
         """Test that non-isolated instances don't register cleanup."""
         with patch("atexit.register") as mock_register:
-            amp = AmpCLI(isolated=False)
+            AmpCLI(isolated=False)
 
             # Should not register cleanup
             mock_register.assert_not_called()
