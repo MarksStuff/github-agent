@@ -18,7 +18,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from logging_config import setup_logging
+from common_utils import (
+    add_common_arguments,
+    print_step_header,
+    setup_common_environment,
+)
 from workflow_orchestrator import WorkflowOrchestrator
 
 from github_tools import execute_get_pr_comments, execute_post_pr_reply
@@ -808,32 +812,22 @@ Example:
         required=True,
         help="PR number containing the finalized design",
     )
-    parser.add_argument(
-        "--log-level",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        default="INFO",
-        help="Set the logging level",
-    )
+    add_common_arguments(parser)
 
     args = parser.parse_args()
 
-    # Setup logging
-    log_dir = Path.home() / ".local" / "share" / "multi-agent-workflow" / "logs"
-    setup_logging(
-        log_level=args.log_level, log_file=log_dir / "step4_implementation.log"
+    # Setup common environment
+    env = setup_common_environment("step4_implementation", args)
+    repo_path = env["repo_path"]
+    repo_name = env["repo_name"]
+
+    print_step_header(
+        "Step 4",
+        "Interactive Development Process",
+        pr_number=args.pr,
+        repository=repo_name,
+        path=repo_path,
     )
-
-    print("=" * 60)
-    print("Step 4: Interactive Development Process")
-    print("=" * 60)
-    print(f"PR Number: {args.pr}")
-
-    # Get repository information
-    repo_path = os.environ.get("REPO_PATH", str(Path.cwd().parent))
-    repo_name = os.environ.get("GITHUB_REPO", "github-agent")
-
-    print(f"Repository: {repo_name}")
-    print(f"Path: {repo_path}")
 
     # Check prerequisites
     workflow_dir = Path(repo_path) / ".workflow"
