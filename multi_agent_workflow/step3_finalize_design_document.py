@@ -484,6 +484,10 @@ This step:
 3. Updates the design document to address all feedback
 4. Creates a finalized version ready for implementation
 
+Works with features from either:
+- Single task files (originally from step1_analysis.py task.md)
+- PRD extractions (originally from step1_analysis.py --prd-file prd.md --feature "Feature Name")
+
 Example:
   python step3_finalize_design_document.py --pr 123
         """,

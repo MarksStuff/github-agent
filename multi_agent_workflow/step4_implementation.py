@@ -797,9 +797,13 @@ For each implementation task from the design:
   Part 4: PR comment integration into code
 
 Prerequisites:
-- Step 1: Analysis documents created
+- Step 1: Analysis documents created (from task file or PRD extraction)
 - Step 2: Consolidated design created
 - Step 3: Design finalized with feedback (preferred)
+
+Works with features from either:
+- Single task files (originally from step1_analysis.py task.md)
+- PRD extractions (originally from step1_analysis.py --prd-file prd.md --feature "Feature Name")
 
 Example:
   python step4_implementation.py --pr 123
@@ -844,7 +848,8 @@ Example:
     else:
         print("❌ No design document found")
         print("   Please run steps 1-3 first:")
-        print("   1. python step1_analysis.py <feature_spec>")
+        print("   1. python step1_analysis.py <task_file>")
+        print("      OR python step1_analysis.py --prd-file <prd> --feature <name>")
         print("   2. python step2_create_design_document.py --pr <number>")
         print("   3. python step3_finalize_design_document.py --pr <number>")
         return 1

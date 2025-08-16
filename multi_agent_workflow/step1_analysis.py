@@ -10,7 +10,9 @@ Usage:
 
 import argparse
 import asyncio
+import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from common_utils import (
@@ -33,6 +35,7 @@ Examples:
   python step1_analysis.py task.md                      # Read task from file
   python step1_analysis.py --codebase-analysis-only     # Only create codebase analysis
   python step1_analysis.py task.md --log-level DEBUG    # Debug output
+  python step1_analysis.py --prd-file prd.md --feature "User Authentication"  # Extract feature from PRD
         """,
     )
 
@@ -47,8 +50,24 @@ Examples:
         action="store_true",
         help="Stop after creating the codebase analysis document (skip feature analysis)",
     )
+    parser.add_argument(
+        "--prd-file",
+        help="Path to PRD file containing multiple features",
+    )
+    parser.add_argument(
+        "--feature",
+        help="Feature name/identifier to extract from PRD file (required with --prd-file)",
+    )
 
     args = parser.parse_args()
+
+    # Validate PRD arguments
+    if args.prd_file and not args.feature:
+        parser.error("--feature is required when using --prd-file")
+    if args.feature and not args.prd_file:
+        parser.error("--prd-file is required when using --feature")
+    if args.prd_file and args.task_file:
+        parser.error("Cannot use both task_file and --prd-file")
 
     # Setup common environment
     env = setup_common_environment("step1_analysis", args)
@@ -62,7 +81,59 @@ Examples:
     # Load task specification (skip if only doing codebase analysis)
     task_spec = ""
     if not args.codebase_analysis_only:
-        if args.task_file:
+        if args.prd_file:
+            # Extract feature from PRD file
+            prd_file = Path(args.prd_file)
+            if not prd_file.exists():
+                print(f"Error: PRD file not found: {prd_file}")
+                return 1
+
+            print(f"\nReading PRD from: {prd_file}")
+            with open(prd_file) as f:
+                prd_content = f.read()
+
+            print(f"Extracting feature: {args.feature}")
+
+            # Use senior engineer agent to extract the feature
+            orchestrator = WorkflowOrchestrator(repo_name, repo_path)
+            senior_engineer = orchestrator.agents["senior_engineer"]
+
+            extraction_prompt = f"""Extract the complete feature description for "{args.feature}" from the following PRD document.
+
+PRD Document:
+{prd_content}
+
+Instructions:
+1. Find the section that describes the feature "{args.feature}"
+2. Extract ALL relevant information about this feature including:
+   - Feature name and description
+   - Requirements and specifications
+   - Acceptance criteria
+   - Technical constraints
+   - Implementation details
+   - Dependencies
+   - Any other relevant information
+
+Return ONLY the extracted feature content in a clear, structured format.
+If the feature "{args.feature}" is not found in the PRD, respond with "FEATURE_NOT_FOUND".
+"""
+
+            extracted_feature = senior_engineer.persona.ask(extraction_prompt)
+
+            if "FEATURE_NOT_FOUND" in extracted_feature:
+                print(f"Error: Feature '{args.feature}' not found in PRD")
+                return 1
+
+            task_spec = extracted_feature
+            print(f"✅ Successfully extracted feature: {args.feature}")
+
+            # Add metadata about PRD extraction to the beginning of task_spec
+            task_spec = f"""# Feature: {args.feature}
+(Extracted from PRD: {prd_file.name})
+
+{task_spec}"""
+
+        elif args.task_file:
             task_file = Path(args.task_file)
             if not task_file.exists():
                 print(f"Error: Task file not found: {task_file}")
@@ -92,6 +163,28 @@ Examples:
         # Display task summary
         first_line = task_spec.strip().split("\n")[0]
         print(f"\nTask: {first_line[:80]}...")
+
+    # Save the task specification to a file for subsequent steps
+    workflow_dir = Path(repo_path) / ".workflow"
+    workflow_dir.mkdir(parents=True, exist_ok=True)
+
+    task_spec_file = workflow_dir / "task_specification.md"
+    with open(task_spec_file, "w") as f:
+        f.write(task_spec)
+    print(f"\nSaved task specification to: {task_spec_file}")
+
+    # Save extraction metadata if from PRD
+    if args.prd_file:
+        metadata = {
+            "source": "prd",
+            "prd_file": str(prd_file.absolute()),
+            "feature": args.feature,
+            "extracted_at": datetime.now().isoformat(),
+        }
+        metadata_file = workflow_dir / "task_metadata.json"
+        with open(metadata_file, "w") as f:
+            json.dump(metadata, f, indent=2)
+        print(f"Saved extraction metadata to: {metadata_file}")
 
     # Create orchestrator and run analysis
     print("\nInitializing workflow orchestrator...")

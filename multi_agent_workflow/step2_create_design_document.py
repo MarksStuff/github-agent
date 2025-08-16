@@ -37,6 +37,10 @@ This step:
 3. Resolves conflicts between different approaches
 4. Creates a consolidated design document
 
+Works with features from either:
+- Single task files (step1_analysis.py task.md)
+- PRD extractions (step1_analysis.py --prd-file prd.md --feature "Feature Name")
+
 Example:
   python step2_create_design_document.py --pr 123
         """,
