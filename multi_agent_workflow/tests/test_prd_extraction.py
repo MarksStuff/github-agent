@@ -2,7 +2,6 @@
 """Test script to verify PRD feature extraction functionality."""
 
 import tempfile
-from pathlib import Path
 
 
 def create_test_prd():
@@ -59,22 +58,28 @@ def main():
     """Test the PRD extraction functionality."""
     print("Testing PRD Feature Extraction")
     print("=" * 50)
-    
+
     # Create a temporary PRD file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
         prd_content = create_test_prd()
         f.write(prd_content)
         prd_file = f.name
-    
+
     print(f"Created test PRD at: {prd_file}")
     print("\nTest scenarios:")
     print("1. Extract 'User Authentication' feature:")
-    print(f"   python step1_analysis.py --prd-file {prd_file} --feature 'User Authentication' --codebase-analysis-only")
+    print(
+        f"   python step1_analysis.py --prd-file {prd_file} --feature 'User Authentication' --codebase-analysis-only"
+    )
     print("\n2. Extract 'Dashboard' feature:")
-    print(f"   python step1_analysis.py --prd-file {prd_file} --feature 'Dashboard' --codebase-analysis-only")
+    print(
+        f"   python step1_analysis.py --prd-file {prd_file} --feature 'Dashboard' --codebase-analysis-only"
+    )
     print("\n3. Try to extract non-existent feature:")
-    print(f"   python step1_analysis.py --prd-file {prd_file} --feature 'Nonexistent Feature' --codebase-analysis-only")
-    
+    print(
+        f"   python step1_analysis.py --prd-file {prd_file} --feature 'Nonexistent Feature' --codebase-analysis-only"
+    )
+
     print("\nNote: Added --codebase-analysis-only to skip full analysis for testing")
     print(f"\nPRD file saved at: {prd_file}")
     print("You can manually run the commands above to test the extraction.")
