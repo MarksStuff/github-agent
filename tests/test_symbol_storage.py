@@ -185,12 +185,16 @@ class TestSQLiteSymbolStorage:
         storage.insert_symbols(sample_symbols)
 
         # Search for functions only in test-repo
-        results = storage.search_symbols("test-repo", "", symbol_kind=SymbolKind.FUNCTION)
+        results = storage.search_symbols(
+            "test-repo", "", symbol_kind=SymbolKind.FUNCTION
+        )
         assert len(results) == 1
         assert results[0].name == "test_function"
-        
+
         # Search for functions in other-repo
-        results = storage.search_symbols("other-repo", "", symbol_kind=SymbolKind.FUNCTION)
+        results = storage.search_symbols(
+            "other-repo", "", symbol_kind=SymbolKind.FUNCTION
+        )
         assert len(results) == 1
         assert results[0].name == "helper_function"
 
@@ -347,7 +351,7 @@ class TestSQLiteSymbolStorage:
         results = storage.search_symbols("repo2", "func1")
         assert len(results) == 1
         assert results[0].repository_id == "repo2"
-        
+
         # Verify isolation - searching repo1 doesn't find repo2's func2
         results = storage.search_symbols("repo1", "func2")
         assert len(results) == 0

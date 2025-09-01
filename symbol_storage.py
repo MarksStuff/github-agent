@@ -127,13 +127,13 @@ class AbstractSymbolStorage(ABC):
         limit: int = 50,
     ) -> list[Symbol]:
         """Search for symbols by name.
-        
+
         Args:
             repository_id: Repository identifier (required)
             query: Search query string
             symbol_kind: Optional filter by symbol kind
             limit: Maximum number of results to return
-            
+
         Returns:
             List of matching symbols
         """
@@ -556,13 +556,13 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
         limit: int = 50,
     ) -> list[Symbol]:
         """Search for symbols by name.
-        
+
         Args:
             repository_id: Repository identifier (required)
             query: Search query string
             symbol_kind: Optional filter by symbol kind
             limit: Maximum number of results to return
-            
+
         Returns:
             List of matching symbols
         """
