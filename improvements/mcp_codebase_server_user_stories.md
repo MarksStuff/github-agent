@@ -69,22 +69,13 @@
 ## Phase 3: Multi-Repository Support
 
 ### US008 - Multiple Python Repositories
-**As an administrator** I want to configure multiple Python repositories so that I can search across all my projects simultaneously.
+**As an administrator** I want to configure multiple Python repositories so that each can be accessed independently through dedicated workers.
 
 **Acceptance Criteria:**
 - Support multiple repositories in `repositories.json`
-- Each repository gets unique identifier
-- Cross-repository symbol search
-- Repository-specific queries when needed
-
-### US009 - Cross-Repository Symbol Search
-**As a developer** I want to search for symbols across all configured repositories so that I can find code regardless of which project it's in.
-
-**Acceptance Criteria:**
-- `search_symbols(query)` without repository_id searches all repos
-- Results include repository information
-- Ranking/prioritization of results across repositories
-- Filter results by repository if needed
+- Each repository gets unique identifier and dedicated port
+- Each repository runs its own worker process
+- Repository-specific queries with required repository_id parameter
 
 ### US009 - Repository State Management
 **As a developer** I want the system to track which repositories are indexed and their status so that I know when data might be stale.
@@ -278,6 +269,31 @@ Each user story includes:
 
 ### Milestone Checkpoints
 - **Milestone 1** (US001-US006): Basic single-repository Python support
-- **Milestone 2** (US007-US012): Multi-repository with real-time updates  
+- **Milestone 2** (US007-US009, US010-US012): Multi-repository with real-time updates  
 - **Milestone 3** (US013-US018): Advanced intelligence and Swift support
 - **Milestone 4** (US019-US026): Production-ready with full feature set
+
+---
+
+## Future Extensions
+
+### FUT-001 - Cross-Repository Symbol Search
+**As a developer** I want to search for symbols across all configured repositories simultaneously so that I can find code regardless of which project it's in.
+
+**Acceptance Criteria:**
+- `search_symbols(query)` without repository_id searches all repos
+- Results include repository information from all repositories
+- Ranking/prioritization of results across repositories
+- Master-level aggregation of results from multiple workers
+- Optional repository filtering in cross-repository mode
+
+**Implementation Notes:**
+Current architecture uses dedicated workers per repository on separate ports. Cross-repository search would require one of:
+1. **Master-level aggregation**: Master process queries all workers and merges results
+2. **Shared database**: All workers use same database with coordinated access
+3. **Architectural change**: Move to single-server model handling all repositories
+
+**Why Deferred:**
+- Current per-repository worker model provides better isolation and scalability
+- Most use cases involve working within a single repository context
+- Can be added later without breaking existing single-repository functionality

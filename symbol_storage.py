@@ -121,12 +121,22 @@ class AbstractSymbolStorage(ABC):
     @abstractmethod
     def search_symbols(
         self,
+        repository_id: str,
         query: str,
-        repository_id: str | None = None,
         symbol_kind: str | None = None,
         limit: int = 50,
     ) -> list[Symbol]:
-        """Search for symbols by name."""
+        """Search for symbols by name.
+        
+        Args:
+            repository_id: Repository identifier (required)
+            query: Search query string
+            symbol_kind: Optional filter by symbol kind
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of matching symbols
+        """
         pass
 
     @abstractmethod
@@ -540,21 +550,29 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
 
     def search_symbols(
         self,
+        repository_id: str,
         query: str,
-        repository_id: str | None = None,
         symbol_kind: SymbolKind | str | None = None,
         limit: int = 50,
     ) -> list[Symbol]:
-        """Search for symbols by name."""
+        """Search for symbols by name.
+        
+        Args:
+            repository_id: Repository identifier (required)
+            query: Search query string
+            symbol_kind: Optional filter by symbol kind
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of matching symbols
+        """
+        if not repository_id:
+            raise ValueError("repository_id is required for symbol search")
 
         def _search_symbols():
             with self._get_connection() as conn:
-                sql = "SELECT * FROM symbols WHERE name LIKE ?"
-                params: list[Any] = [f"%{query}%"]
-
-                if repository_id:
-                    sql += " AND repository_id = ?"
-                    params.append(repository_id)
+                sql = "SELECT * FROM symbols WHERE repository_id = ? AND name LIKE ?"
+                params: list[Any] = [repository_id, f"%{query}%"]
 
                 if symbol_kind:
                     sql += " AND kind = ?"

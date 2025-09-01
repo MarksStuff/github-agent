@@ -42,18 +42,32 @@ class MockSymbolStorage(AbstractSymbolStorage):
 
     def search_symbols(
         self,
+        repository_id: str,
         query: str,
-        repository_id: str | None = None,
         symbol_kind: str | None = None,
         limit: int = 50,
     ) -> list[Symbol]:
-        """Search symbols in mock storage."""
+        """Search symbols in mock storage.
+        
+        Args:
+            repository_id: Repository identifier (required)
+            query: Search query string
+            symbol_kind: Optional filter by symbol kind
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of matching symbols
+        """
+        if not repository_id:
+            raise ValueError("repository_id is required for symbol search")
+            
         results = self.symbols.copy()
 
+        # Always filter by repository_id
+        results = [s for s in results if s.repository_id == repository_id]
+        
         if query:
             results = [s for s in results if query.lower() in s.name.lower()]
-        if repository_id:
-            results = [s for s in results if s.repository_id == repository_id]
         if symbol_kind:
             results = [s for s in results if s.kind.value == symbol_kind]
 
