@@ -5,6 +5,7 @@ This package provides an idempotent, resumable workflow system for
 multi-agent software development processes.
 """
 
+from .git_integrator import GitIntegrator
 from .output_manager import WorkflowLogger, WorkflowProgressDisplay
 from .workflow import WorkflowOrchestrator
 from .workflow_state import (
@@ -22,4 +23,5 @@ __all__ = [
     "WorkflowOrchestrator",
     "WorkflowProgressDisplay",
     "WorkflowLogger",
+    "GitIntegrator",
 ]

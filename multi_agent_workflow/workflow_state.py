@@ -15,6 +15,20 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
+try:
+    from .state_versioning import (
+        CURRENT_STATE_VERSION,
+        StateChecksum,
+        migration_registry,
+        rollback_manager,
+    )
+except ImportError:
+    # Fallback for when versioning module is not available
+    CURRENT_STATE_VERSION = "1.0.0"
+    StateChecksum = None
+    migration_registry = None
+    rollback_manager = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,6 +54,9 @@ class StageState:
     error_message: Optional[str] = None
     output_files: list[str] = None
     metrics: dict[str, Any] = None
+    checksum: Optional[str] = None
+    retry_count: int = 0
+    dependencies: list[str] = None
 
     def __post_init__(self):
         """Initialize default values."""
@@ -47,6 +64,8 @@ class StageState:
             self.output_files = []
         if self.metrics is None:
             self.metrics = {}
+        if self.dependencies is None:
+            self.dependencies = []
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary with datetime serialization."""
@@ -69,6 +88,14 @@ class StageState:
             data["started_at"] = datetime.fromisoformat(data["started_at"])
         if data.get("completed_at"):
             data["completed_at"] = datetime.fromisoformat(data["completed_at"])
+
+        # Ensure new fields have defaults for backward compatibility
+        if "checksum" not in data:
+            data["checksum"] = None
+        if "retry_count" not in data:
+            data["retry_count"] = 0
+        if "dependencies" not in data:
+            data["dependencies"] = []
 
         return cls(**data)
 
@@ -151,6 +178,10 @@ class WorkflowState:
         self.current_stage: Optional[str] = None
         self.stages: dict[str, StageState] = {}
         self.metadata: dict[str, Any] = {}
+        self.version = CURRENT_STATE_VERSION
+        self.state_checksum: Optional[str] = None
+        self.rollback_history: list[dict] = []
+        self.stage_dependencies: dict[str, list[str]] = {}
 
         # Set up state file path
         if state_file:
@@ -164,7 +195,9 @@ class WorkflowState:
         # Initialize default stages
         self._initialize_stages()
 
-        logger.info(f"Initialized workflow state for {workflow_id}")
+        logger.info(
+            f"Initialized workflow state for {workflow_id} (version {self.version})"
+        )
 
     def _initialize_stages(self):
         """Initialize all stages with PENDING status."""
@@ -249,7 +282,17 @@ class WorkflowState:
         if metrics:
             stage.metrics.update(metrics)
 
+        # Calculate stage checksum if available
+        if StateChecksum:
+            stage.checksum = StateChecksum.calculate_stage_checksum(stage.to_dict())
+
         self._update_timestamp()
+
+        # Create automatic rollback point after successful stage completion
+        if rollback_manager:
+            description = f"Completed stage: {stage_name}"
+            rollback_manager.create_rollback_point(self.to_dict(), description)
+
         logger.info(f"Completed stage: {stage_name}")
 
     def fail_stage(self, stage_name: str, error_message: str):
@@ -296,22 +339,33 @@ class WorkflowState:
         """Update the last modified timestamp."""
         self.updated_at = datetime.now(UTC)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert workflow state to dictionary."""
+        return {
+            "workflow_id": self.workflow_id,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "inputs": self.inputs.to_dict() if self.inputs else None,
+            "inputs_checksum": self.inputs_checksum,
+            "current_stage": self.current_stage,
+            "stages": {name: stage.to_dict() for name, stage in self.stages.items()},
+            "metadata": self.metadata,
+            "version": self.version,
+            "state_checksum": self.state_checksum,
+            "rollback_history": self.rollback_history,
+            "stage_dependencies": self.stage_dependencies,
+        }
+
     def save(self):
         """Save state to JSON file."""
         try:
             # Prepare data for serialization
-            data = {
-                "workflow_id": self.workflow_id,
-                "created_at": self.created_at.isoformat(),
-                "updated_at": self.updated_at.isoformat(),
-                "inputs": self.inputs.to_dict() if self.inputs else None,
-                "inputs_checksum": self.inputs_checksum,
-                "current_stage": self.current_stage,
-                "stages": {
-                    name: stage.to_dict() for name, stage in self.stages.items()
-                },
-                "metadata": self.metadata,
-            }
+            data = self.to_dict()
+
+            # Calculate state checksum if available
+            if StateChecksum:
+                data["state_checksum"] = StateChecksum.calculate_workflow_checksum(data)
+                self.state_checksum = data["state_checksum"]
 
             # Ensure directory exists
             self.state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -354,12 +408,31 @@ class WorkflowState:
             with open(instance.state_file) as f:
                 data = json.load(f)
 
+            # Check for version and migrate if needed
+            if migration_registry:
+                current_version = data.get("version", "1.0.0")
+                if current_version != CURRENT_STATE_VERSION:
+                    logger.info(
+                        f"Migrating state from v{current_version} to v{CURRENT_STATE_VERSION}"
+                    )
+                    data = migration_registry.migrate(data, CURRENT_STATE_VERSION)
+
+            # Verify integrity if checksums are available
+            if StateChecksum and data.get("state_checksum"):
+                is_valid, error_msg = StateChecksum.verify_integrity(data)
+                if not is_valid:
+                    logger.warning(f"State integrity check failed: {error_msg}")
+
             # Restore basic fields
             instance.created_at = datetime.fromisoformat(data["created_at"])
             instance.updated_at = datetime.fromisoformat(data["updated_at"])
             instance.inputs_checksum = data.get("inputs_checksum")
             instance.current_stage = data.get("current_stage")
             instance.metadata = data.get("metadata", {})
+            instance.version = data.get("version", "1.0.0")
+            instance.state_checksum = data.get("state_checksum")
+            instance.rollback_history = data.get("rollback_history", [])
+            instance.stage_dependencies = data.get("stage_dependencies", {})
 
             # Restore inputs
             if data.get("inputs"):
@@ -370,7 +443,9 @@ class WorkflowState:
             for name, stage_data in data.get("stages", {}).items():
                 instance.stages[name] = StageState.from_dict(stage_data)
 
-            logger.info(f"Loaded workflow state from {instance.state_file}")
+            logger.info(
+                f"Loaded workflow state from {instance.state_file} (v{instance.version})"
+            )
             return instance
 
         except Exception as e:
@@ -398,6 +473,11 @@ class WorkflowState:
             logger.error(f"Stage {stage_name} not in default stages list")
             return
 
+        # Create rollback point before rollback
+        if rollback_manager:
+            description = f"Before rollback to {stage_name}"
+            rollback_manager.create_rollback_point(self.to_dict(), description)
+
         # Reset all stages after the rollback point
         stages_reset = []
         for i in range(rollback_index + 1, len(self.DEFAULT_STAGES)):
@@ -410,10 +490,94 @@ class WorkflowState:
                 stage.error_message = None
                 stage.output_files = []
                 stage.metrics = {}
+                stage.checksum = None
+                stage.retry_count = 0
                 stages_reset.append(stage_name_to_reset)
+
+        # Add to rollback history
+        self.rollback_history.append(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "action": "rollback_to_stage",
+                "target_stage": stage_name,
+                "stages_reset": stages_reset,
+            }
+        )
 
         self._update_timestamp()
         logger.info(f"Rolled back to stage {stage_name}, reset stages: {stages_reset}")
+
+    def rollback_to_checkpoint(self, checksum: str) -> bool:
+        """
+        Rollback to a specific checkpoint identified by checksum.
+
+        Args:
+            checksum: Checksum of the checkpoint (can be partial, first 8 chars)
+
+        Returns:
+            True if rollback successful, False otherwise
+        """
+        if not rollback_manager:
+            logger.error("Rollback manager not available")
+            return False
+
+        # Restore from rollback point
+        restored_data = rollback_manager.restore_from_rollback(
+            self.workflow_id, checksum
+        )
+
+        if not restored_data:
+            logger.error(f"Failed to restore from checkpoint {checksum}")
+            return False
+
+        # Update current state with restored data
+        self.created_at = datetime.fromisoformat(restored_data["created_at"])
+        self.updated_at = datetime.fromisoformat(restored_data["updated_at"])
+        self.inputs_checksum = restored_data.get("inputs_checksum")
+        self.current_stage = restored_data.get("current_stage")
+        self.metadata = restored_data.get("metadata", {})
+        self.version = restored_data.get("version", "1.0.0")
+        self.state_checksum = restored_data.get("state_checksum")
+        self.rollback_history = restored_data.get("rollback_history", [])
+        self.stage_dependencies = restored_data.get("stage_dependencies", {})
+
+        # Restore inputs
+        if restored_data.get("inputs"):
+            self.inputs = WorkflowInputs.from_dict(restored_data["inputs"])
+
+        # Restore stages
+        self.stages = {}
+        for name, stage_data in restored_data.get("stages", {}).items():
+            self.stages[name] = StageState.from_dict(stage_data)
+
+        # Add rollback event to history
+        self.rollback_history.append(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "action": "rollback_to_checkpoint",
+                "checkpoint": checksum,
+                "restored_from": restored_data.get("restored_from", {}),
+            }
+        )
+
+        self._update_timestamp()
+        self.save()
+
+        logger.info(f"Successfully rolled back to checkpoint {checksum}")
+        return True
+
+    def list_rollback_points(self) -> list[dict]:
+        """
+        List available rollback points for this workflow.
+
+        Returns:
+            List of rollback point dictionaries
+        """
+        if not rollback_manager:
+            return []
+
+        points = rollback_manager.list_rollback_points(self.workflow_id)
+        return [point.to_dict() for point in points]
 
     def get_summary(self) -> dict[str, Any]:
         """Get a summary of the current workflow state."""

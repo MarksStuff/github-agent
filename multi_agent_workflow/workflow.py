@@ -22,6 +22,7 @@ from typing import Any, Optional
 
 try:
     # Try relative import first (when used as module)
+    from .git_integrator import GitIntegrator
     from .output_manager import WorkflowProgressDisplay, workflow_logger
     from .workflow_state import (
         StageStatus,
@@ -31,6 +32,7 @@ try:
     )
 except ImportError:
     # Fallback to direct import (when run as standalone script)
+    from git_integrator import GitIntegrator
     from output_manager import WorkflowProgressDisplay, workflow_logger
     from workflow_state import (
         StageStatus,
@@ -378,9 +380,21 @@ class DocumentationStage(WorkflowStageExecutor):
 class WorkflowOrchestrator:
     """Main workflow orchestrator that manages stage execution."""
 
-    def __init__(self):
+    def __init__(self, enable_git: bool = True):
         self.logger = workflow_logger
         self.display = progress_display
+
+        # Initialize git integration
+        self.git_enabled = enable_git
+        self.git = None
+        if enable_git:
+            try:
+                self.git = GitIntegrator()
+                self.logger.info("Git integration enabled")
+            except (ValueError, Exception) as e:
+                self.logger.warning(f"Git integration disabled: {e}")
+                self.git_enabled = False
+
         # Initialize stage executors
         self.stages = {
             "requirements_analysis": RequirementsAnalysisStage(),
@@ -429,6 +443,16 @@ class WorkflowOrchestrator:
 
         # Save initial state
         state.save()
+
+        # Create workflow branch if git is enabled
+        workflow_branch = None
+        if self.git_enabled and self.git:
+            try:
+                workflow_branch = self.git.create_workflow_branch(workflow_id)
+                self.logger.success(f"Created workflow branch: {workflow_branch}")
+                self.display.show_success(f"Created workflow branch: {workflow_branch}")
+            except Exception as e:
+                self.logger.warning(f"Could not create workflow branch: {e}")
 
         # Display initial workflow status
         self.display.display_workflow_status(state, project_description)
@@ -607,6 +631,20 @@ class WorkflowOrchestrator:
                 )
                 state.save()
 
+                # Auto-commit stage completion if git is enabled
+                if self.git_enabled and self.git:
+                    try:
+                        commit_hash = self.git.commit_stage(stage_name, result, state)
+                        if commit_hash:
+                            self.logger.success(
+                                f"Committed stage {stage_name}: {commit_hash[:8]}"
+                            )
+                            self.display.show_success(
+                                f"Committed changes: {commit_hash[:8]}"
+                            )
+                    except Exception as e:
+                        self.logger.warning(f"Could not commit stage {stage_name}: {e}")
+
                 # Show beautiful stage completion display
                 self.display.show_stage_complete(stage_name, result)
                 self.logger.stage_complete(stage_name, duration)
@@ -624,6 +662,26 @@ class WorkflowOrchestrator:
 
         # Check if workflow is complete
         if state.is_workflow_complete():
+            # Create final workflow summary commit if git is enabled
+            if self.git_enabled and self.git:
+                try:
+                    commit_hash = self.git.create_workflow_summary_commit(state)
+                    if commit_hash:
+                        self.logger.success(
+                            f"Created workflow summary commit: {commit_hash[:8]}"
+                        )
+                        self.display.show_success(f"Summary commit: {commit_hash[:8]}")
+
+                    # Push the workflow branch
+                    if self.git.push_branch():
+                        self.logger.success("Pushed workflow branch to remote")
+                        self.display.show_success("Pushed branch to remote repository")
+                    else:
+                        self.logger.warning("Could not push workflow branch")
+
+                except Exception as e:
+                    self.logger.warning(f"Could not finalize git operations: {e}")
+
             self.display.show_workflow_complete(state)
             self.logger.success(f"Workflow {state.workflow_id} completed successfully!")
         else:
@@ -667,12 +725,18 @@ Examples:
     start_parser.add_argument("--from-stage", help="Stage to start from")
     start_parser.add_argument("--to-stage", help="Stage to stop at")
     start_parser.add_argument("--config", help="Configuration overrides (JSON)")
+    start_parser.add_argument(
+        "--no-git", action="store_true", help="Disable git integration"
+    )
 
     # Resume command
     resume_parser = subparsers.add_parser("resume", help="Resume an existing workflow")
     resume_parser.add_argument("workflow_id", help="Workflow ID to resume")
     resume_parser.add_argument("--from-stage", help="Stage to start from")
     resume_parser.add_argument("--to-stage", help="Stage to stop at")
+    resume_parser.add_argument(
+        "--no-git", action="store_true", help="Disable git integration"
+    )
 
     # Status command
     status_parser = subparsers.add_parser("status", help="Check workflow status")
@@ -687,8 +751,9 @@ Examples:
         parser.print_help()
         sys.exit(1)
 
-    # Create orchestrator
-    orchestrator = WorkflowOrchestrator()
+    # Create orchestrator with git settings
+    enable_git = not getattr(args, "no_git", False)
+    orchestrator = WorkflowOrchestrator(enable_git=enable_git)
 
     try:
         if args.command == "start":

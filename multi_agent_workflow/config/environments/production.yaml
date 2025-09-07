@@ -1,0 +1,41 @@
+name: "production"
+base_url: "https://api.workflow.company.com"
+
+api_endpoints:
+  auth: "/auth"
+  workflows: "/api/v1/workflows"
+  agents: "/api/v1/agents"
+  status: "/api/v1/status"
+  health: "/health"
+
+timeouts:
+  connection: 10.0
+  read: 300.0
+  write: 120.0
+  stage_execution: 3600.0
+  agent_response: 600.0
+
+retry_limits:
+  api_calls: 5
+  stage_execution: 3
+  agent_requests: 3
+  file_operations: 3
+
+resource_limits:
+  max_memory_mb: 2048
+  max_disk_mb: 10240
+  max_cpu_percent: 70
+  max_concurrent_stages: 4
+  max_file_size_mb: 500
+
+feature_flags:
+  enable_caching: true
+  enable_parallel_execution: true
+  enable_advanced_logging: false
+  enable_metrics_collection: true
+  enable_auto_scaling: true
+  enable_gpu_acceleration: true
+  enable_experimental_features: false
+
+logging_level: "INFO"
+debug_mode: false
