@@ -5,6 +5,7 @@ This package provides an idempotent, resumable workflow system for
 multi-agent software development processes.
 """
 
+from .output_manager import WorkflowLogger, WorkflowProgressDisplay
 from .workflow import WorkflowOrchestrator
 from .workflow_state import (
     StageStatus,
@@ -12,7 +13,6 @@ from .workflow_state import (
     WorkflowState,
     generate_workflow_id,
 )
-from .output_manager import WorkflowProgressDisplay, WorkflowLogger
 
 __all__ = [
     "WorkflowState",

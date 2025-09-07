@@ -22,22 +22,22 @@ from typing import Any, Optional
 
 try:
     # Try relative import first (when used as module)
+    from .output_manager import WorkflowProgressDisplay, workflow_logger
     from .workflow_state import (
         StageStatus,
         WorkflowInputs,
         WorkflowState,
         generate_workflow_id,
     )
-    from .output_manager import WorkflowProgressDisplay, workflow_logger
 except ImportError:
     # Fallback to direct import (when run as standalone script)
+    from output_manager import WorkflowProgressDisplay, workflow_logger
     from workflow_state import (
         StageStatus,
         WorkflowInputs,
         WorkflowState,
         generate_workflow_id,
     )
-    from output_manager import WorkflowProgressDisplay, workflow_logger
 
 # Initialize progress display and logger (rich logging will be set up by output_manager)
 progress_display = WorkflowProgressDisplay()
@@ -429,10 +429,10 @@ class WorkflowOrchestrator:
 
         # Save initial state
         state.save()
-        
+
         # Display initial workflow status
         self.display.display_workflow_status(state, project_description)
-        
+
         # Execute workflow
         return self._execute_workflow(state, inputs, from_stage, to_stage)
 
@@ -583,7 +583,7 @@ class WorkflowOrchestrator:
                 # Start stage
                 state.start_stage(stage_name)
                 state.save()
-                
+
                 # Show beautiful stage start display
                 self.display.show_stage_start(stage_name, stage_executor.description)
                 self.logger.stage_start(stage_name, stage_executor.description)
@@ -595,24 +595,27 @@ class WorkflowOrchestrator:
                 duration = None
                 if stage and stage.started_at:
                     from datetime import datetime
-                    duration = (datetime.utcnow() - stage.started_at.replace(tzinfo=None)).total_seconds()
-                
+
+                    duration = (
+                        datetime.utcnow() - stage.started_at.replace(tzinfo=None)
+                    ).total_seconds()
+
                 state.complete_stage(
                     stage_name,
                     output_files=result.get("output_files", []),
                     metrics=result.get("metrics", {}),
                 )
                 state.save()
-                
+
                 # Show beautiful stage completion display
                 self.display.show_stage_complete(stage_name, result)
                 self.logger.stage_complete(stage_name, duration)
-                
+
                 # Update workflow status display
                 self.display.display_workflow_status(state, inputs.project_description)
-                
+
             except Exception as e:
-                error_msg = f"Stage {stage_name} failed: {str(e)}"
+                error_msg = f"Stage {stage_name} failed: {e!s}"
                 self.display.show_stage_failure(stage_name, error_msg)
                 self.logger.stage_failed(stage_name, str(e))
                 state.fail_stage(stage_name, error_msg)
@@ -624,8 +627,10 @@ class WorkflowOrchestrator:
             self.display.show_workflow_complete(state)
             self.logger.success(f"Workflow {state.workflow_id} completed successfully!")
         else:
-            self.logger.info(f"Workflow {state.workflow_id} partially completed - can be resumed later")
-        
+            self.logger.info(
+                f"Workflow {state.workflow_id} partially completed - can be resumed later"
+            )
+
         return state.workflow_id
 
 
@@ -720,13 +725,19 @@ Examples:
             try:
                 state = WorkflowState.load(args.workflow_id)
                 if not state:
-                    orchestrator.display.show_error(f"Workflow {args.workflow_id} not found")
+                    orchestrator.display.show_error(
+                        f"Workflow {args.workflow_id} not found"
+                    )
                     sys.exit(1)
-                
+
                 # Display beautiful status
-                project_desc = state.inputs.project_description if state.inputs else "Multi-Agent Project"
+                project_desc = (
+                    state.inputs.project_description
+                    if state.inputs
+                    else "Multi-Agent Project"
+                )
                 orchestrator.display.display_workflow_status(state, project_desc)
-                
+
             except Exception as e:
                 orchestrator.display.show_error(f"Failed to load workflow status: {e}")
                 sys.exit(1)
