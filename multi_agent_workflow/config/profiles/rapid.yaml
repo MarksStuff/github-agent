@@ -1,0 +1,64 @@
+name: "rapid"
+description: "Rapid prototyping profile with minimal overhead for quick iterations"
+template: null
+environment: "development"
+
+default_stages:
+  - "requirements_analysis"
+  - "implementation_plan"
+  - "code_generation"
+
+stage_config:
+  requirements_analysis:
+    timeout: 120
+    max_retries: 1
+    agent_model: "claude-3-haiku"
+    enable_user_review: false
+  
+  implementation_plan:
+    timeout: 180
+    max_retries: 1
+    agent_model: "claude-3-sonnet"
+    enable_dependencies: false
+  
+  code_generation:
+    timeout: 600
+    max_retries: 2
+    agent_model: "claude-3-sonnet"
+    parallel_execution: true
+    code_review_required: false
+
+agent_config:
+  temperature: 0.8
+  max_tokens: 2000
+  top_p: 0.95
+  frequency_penalty: 0.1
+  presence_penalty: 0.1
+
+pause_points: []  # No pause points for rapid development
+
+retry_config:
+  max_stage_retries: 2
+  backoff_multiplier: 1.5
+  base_delay: 0.5
+  jitter: false
+
+notification_config:
+  notify_on_completion: true
+  notify_on_failure: true
+  notify_on_pause: false
+  email_recipients: []
+  slack_channel: "#rapid-dev"
+
+git_config:
+  auto_commit: true
+  auto_push: true
+  branch_naming: "rapid/{project_name}_{timestamp}"
+  commit_prefix: "rapid"
+  create_pr_on_completion: false
+
+metadata:
+  created_by: "system"
+  version: "1.0.0"
+  tags: ["rapid", "prototype", "fast", "minimal"]
+  suitable_for: ["prototypes", "mvp", "experiments", "demos"]

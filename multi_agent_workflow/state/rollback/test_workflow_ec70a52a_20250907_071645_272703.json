@@ -1,0 +1,95 @@
+{
+  "workflow_id": "test_workflow",
+  "created_at": "2025-09-07T07:16:45.271323+00:00",
+  "updated_at": "2025-09-07T07:16:45.272636+00:00",
+  "inputs": {
+    "project_description": "Test project",
+    "config_overrides": {},
+    "template_name": null
+  },
+  "inputs_checksum": "d180d0c0e73454fe0010327ddebc7c3add67142d54116056dce6b7c0f32793ea",
+  "current_stage": "requirements_analysis",
+  "stages": {
+    "requirements_analysis": {
+      "name": "requirements_analysis",
+      "status": "completed",
+      "started_at": "2025-09-07T07:16:45.272224+00:00",
+      "completed_at": "2025-09-07T07:16:45.272596+00:00",
+      "error_message": null,
+      "output_files": [
+        "file1.txt"
+      ],
+      "metrics": {
+        "duration": 5.0
+      },
+      "checksum": "e1533ed37655d55d75d8ec1ef1cfb08434258f82478488b5f7152dc495249c30",
+      "retry_count": 0,
+      "dependencies": []
+    },
+    "architecture_design": {
+      "name": "architecture_design",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "error_message": null,
+      "output_files": [],
+      "metrics": {},
+      "checksum": null,
+      "retry_count": 0,
+      "dependencies": []
+    },
+    "implementation_plan": {
+      "name": "implementation_plan",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "error_message": null,
+      "output_files": [],
+      "metrics": {},
+      "checksum": null,
+      "retry_count": 0,
+      "dependencies": []
+    },
+    "code_generation": {
+      "name": "code_generation",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "error_message": null,
+      "output_files": [],
+      "metrics": {},
+      "checksum": null,
+      "retry_count": 0,
+      "dependencies": []
+    },
+    "testing_setup": {
+      "name": "testing_setup",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "error_message": null,
+      "output_files": [],
+      "metrics": {},
+      "checksum": null,
+      "retry_count": 0,
+      "dependencies": []
+    },
+    "documentation": {
+      "name": "documentation",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "error_message": null,
+      "output_files": [],
+      "metrics": {},
+      "checksum": null,
+      "retry_count": 0,
+      "dependencies": []
+    }
+  },
+  "metadata": {},
+  "version": "2.0.0",
+  "state_checksum": null,
+  "rollback_history": [],
+  "stage_dependencies": {}
+}

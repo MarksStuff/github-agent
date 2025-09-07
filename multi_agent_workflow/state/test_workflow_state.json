@@ -1,0 +1,103 @@
+{
+  "created_at": "2025-09-07T16:51:17.812899+00:00",
+  "current_stage": "test_stage",
+  "inputs": {
+    "config_overrides": {},
+    "project_description": "Test project",
+    "template_name": null
+  },
+  "inputs_checksum": "d180d0c0e73454fe0010327ddebc7c3add67142d54116056dce6b7c0f32793ea",
+  "metadata": {},
+  "rollback_history": [],
+  "stage_dependencies": {},
+  "stages": {
+    "architecture_design": {
+      "checksum": null,
+      "completed_at": null,
+      "dependencies": [],
+      "error_message": null,
+      "metrics": {},
+      "name": "architecture_design",
+      "output_files": [],
+      "retry_count": 0,
+      "started_at": null,
+      "status": "pending"
+    },
+    "code_generation": {
+      "checksum": null,
+      "completed_at": null,
+      "dependencies": [],
+      "error_message": null,
+      "metrics": {},
+      "name": "code_generation",
+      "output_files": [],
+      "retry_count": 0,
+      "started_at": null,
+      "status": "pending"
+    },
+    "documentation": {
+      "checksum": null,
+      "completed_at": null,
+      "dependencies": [],
+      "error_message": null,
+      "metrics": {},
+      "name": "documentation",
+      "output_files": [],
+      "retry_count": 0,
+      "started_at": null,
+      "status": "pending"
+    },
+    "implementation_plan": {
+      "checksum": null,
+      "completed_at": null,
+      "dependencies": [],
+      "error_message": null,
+      "metrics": {},
+      "name": "implementation_plan",
+      "output_files": [],
+      "retry_count": 0,
+      "started_at": null,
+      "status": "pending"
+    },
+    "requirements_analysis": {
+      "checksum": null,
+      "completed_at": null,
+      "dependencies": [],
+      "error_message": null,
+      "metrics": {},
+      "name": "requirements_analysis",
+      "output_files": [],
+      "retry_count": 0,
+      "started_at": null,
+      "status": "pending"
+    },
+    "test_stage": {
+      "checksum": null,
+      "completed_at": null,
+      "dependencies": [],
+      "error_message": "Skipped due to error: Non-critical error",
+      "metrics": {},
+      "name": "test_stage",
+      "output_files": [],
+      "retry_count": 0,
+      "started_at": "2025-09-07T16:51:17.814980+00:00",
+      "status": "skipped"
+    },
+    "testing_setup": {
+      "checksum": null,
+      "completed_at": null,
+      "dependencies": [],
+      "error_message": null,
+      "metrics": {},
+      "name": "testing_setup",
+      "output_files": [],
+      "retry_count": 0,
+      "started_at": null,
+      "status": "pending"
+    }
+  },
+  "state_checksum": "b62387c8a27490db595b39a33df121be3f585a48e022af3f2c1c1a6c23bf102b",
+  "updated_at": "2025-09-07T16:51:17.814982+00:00",
+  "version": "2.0.0",
+  "workflow_id": "test_workflow"
+}

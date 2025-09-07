@@ -1,0 +1,75 @@
+version: "2.0.0"
+default_profile: "standard"
+default_environment: "development"
+
+global_settings:
+  max_retries: 3
+  timeout: 300
+  enable_git: true
+  enable_notifications: false
+  log_level: "INFO"
+
+agent_defaults:
+  model: "claude-3-sonnet"
+  temperature: 0.7
+  max_tokens: 4000
+  timeout: 120
+
+stage_defaults:
+  timeout: 600
+  max_retries: 2
+  enable_pause_points: true
+
+git_defaults:
+  auto_commit: true
+  auto_push: false
+  branch_prefix: "workflow"
+  commit_message_template: "feat: {stage_name} - {description}"
+
+error_handling:
+  enable_recovery: true
+  retry_delays: [1, 2, 4, 8, 16]  # Exponential backoff delays
+  notification_on_failure: true
+  auto_rollback_on_critical: true
+
+pause_resume:
+  enable_auto_pause: false
+  pause_on_error: true
+  auto_resume_timeout: null  # null = manual resume required
+  pause_notification: true
+
+notifications:
+  email:
+    enabled: false
+    smtp_server: "smtp.example.com"
+    smtp_port: 587
+    username: "${SECRET:smtp_username}"
+    password: "${SECRET:smtp_password}"
+    from_address: "workflow@example.com"
+    to_addresses: []
+  
+  slack:
+    enabled: false
+    webhook_url: "${SECRET:slack_webhook_url}"
+    channel: "#workflows"
+    username: "Workflow Bot"
+  
+  webhook:
+    enabled: false
+    url: "${SECRET:webhook_url}"
+    headers:
+      Authorization: "Bearer ${SECRET:webhook_token}"
+
+security:
+  encrypt_state: false
+  secure_logs: false
+  api_key_rotation_days: 30
+  max_session_duration: 3600
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_rotation: true
+  max_file_size: "10MB"
+  backup_count: 5
+  sensitive_data_masking: true

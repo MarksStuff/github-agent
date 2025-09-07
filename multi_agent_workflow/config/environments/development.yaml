@@ -1,0 +1,41 @@
+name: "development"
+base_url: "http://localhost:8000"
+
+api_endpoints:
+  auth: "/auth"
+  workflows: "/api/v1/workflows"
+  agents: "/api/v1/agents"
+  status: "/api/v1/status"
+  health: "/health"
+
+timeouts:
+  connection: 30.0
+  read: 120.0
+  write: 60.0
+  stage_execution: 1800.0
+  agent_response: 300.0
+
+retry_limits:
+  api_calls: 3
+  stage_execution: 3
+  agent_requests: 5
+  file_operations: 2
+
+resource_limits:
+  max_memory_mb: 1024
+  max_disk_mb: 5120
+  max_cpu_percent: 80
+  max_concurrent_stages: 2
+  max_file_size_mb: 100
+
+feature_flags:
+  enable_caching: true
+  enable_parallel_execution: false
+  enable_advanced_logging: true
+  enable_metrics_collection: true
+  enable_auto_scaling: false
+  enable_gpu_acceleration: false
+  enable_experimental_features: true
+
+logging_level: "DEBUG"
+debug_mode: true
