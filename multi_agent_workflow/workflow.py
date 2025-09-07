@@ -28,6 +28,7 @@ try:
         WorkflowState,
         generate_workflow_id,
     )
+    from .output_manager import WorkflowProgressDisplay, workflow_logger
 except ImportError:
     # Fallback to direct import (when run as standalone script)
     from workflow_state import (
@@ -36,12 +37,11 @@ except ImportError:
         WorkflowState,
         generate_workflow_id,
     )
+    from output_manager import WorkflowProgressDisplay, workflow_logger
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# Initialize progress display and logger (rich logging will be set up by output_manager)
+progress_display = WorkflowProgressDisplay()
+logger = workflow_logger
 
 
 class WorkflowStageExecutor:
@@ -379,8 +379,8 @@ class WorkflowOrchestrator:
     """Main workflow orchestrator that manages stage execution."""
 
     def __init__(self):
-        self.logger = logging.getLogger("orchestrator")
-
+        self.logger = workflow_logger
+        self.display = progress_display
         # Initialize stage executors
         self.stages = {
             "requirements_analysis": RequirementsAnalysisStage(),
@@ -429,7 +429,10 @@ class WorkflowOrchestrator:
 
         # Save initial state
         state.save()
-
+        
+        # Display initial workflow status
+        self.display.display_workflow_status(state, project_description)
+        
         # Execute workflow
         return self._execute_workflow(state, inputs, from_stage, to_stage)
 
@@ -580,43 +583,49 @@ class WorkflowOrchestrator:
                 # Start stage
                 state.start_stage(stage_name)
                 state.save()
-
-                self.logger.info(
-                    f"Executing stage: {stage_name} - {stage_executor.description}"
-                )
-
+                
+                # Show beautiful stage start display
+                self.display.show_stage_start(stage_name, stage_executor.description)
+                self.logger.stage_start(stage_name, stage_executor.description)
                 # Execute stage
                 result = stage_executor.execute(state, inputs)
 
                 # Complete stage
+                stage = state.get_stage(stage_name)
+                duration = None
+                if stage and stage.started_at:
+                    from datetime import datetime
+                    duration = (datetime.utcnow() - stage.started_at.replace(tzinfo=None)).total_seconds()
+                
                 state.complete_stage(
                     stage_name,
                     output_files=result.get("output_files", []),
                     metrics=result.get("metrics", {}),
                 )
                 state.save()
-
-                self.logger.info(f"Completed stage: {stage_name}")
-
-                # Log next actions if provided
-                if result.get("next_actions"):
-                    self.logger.info(
-                        f"Next actions: {', '.join(result['next_actions'])}"
-                    )
-
+                
+                # Show beautiful stage completion display
+                self.display.show_stage_complete(stage_name, result)
+                self.logger.stage_complete(stage_name, duration)
+                
+                # Update workflow status display
+                self.display.display_workflow_status(state, inputs.project_description)
+                
             except Exception as e:
-                error_msg = f"Stage {stage_name} failed: {e!s}"
-                self.logger.error(error_msg, exc_info=True)
+                error_msg = f"Stage {stage_name} failed: {str(e)}"
+                self.display.show_stage_failure(stage_name, error_msg)
+                self.logger.stage_failed(stage_name, str(e))
                 state.fail_stage(stage_name, error_msg)
                 state.save()
                 raise
 
         # Check if workflow is complete
         if state.is_workflow_complete():
-            self.logger.info(f"Workflow {state.workflow_id} completed successfully!")
+            self.display.show_workflow_complete(state)
+            self.logger.success(f"Workflow {state.workflow_id} completed successfully!")
         else:
-            self.logger.info(f"Workflow {state.workflow_id} partially completed")
-
+            self.logger.info(f"Workflow {state.workflow_id} partially completed - can be resumed later")
+        
         return state.workflow_id
 
 
@@ -707,25 +716,20 @@ Examples:
             print(f"✅ Workflow resumed successfully: {workflow_id}")
 
         elif args.command == "status":
-            # Get status
-            status = orchestrator.get_workflow_status(args.workflow_id)
-
-            if "error" in status:
-                print(f"❌ {status['error']}")
+            # Get status using beautiful display
+            try:
+                state = WorkflowState.load(args.workflow_id)
+                if not state:
+                    orchestrator.display.show_error(f"Workflow {args.workflow_id} not found")
+                    sys.exit(1)
+                
+                # Display beautiful status
+                project_desc = state.inputs.project_description if state.inputs else "Multi-Agent Project"
+                orchestrator.display.display_workflow_status(state, project_desc)
+                
+            except Exception as e:
+                orchestrator.display.show_error(f"Failed to load workflow status: {e}")
                 sys.exit(1)
-
-            print(f"📊 Workflow Status: {status['workflow_id']}")
-            print(f"   Created: {status['created_at']}")
-            print(f"   Updated: {status['updated_at']}")
-            print(
-                f"   Progress: {status['progress_percent']:.1f}% ({status['completed_stages']}/{status['total_stages']} stages)"
-            )
-            print(f"   Current Stage: {status.get('current_stage', 'None')}")
-            print(
-                f"   Status: {'✅ Complete' if status['is_complete'] else '🔄 In Progress'}"
-            )
-            print(f"   Can Resume: {'Yes' if status['can_resume'] else 'No'}")
-
         elif args.command == "list":
             # List workflows
             workflows = orchestrator.list_workflows()

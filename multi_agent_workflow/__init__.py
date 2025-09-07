@@ -12,6 +12,7 @@ from .workflow_state import (
     WorkflowState,
     generate_workflow_id,
 )
+from .output_manager import WorkflowProgressDisplay, WorkflowLogger
 
 __all__ = [
     "WorkflowState",
@@ -19,4 +20,6 @@ __all__ = [
     "StageStatus",
     "generate_workflow_id",
     "WorkflowOrchestrator",
+    "WorkflowProgressDisplay",
+    "WorkflowLogger",
 ]
