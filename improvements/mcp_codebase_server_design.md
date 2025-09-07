@@ -687,3 +687,4 @@ The current design focuses on per-repository operations with dedicated workers. 
 - **Scalability**: Workers can be distributed across machines if needed
 - **Simplicity**: No complex coordination or locking mechanisms
 - **Performance**: No cross-repository overhead for single-repo queries
+
