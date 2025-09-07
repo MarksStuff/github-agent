@@ -223,23 +223,25 @@ Git_State: {repository_id, current_branch, commit_hash, modified_files[]}
 
 ### Query Interface (MCP Tools)
 
-**Symbol Queries:**
-- `find_definition(symbol, file=None)` - Navigate to symbol definition across all repositories
-- `find_references(symbol, file=None)` - Find all symbol usage locations
-- `find_implementations(interface, file=None)` - Locate concrete implementations
-- `get_type_info(symbol, file=None)` - Retrieve type information and documentation
+**Symbol Queries (Per Repository):**
+- `find_definition(symbol, repository_id, file=None)` - Navigate to symbol definition within repository
+- `find_references(symbol, repository_id, file=None)` - Find all symbol usage locations within repository
+- `find_implementations(interface, repository_id, file=None)` - Locate concrete implementations
+- `get_type_info(symbol, repository_id, file=None)` - Retrieve type information and documentation
 
-**Code Navigation:**
-- `get_call_hierarchy(function, file=None)` - Build call graphs up/down
-- `find_related_symbols(symbol)` - Discover related classes, methods, inheritance chains
-- `search_symbols(query, kind=None)` - Fuzzy symbol search across all repositories
-- `get_symbol_outline(symbol)` - Extract symbol structure and relationships
+**Code Navigation (Per Repository):**
+- `get_call_hierarchy(function, repository_id, file=None)` - Build call graphs up/down
+- `find_related_symbols(symbol, repository_id)` - Discover related classes, methods, inheritance chains
+- `search_symbols(query, repository_id, kind=None)` - Fuzzy symbol search within repository
+- `get_symbol_outline(symbol, repository_id)` - Extract symbol structure and relationships
 
-**Object/Method/Variable Analysis:**
-- `analyze_class_hierarchy(class_name)` - Map inheritance and composition relationships
-- `find_method_overrides(method_name, class_name=None)` - Locate method overrides and implementations
-- `get_variable_usage(variable_name, scope=None)` - Track variable assignments and references
-- `find_unused_symbols()` - Detect unused classes, methods, variables across codebase
+**Object/Method/Variable Analysis (Per Repository):**
+- `analyze_class_hierarchy(class_name, repository_id)` - Map inheritance and composition relationships
+- `find_method_overrides(method_name, repository_id, class_name=None)` - Locate method overrides and implementations
+- `get_variable_usage(variable_name, repository_id, scope=None)` - Track variable assignments and references
+- `find_unused_symbols(repository_id)` - Detect unused classes, methods, variables within repository
+
+**Note:** All queries require `repository_id` parameter. Cross-repository search is a future extension.
 
 **Code Intelligence:**
 - `get_diagnostics(file)` - Retrieve linting errors and warnings
@@ -670,3 +672,19 @@ This architecture would be particularly valuable for:
 - **Performance-critical applications** requiring sub-50ms query response
 - **Offline/air-gapped environments** without runtime LSP access
 - **Advanced code analytics** requiring comprehensive relationship data
+
+### Cross-Repository Search Extension
+
+**Future Enhancement:**
+The current design focuses on per-repository operations with dedicated workers. Cross-repository search capabilities are intentionally deferred as a future extension. When implemented, options include:
+
+1. **Master Aggregation Layer**: Master process queries all workers and aggregates results
+2. **Shared Database Model**: Single database with coordinated multi-worker access
+3. **Single Server Architecture**: Unified server handling all repositories (trade-off: loses isolation)
+
+**Current Architecture Benefits:**
+- **Isolation**: Each repository runs in its own worker process
+- **Scalability**: Workers can be distributed across machines if needed
+- **Simplicity**: No complex coordination or locking mechanisms
+- **Performance**: No cross-repository overhead for single-repo queries
+

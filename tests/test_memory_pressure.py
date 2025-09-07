@@ -77,7 +77,7 @@ class TestMemoryPressureScenarios(unittest.TestCase):
 
         # Verify all symbols were inserted
         results = storage.search_symbols(
-            "memory_test_symbol", repository_id="memory_test_repo", limit=100
+            "memory_test_repo", "memory_test_symbol", limit=100
         )
         self.assertEqual(len(results), 100)  # Limited by query limit
 
@@ -221,7 +221,7 @@ class Class_{i}:
         # Perform multiple large queries
         for _ in range(10):
             results = storage.search_symbols(
-                "query_test_symbol", repository_id="query_test_repo", limit=100
+                "query_test_repo", "query_test_symbol", limit=100
             )
             self.assertEqual(len(results), 100)
 
@@ -260,9 +260,7 @@ class Class_{i}:
             storage.insert_symbol(symbol)
 
             # Verify symbol was inserted
-            results = storage.search_symbols(
-                "pressure_test", repository_id="pressure_repo"
-            )
+            results = storage.search_symbols("pressure_repo", "pressure_test")
             self.assertEqual(len(results), 1)
 
         finally:
@@ -281,9 +279,7 @@ class Class_{i}:
         )
 
         storage.insert_symbol(another_symbol)
-        results = storage.search_symbols(
-            "after_pressure_test", repository_id="pressure_repo"
-        )
+        results = storage.search_symbols("pressure_repo", "after_pressure_test")
         self.assertEqual(len(results), 1)
 
     def test_graceful_degradation_under_memory_limits(self):

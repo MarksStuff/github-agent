@@ -101,9 +101,7 @@ class TestDatabaseErrorHandling(unittest.TestCase):
         storage.insert_symbols(symbols)
 
         # Verify all symbols were inserted
-        results = storage.search_symbols(
-            "symbol_", repository_id="test_repo", limit=3000
-        )
+        results = storage.search_symbols("test_repo", "symbol_", limit=3000)
         self.assertEqual(len(results), 2500)
 
     def test_database_operation_retry_on_failure(self):
@@ -129,7 +127,7 @@ class TestDatabaseErrorHandling(unittest.TestCase):
         storage.insert_symbol(symbol)
 
         # Verify the symbol was inserted
-        results = storage.search_symbols("test_symbol", repository_id="test_repo")
+        results = storage.search_symbols("test_repo", "test_symbol")
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].name, "test_symbol")
 
@@ -157,9 +155,7 @@ class TestDatabaseErrorHandling(unittest.TestCase):
         storage.insert_symbols(symbols)
 
         # Verify symbols were inserted correctly
-        results = storage.search_symbols(
-            "large_symbol_", repository_id="large_repo", limit=100
-        )
+        results = storage.search_symbols("large_repo", "large_symbol_", limit=100)
         self.assertEqual(len(results), 100)  # Limited by query limit
 
 

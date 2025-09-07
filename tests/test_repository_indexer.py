@@ -373,7 +373,7 @@ def helper():
             assert result.success_rate == 1.0
 
             # Verify symbols were stored - search using query parameter
-            symbols = temp_database.search_symbols("", repository_id="integration-test")
+            symbols = temp_database.search_symbols("integration-test", "")
             assert len(symbols) > 0
 
             # Check specific symbols

@@ -126,7 +126,7 @@ class TestSQLiteSymbolStorage:
         storage.insert_symbol(symbol)
 
         # Verify insertion
-        results = storage.search_symbols("test_function", "test-repo")
+        results = storage.search_symbols("test-repo", "test_function")
         assert len(results) == 1
         assert results[0].name == "test_function"
         assert results[0].kind == SymbolKind.FUNCTION
@@ -136,10 +136,10 @@ class TestSQLiteSymbolStorage:
         storage.insert_symbols(sample_symbols)
 
         # Verify all symbols were inserted
-        all_symbols = storage.search_symbols("", "test-repo")
+        all_symbols = storage.search_symbols("test-repo", "")
         assert len(all_symbols) == 4  # 4 symbols with test-repo
 
-        other_repo_symbols = storage.search_symbols("", "other-repo")
+        other_repo_symbols = storage.search_symbols("other-repo", "")
         assert len(other_repo_symbols) == 1  # 1 symbol with other-repo
 
     def test_insert_empty_symbols_list(self, storage):
@@ -147,7 +147,7 @@ class TestSQLiteSymbolStorage:
         storage.insert_symbols([])
 
         # Should not raise an error
-        results = storage.search_symbols("")
+        results = storage.search_symbols("test-repo", "")
         assert len(results) == 0
 
     def test_search_symbols_by_name(self, storage, sample_symbols):
@@ -155,16 +155,16 @@ class TestSQLiteSymbolStorage:
         storage.insert_symbols(sample_symbols)
 
         # Exact match
-        results = storage.search_symbols("TestClass")
+        results = storage.search_symbols("test-repo", "TestClass")
         assert len(results) == 1
         assert results[0].name == "TestClass"
 
         # Partial match
-        results = storage.search_symbols("test")
+        results = storage.search_symbols("test-repo", "test")
         assert len(results) >= 2  # Should find test_function and test_method
 
         # Case insensitive search
-        results = storage.search_symbols("testclass")
+        results = storage.search_symbols("test-repo", "testclass")
         assert len(results) == 1
         assert results[0].name == "TestClass"
 
@@ -173,10 +173,10 @@ class TestSQLiteSymbolStorage:
         storage.insert_symbols(sample_symbols)
 
         # Search in specific repository
-        results = storage.search_symbols("", "test-repo")
+        results = storage.search_symbols("test-repo", "")
         assert len(results) == 4
 
-        results = storage.search_symbols("", "other-repo")
+        results = storage.search_symbols("other-repo", "")
         assert len(results) == 1
         assert results[0].name == "helper_function"
 
@@ -184,15 +184,22 @@ class TestSQLiteSymbolStorage:
         """Test searching symbols by kind."""
         storage.insert_symbols(sample_symbols)
 
-        # Search for functions only
-        results = storage.search_symbols("", symbol_kind=SymbolKind.FUNCTION)
-        assert len(results) == 2
-        function_names = [s.name for s in results]
-        assert "test_function" in function_names
-        assert "helper_function" in function_names
+        # Search for functions only in test-repo
+        results = storage.search_symbols(
+            "test-repo", "", symbol_kind=SymbolKind.FUNCTION
+        )
+        assert len(results) == 1
+        assert results[0].name == "test_function"
 
-        # Search for classes only
-        results = storage.search_symbols("", symbol_kind=SymbolKind.CLASS)
+        # Search for functions in other-repo
+        results = storage.search_symbols(
+            "other-repo", "", symbol_kind=SymbolKind.FUNCTION
+        )
+        assert len(results) == 1
+        assert results[0].name == "helper_function"
+
+        # Search for classes only in test-repo
+        results = storage.search_symbols("test-repo", "", symbol_kind=SymbolKind.CLASS)
         assert len(results) == 1
         assert results[0].name == "TestClass"
 
@@ -201,23 +208,23 @@ class TestSQLiteSymbolStorage:
         storage.insert_symbols(sample_symbols)
 
         # Search with limit
-        results = storage.search_symbols("", limit=2)
+        results = storage.search_symbols("test-repo", "", limit=2)
         assert len(results) == 2
 
-        # Search with higher limit than available results
-        results = storage.search_symbols("", limit=100)
-        assert len(results) == 5  # Total symbols
+        # Search with higher limit than available results in test-repo
+        results = storage.search_symbols("test-repo", "", limit=100)
+        assert len(results) == 4  # test-repo has 4 symbols
 
     def test_search_symbols_ordering(self, storage):
         """Test that search results are ordered with exact matches first."""
         symbols = [
-            Symbol("test", SymbolKind.FUNCTION, "test.py", 1, 0, "repo"),
-            Symbol("test_helper", SymbolKind.FUNCTION, "test.py", 2, 0, "repo"),
-            Symbol("other_test", SymbolKind.FUNCTION, "test.py", 3, 0, "repo"),
+            Symbol("test", SymbolKind.FUNCTION, "test.py", 1, 0, "test-repo"),
+            Symbol("test_helper", SymbolKind.FUNCTION, "test.py", 2, 0, "test-repo"),
+            Symbol("other_test", SymbolKind.FUNCTION, "test.py", 3, 0, "test-repo"),
         ]
         storage.insert_symbols(symbols)
 
-        results = storage.search_symbols("test")
+        results = storage.search_symbols("test-repo", "test")
 
         # Exact match should come first
         assert results[0].name == "test"
@@ -250,7 +257,7 @@ class TestSQLiteSymbolStorage:
         storage.update_symbol(updated_symbol)
 
         # Verify update
-        results = storage.search_symbols("test_function", "test-repo")
+        results = storage.search_symbols("test-repo", "test_function")
         assert len(results) == 1
         assert results[0].line_number == 20
         assert results[0].column_number == 4
@@ -261,18 +268,18 @@ class TestSQLiteSymbolStorage:
         storage.insert_symbols(sample_symbols)
 
         # Verify symbols exist
-        results = storage.search_symbols("", "test-repo")
+        results = storage.search_symbols("test-repo", "")
         assert len(results) == 4
 
         # Delete symbols for test-repo
         storage.delete_symbols_by_repository("test-repo")
 
         # Verify symbols are deleted
-        results = storage.search_symbols("", "test-repo")
+        results = storage.search_symbols("test-repo", "")
         assert len(results) == 0
 
         # Verify other repository symbols are unaffected
-        results = storage.search_symbols("", "other-repo")
+        results = storage.search_symbols("other-repo", "")
         assert len(results) == 1
 
     def test_get_symbols_by_file(self, storage, sample_symbols):
@@ -310,7 +317,7 @@ class TestSQLiteSymbolStorage:
         storage.insert_symbol(symbol)
 
         # Get the symbol ID from search results
-        results = storage.search_symbols("test_function", "test-repo")
+        results = storage.search_symbols("test-repo", "test_function")
         assert len(results) == 1
 
         # This test verifies the method exists and handles missing IDs
@@ -335,18 +342,19 @@ class TestSQLiteSymbolStorage:
 
         storage.insert_symbols(repo1_symbols + repo2_symbols)
 
-        # Search all repositories
-        results = storage.search_symbols("func1")
-        assert len(results) == 2
-
-        # Search specific repository
-        results = storage.search_symbols("func1", "repo1")
+        # Search in repo1
+        results = storage.search_symbols("repo1", "func1")
         assert len(results) == 1
         assert results[0].repository_id == "repo1"
 
-        results = storage.search_symbols("func1", "repo2")
+        # Search in repo2 (also has func1 with same name)
+        results = storage.search_symbols("repo2", "func1")
         assert len(results) == 1
         assert results[0].repository_id == "repo2"
+
+        # Verify isolation - searching repo1 doesn't find repo2's func2
+        results = storage.search_symbols("repo1", "func2")
+        assert len(results) == 0
 
     def test_abstract_base_class_interface(self, storage):
         """Test that SQLiteSymbolStorage implements all abstract methods."""
