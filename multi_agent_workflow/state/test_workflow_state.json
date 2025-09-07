@@ -1,5 +1,5 @@
 {
-  "created_at": "2025-09-07T16:51:17.812899+00:00",
+  "created_at": "2025-09-07T17:02:27.918356+00:00",
   "current_stage": "test_stage",
   "inputs": {
     "config_overrides": {},
@@ -80,7 +80,7 @@
       "name": "test_stage",
       "output_files": [],
       "retry_count": 0,
-      "started_at": "2025-09-07T16:51:17.814980+00:00",
+      "started_at": "2025-09-07T17:02:27.921579+00:00",
       "status": "skipped"
     },
     "testing_setup": {
@@ -97,7 +97,7 @@
     }
   },
   "state_checksum": "b62387c8a27490db595b39a33df121be3f585a48e022af3f2c1c1a6c23bf102b",
-  "updated_at": "2025-09-07T16:51:17.814982+00:00",
+  "updated_at": "2025-09-07T17:02:27.921584+00:00",
   "version": "2.0.0",
   "workflow_id": "test_workflow"
 }
