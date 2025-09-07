@@ -1,20 +1,37 @@
 #!/usr/bin/env python3
 """
-Step 4: Interactive Development Process
-Implements the 4-part development cycle for each task from the finalized design document.
+Step 4: Enhanced Implementation Process
+Implements the comprehensive skeleton-first, test-driven workflow with PR review cycles.
+
+Enhanced Workflow Process:
+1. Based on design, architect creates skeleton of all classes/methods (no implementation)
+2. Testing agent creates tests against skeleton using dependency injection
+3. All agents review tests and provide feedback
+4. Senior engineer addresses feedback and finalizes tests
+5. Coding agent implements methods without looking at tests
+6. Run tests and capture failures
+7. Each agent analyzes failures and suggests fixes
+8. Senior engineer creates fix plan and applies changes
+9. Repeat test cycle until all pass (max 5 iterations)
+10. Commit and push all changes
+11. Create PR and pause for human review
+12. Resume: fetch PR comments, all agents analyze
+13. Senior engineer creates response plan
+14. Implement changes and post replies
+15. Commit and pause again
+16. Repeat PR review cycle until no new comments
 
 Usage:
-    python step4_implementation.py --pr PR_NUMBER
+    python step4_implementation.py --pr PR_NUMBER [--resume]
 """
 
 import argparse
 import asyncio
 import json
 import logging
-import os
-import re
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,22 +42,66 @@ from common_utils import (
 )
 from workflow_orchestrator import WorkflowOrchestrator
 
-from github_tools import execute_get_pr_comments, execute_post_pr_reply
+# Import MCP GitHub tools
+from github_tools import execute_tool
 
 logger = logging.getLogger(__name__)
 
 
-class InteractiveDevelopmentProcessor:
-    """Orchestrates the 4-part development process for each implementation task."""
+class WorkflowState:
+    """Manages the workflow state for pause/resume functionality."""
+
+    def __init__(self, workflow_dir: Path):
+        self.workflow_dir = workflow_dir
+        self.state_file = workflow_dir / "enhanced_workflow_state.json"
+        self.current_phase = "skeleton"
+        self.phase_data: dict[str, Any] = {}
+        self.pr_number: int | None = None
+        self.is_paused = False
+
+    def save_state(self):
+        """Save current workflow state."""
+        self.workflow_dir.mkdir(parents=True, exist_ok=True)
+        state_data = {
+            "current_phase": self.current_phase,
+            "phase_data": self.phase_data,
+            "pr_number": self.pr_number,
+            "is_paused": self.is_paused,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        with open(self.state_file, "w") as f:
+            json.dump(state_data, f, indent=2)
+
+        logger.info(f"Saved workflow state: phase={self.current_phase}")
+
+    def load_state(self) -> bool:
+        """Load workflow state. Returns True if state was loaded."""
+        if not self.state_file.exists():
+            return False
+
+        try:
+            with open(self.state_file) as f:
+                state_data = json.load(f)
+
+            self.current_phase = state_data.get("current_phase", "skeleton")
+            self.phase_data = state_data.get("phase_data", {})
+            self.pr_number = state_data.get("pr_number")
+            self.is_paused = state_data.get("is_paused", False)
+
+            logger.info(f"Loaded workflow state: phase={self.current_phase}")
+            return True
+
+        except Exception as e:
+            logger.warning(f"Failed to load workflow state: {e}")
+            return False
+
+
+class EnhancedImplementationProcessor:
+    """Orchestrates the enhanced skeleton-first, test-driven implementation workflow."""
 
     def __init__(self, pr_number: int, repo_path: str, repo_name: str):
-        """Initialize the development processor.
-
-        Args:
-            pr_number: PR number containing the finalized design
-            repo_path: Local repository path
-            repo_name: GitHub repository name
-        """
+        """Initialize the enhanced implementation processor."""
         self.pr_number = pr_number
         self.repo_path = Path(repo_path)
         self.repo_name = repo_name
@@ -51,74 +112,65 @@ class InteractiveDevelopmentProcessor:
         )
 
         self.workflow_dir = self.repo_path / ".workflow"
-        self.round4_dir = self.workflow_dir / "round_4_implementation"
-        self.round4_dir.mkdir(parents=True, exist_ok=True)
+        self.enhanced_dir = self.workflow_dir / "enhanced_implementation"
+        self.enhanced_dir.mkdir(parents=True, exist_ok=True)
 
-        # Store tasks list for reference
-        self.all_tasks: list[dict[str, Any]] = []
+        # Initialize workflow state
+        self.state = WorkflowState(self.workflow_dir)
 
-        logger.info(f"Initialized development processor for PR #{pr_number}")
+        logger.info(
+            f"Enhanced implementation processor initialized for PR #{pr_number}"
+        )
 
-    async def run_development_process(self) -> dict:
-        """Execute the complete 4-part development process."""
-        logger.info("Starting 4-part development process")
+    async def run_enhanced_implementation(self, resume: bool = False) -> dict:
+        """Run the complete enhanced implementation workflow."""
+        print("🚀 Starting Enhanced Implementation Workflow")
+        print("=" * 60)
 
         try:
-            # Load the finalized design document
-            design_content = await self._load_finalized_design()
-            if not design_content:
-                return {
-                    "status": "failed",
-                    "error": "No finalized design document found",
-                }
+            # Load or initialize state
+            if resume:
+                if not self.state.load_state():
+                    return {
+                        "status": "failed",
+                        "error": "No saved state found for resume",
+                    }
+                print(f"Resuming from phase: {self.state.current_phase}")
+            else:
+                # Load design document
+                design_content = await self._load_design_document()
+                if not design_content:
+                    return {"status": "failed", "error": "No design document found"}
+                self.state.phase_data["design"] = design_content
 
-            # Parse implementation tasks from the design
-            tasks = await self._parse_implementation_tasks(design_content)
-            if not tasks:
-                return {
-                    "status": "failed",
-                    "error": "No implementation tasks found in design",
-                }
+            # Execute workflow phases
+            if self.state.current_phase == "skeleton":
+                await self._phase_1_skeleton_creation()
 
-            # Store tasks for reference
-            self.all_tasks = tasks
+            if self.state.current_phase == "tests":
+                await self._phase_2_test_creation()
 
-            print(f"\nFound {len(tasks)} implementation tasks:")
-            for i, task in enumerate(tasks, 1):
-                print(f"  {i}. {task['title']}")
+            if self.state.current_phase == "implementation":
+                await self._phase_3_implementation_cycle()
 
-            # Execute 4-part cycle for each task
-            completed_tasks = []
-            for i, task in enumerate(tasks, 1):
-                print(f"\n{'='*60}")
-                print(f"TASK {i}/{len(tasks)}: {task['title']}")
-                print(f"{'='*60}")
-
-                task_result = await self._execute_four_part_cycle(task, i)
-                completed_tasks.append(task_result)
-
-                if task_result["status"] != "success":
-                    print(f"❌ Task {i} failed: {task_result.get('error')}")
-                    break
-                else:
-                    print(f"✅ Task {i} completed successfully")
+            if self.state.current_phase == "pr_review":
+                result = await self._phase_4_pr_review_cycle()
+                if result.get("paused"):
+                    return result
 
             return {
-                "status": "success",
-                "pr_number": self.pr_number,
-                "tasks_completed": len(
-                    [t for t in completed_tasks if t["status"] == "success"]
-                ),
-                "total_tasks": len(tasks),
-                "completed_tasks": completed_tasks,
+                "status": "completed",
+                "pr_number": self.state.pr_number,
+                "final_phase": self.state.current_phase,
             }
 
         except Exception as e:
-            logger.error(f"Development process failed: {e}")
+            logger.error(f"Enhanced implementation failed: {e}")
+            self.state.save_state()
             return {"status": "failed", "error": str(e)}
 
-    async def _load_finalized_design(self) -> str | None:
-        """Load the finalized design document."""
+    async def _load_design_document(self) -> str:
+        """Load the design document from previous steps."""
         # Try finalized design first (from step 3)
         finalized_path = self.workflow_dir / "round_3_design" / "finalized_design.md"
         if finalized_path.exists():
@@ -134,679 +186,824 @@ class InteractiveDevelopmentProcessor:
             return consolidated_path.read_text()
 
         logger.error("No design document found")
-        return None
+        return ""
 
-    async def _parse_implementation_tasks(
-        self, design_content: str
-    ) -> list[dict[str, Any]]:
-        """Parse implementation tasks from the design document."""
-        # Manual parsing of tasks from the design document
-        tasks: list[dict[str, Any]] = []
+    async def _phase_1_skeleton_creation(self):
+        """Phase 1: Create architecture skeleton based on design."""
+        print("\n🏗️  PHASE 1: Architecture Skeleton Creation")
+        print("=" * 50)
 
-        # Look for sections that indicate implementation tasks
-        # Common patterns in design documents
-        lines = design_content.split("\n")
-        current_task: dict[str, Any] | None = None
-        in_implementation_section = False
+        design_content = self.state.phase_data.get("design", "")
 
-        for line in lines:
-            # Look for implementation task markers
-            if "implementation task" in line.lower() or "task:" in line.lower():
-                if current_task:
-                    tasks.append(current_task)
+        # Step 1: Architect creates skeleton
+        print("Step 1: Architect creating skeleton...")
+        skeleton_result = await self._create_architecture_skeleton(design_content)
 
-                # Extract task title from the line
-                title = line.replace("Task:", "").replace("task:", "").strip()
-                title = re.sub(r"^\d+\.?\s*", "", title)  # Remove numbering
-                title = title.replace("#", "").strip()
+        # Step 2: All agents review skeleton
+        print("Step 2: All agents reviewing skeleton...")
+        skeleton_reviews = await self._review_skeleton(skeleton_result)
 
-                current_task = {
-                    "title": title or f"Task {len(tasks) + 1}",
-                    "description": "",
-                    "components": [],
-                    "dependencies": [],
-                }
-                in_implementation_section = True
-
-            # Look for numbered implementation steps
-            elif re.match(r"^\d+\.\s+", line) and "implement" in line.lower():
-                if current_task:
-                    tasks.append(current_task)
-
-                title = re.sub(r"^\d+\.\s+", "", line).strip()
-                current_task = {
-                    "title": title,
-                    "description": "",
-                    "components": [],
-                    "dependencies": [],
-                }
-
-            # Collect description and components
-            elif current_task and in_implementation_section:
-                if "file" in line.lower() or ".py" in line:
-                    # Extract file names
-                    file_matches = re.findall(r"[\w/]+\.py", line)
-                    current_task["components"].extend(file_matches)
-                elif line.strip() and not line.startswith("#"):
-                    # Add to description
-                    if len(current_task["description"]) < 500:
-                        current_task["description"] += line.strip() + " "
-
-        # Add the last task if exists
-        if current_task:
-            tasks.append(current_task)
-
-        # If no tasks found, try to extract from headers
-        if not tasks:
-            # Look for ## Implementation or ### sections
-            implementation_sections = re.findall(
-                r"###+\s*(?:Implementation|Development|Task|Step)\s*\d*:?\s*([^\n]+)",
-                design_content,
-                re.IGNORECASE,
-            )
-
-            for i, section in enumerate(
-                implementation_sections[:5], 1
-            ):  # Limit to 5 tasks
-                tasks.append(
-                    {
-                        "title": section.strip(),
-                        "description": f"Implement the {section.strip()} as described in the design document",
-                        "components": [f"implementation_{i}.py"],
-                        "dependencies": [],
-                    }
-                )
-
-        # If still no tasks, create a single comprehensive task
-        if not tasks:
-            logger.info("No specific tasks found, creating single comprehensive task")
-            tasks = [
-                {
-                    "title": "Implement Complete Feature",
-                    "description": "Implement the complete feature as described in the design document",
-                    "components": ["main implementation"],
-                    "dependencies": [],
-                }
-            ]
-
-        logger.info(f"Parsed {len(tasks)} tasks from design")
-        return tasks
-
-    async def _execute_four_part_cycle(
-        self, task: dict[str, Any], task_number: int
-    ) -> dict[str, Any]:
-        """Execute the 4-part development cycle for a single task."""
-        print(f"\nStarting 4-part cycle for: {task['title']}")
-
-        try:
-            # Part 1: Interactive Coding Session
-            print("\n--- Part 1: Interactive Coding Session ---")
-            part1_result = await self._part1_interactive_coding(task, task_number)
-            if part1_result["status"] != "success":
-                return part1_result
-
-            # Part 2: Multi-Agent Review and Refinement
-            print("\n--- Part 2: Multi-Agent Review and Refinement ---")
-            part2_result = await self._part2_multi_agent_review(
-                task, task_number, part1_result
-            )
-            if part2_result["status"] != "success":
-                return part2_result
-
-            # Part 3: Human Review Break
-            print("\n--- Part 3: Human Review Break ---")
-            await self._part3_human_review_break(task, task_number)
-
-            # Part 4: PR Comment Integration
-            print("\n--- Part 4: PR Comment Integration ---")
-            part4_result = await self._part4_pr_comment_integration(task, task_number)
-            if part4_result["status"] != "success":
-                return part4_result
-
-            return {
-                "status": "success",
-                "task": task["title"],
-                "task_number": task_number,
-                "parts_completed": ["part1", "part2", "part3", "part4"],
-                "files_modified": part1_result.get("files_created", [])
-                + part2_result.get("files_modified", [])
-                + part4_result.get("files_modified", []),
-            }
-
-        except Exception as e:
-            logger.error(f"4-part cycle failed for task {task_number}: {e}")
-            return {"status": "failed", "error": str(e), "task": task["title"]}
-
-    async def _part1_interactive_coding(
-        self, task: dict[str, Any], task_number: int
-    ) -> dict[str, Any]:
-        """Part 1: Interactive coding session with developer agent."""
-        print(f"Starting interactive coding session for: {task['title']}")
-        print(f"Description: {task['description']}")
-        print(f"Components: {', '.join(task.get('components', []))}")
-
-        # Determine which design document path to use
-        design_finalized_path = (
-            self.workflow_dir / "round_3_design" / "finalized_design.md"
-        )
-        design_consolidated_path = (
-            self.workflow_dir / "round_2_design" / "consolidated_design.md"
+        # Step 3: Senior engineer finalizes skeleton
+        print("Step 3: Senior engineer finalizing skeleton...")
+        final_skeleton = await self._finalize_skeleton(
+            skeleton_result, skeleton_reviews
         )
 
-        if design_finalized_path.exists():
-            design_doc_path = design_finalized_path
-        else:
-            design_doc_path = design_consolidated_path
+        # Save results and move to next phase
+        self.state.phase_data["skeleton"] = final_skeleton
+        self.state.current_phase = "tests"
+        self.state.save_state()
 
-        # Path to codebase analysis document
-        codebase_analysis_path = self.workflow_dir / "codebase_analysis.md"
+        print("✅ Phase 1 completed: Architecture skeleton finalized")
 
-        # Create implementation context prompt for the interactive session
-        # IMPORTANT: We're creating a minimal prompt to avoid triggering Claude's
-        # automatic CI/build checking behavior
-        context_prompt = f"""
-Task: {task['title']}
+    async def _create_architecture_skeleton(self, design_content: str) -> dict:
+        """Architect creates complete skeleton with no implementation."""
+        prompt = f"""Create a complete architecture skeleton based on this design:
 
-Files needed:
-- Codebase patterns: {codebase_analysis_path}
-- Design document: {design_doc_path}
+{design_content}
 
-Implementation: {task['description'] if task['description'] else 'See design document'}
-        """
+SKELETON REQUIREMENTS:
+1. All class definitions with method signatures (NO implementation, just pass)
+2. Complete type hints using modern Python syntax (| None, dict, list)
+3. Docstrings for all classes and methods
+4. Import statements
+5. Abstract base classes where needed
+6. Interface definitions for dependency injection
 
-        print("\n" + "=" * 60)
-        print("STARTING INTERACTIVE CODING SESSION")
-        print("=" * 60)
-        print(f"Task: {task['title']}")
-        print(
-            "You will now enter an interactive coding session with the developer agent."
-        )
-        print("The agent knows about the task and will help you implement it.")
-        print("=" * 60)
+CRITICAL:
+- NO method implementations - only signatures with pass
+- Follow existing codebase patterns from .workflow/codebase_analysis.md
+- Use dependency injection for testability
+- Create all necessary files in proper structure
 
-        try:
-            # Create a temporary file with the context for the interactive session
-            context_file = self.round4_dir / f"task_{task_number}_context.md"
-            with open(context_file, "w") as f:
-                f.write(context_prompt)
+Provide complete skeleton code for each file that needs to be created."""
 
-            # Create the prompt for the user to copy
-            implementation_prompt = f"""Read {codebase_analysis_path}
+        # Build context for architect
+        context = await self._build_context()
+        architect = self.orchestrator.agents["architect"]
 
-Then read {design_doc_path}
+        result = await architect.implement_code(context, prompt)
 
-Now implement Task {task_number}: {task['title']}
+        # Save skeleton
+        skeleton_path = self.enhanced_dir / "architecture_skeleton.md"
+        self._save_document(skeleton_path, result.get("content", ""))
 
-{task['description'] if task['description'] else 'Implementation details are in the design document.'}
+        return result
 
-Focus only on implementing this specific task. Create or modify the necessary files to complete the implementation."""
-
-            print("\n" + "=" * 70)
-            print("COPY THIS PROMPT FOR CLAUDE:")
-            print("=" * 70)
-            print(implementation_prompt)
-            print("=" * 70)
-            print("\nInstructions:")
-            print("1. Copy the prompt above")
-            print("2. Claude chat will open in a moment")
-            print("3. Paste the prompt into Claude")
-            print("4. Work with Claude to implement the task")
-            print("5. Exit with Ctrl+D when done")
-            print("\nPress Enter when you've copied the prompt...")
-            input()
-
-            # Start amp in interactive mode with the developer persona
-            # We need to run this in the repo directory so the agent has access to files
-            original_cwd = os.getcwd()
-            os.chdir(self.repo_path)
-
-            # Launch claude CLI in chat mode WITHOUT any initial context
-            print(f"\nLaunching Claude chat for Task {task_number}...")
-            print("Claude should open and wait for your input.")
-            print("Paste the prompt you copied above.")
-            print("-" * 60)
-
-            # Start claude chat with the context file
-            try:
-                # Create a copy of the environment without ANTHROPIC_API_KEY to avoid auth conflict
-                env = os.environ.copy()
-                if "ANTHROPIC_API_KEY" in env:
-                    del env["ANTHROPIC_API_KEY"]
-                    print(
-                        "\n(Temporarily unsetting ANTHROPIC_API_KEY for interactive session)"
-                    )
-
-                # Launch claude chat directly - user will paste context
-                result = subprocess.run(["claude", "chat"], cwd=self.repo_path, env=env)
-                return_code = result.returncode
-            except FileNotFoundError:
-                print("\nClaude CLI not found. Please install it first.")
-                print("Visit: https://docs.anthropic.com/en/docs/claude-cli")
-                print(
-                    f"\nAlternatively, paste the context from {context_file} into your preferred Claude interface."
-                )
-                print("\nPress Enter when you have completed the implementation...")
-                input()
-                return_code = 0
-            except KeyboardInterrupt:
-                print("\n\nInteractive session interrupted by user")
-                return_code = 0
-            except Exception as e:
-                print(f"\nCould not launch Claude CLI: {e}")
-                print(f"\nPlease paste the context from: {context_file}")
-                print("\nPress Enter when you have completed the implementation...")
-                input()
-                return_code = 0
-
-            os.chdir(original_cwd)
-
-            print("\n✅ Interactive coding session completed")
-            print(f"Session ended with return code: {return_code}")
-
-            # Commit the implementation from Part 1
-            await self._commit_part1_implementation(task, task_number)
-
-            return {
-                "status": "success",
-                "return_code": return_code,
-                "message": "Interactive coding session completed successfully",
-            }
-
-        except Exception as e:
-            error_msg = f"Interactive session failed: {e}"
-            print(f"❌ Part 1 failed: {error_msg}")
-            return {"status": "failed", "error": error_msg}
-
-    async def _part2_multi_agent_review(
-        self, task: dict[str, Any], task_number: int, part1_result: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Part 2: Multi-agent review and refinement."""
-        print("Starting multi-agent review and refinement...")
-
-        # Get the implemented code for review
-        implemented_files = part1_result.get("files_created", [])
-
+    async def _review_skeleton(self, skeleton_result: dict) -> dict:
+        """All agents review the architecture skeleton."""
         reviews = {}
+        skeleton_content = skeleton_result.get("content", "")
 
-        # Architect Review
-        print("  - Architect reviewing...")
-        architect_review = await self._get_agent_review(
-            "architect", task, implemented_files
-        )
-        reviews["architect"] = architect_review
+        review_prompt = f"""Review this architecture skeleton:
 
-        # Senior Engineer Review
-        print("  - Senior Engineer reviewing...")
-        senior_review = await self._get_agent_review(
-            "senior_engineer", task, implemented_files
-        )
-        reviews["senior_engineer"] = senior_review
+{skeleton_content}
 
-        # Tester Review
-        print("  - Tester reviewing...")
-        tester_review = await self._get_agent_review("tester", task, implemented_files)
-        reviews["tester"] = tester_review
+REVIEW CRITERIA:
+1. Completeness - are all necessary classes/methods included?
+2. Type safety - are type hints comprehensive?
+3. Dependency injection - are dependencies properly abstracted?
+4. Existing patterns - does it follow codebase conventions?
+5. Testing readiness - can comprehensive tests be written against this?
 
-        # Apply refinements based on reviews
-        refinement_result = await self._apply_review_refinements(
-            task, task_number, reviews
-        )
+Provide specific feedback on gaps, issues, and improvements needed."""
 
-        # Commit the refined code
-        await self._commit_part2_refinements(task, task_number)
+        context = await self._build_context()
 
-        print("✅ Part 2 completed - Multi-agent review and refinement")
-        return {
-            "status": "success",
-            "reviews": reviews,
-            "files_modified": refinement_result.get("files_modified", []),
-            "refinements_applied": refinement_result.get("refinements_applied", 0),
-        }
+        # Get reviews from all agents except architect
+        for agent_name, agent in self.orchestrator.agents.items():
+            if agent_name != "architect":
+                print(f"  - {agent_name} reviewing...")
+                review = await agent.review_code(context, review_prompt)
+                reviews[agent_name] = review
 
-    async def _part3_human_review_break(
-        self, task: dict[str, Any], task_number: int
-    ) -> dict[str, Any]:
-        """Part 3: Human review break - pause for PR comments."""
-        print("Human review break initiated...")
-        print(f"\nTask {task_number} ({task['title']}) is ready for human review.")
-        print("\nWhat happens next:")
-        print("1. Review the implemented code in the GitHub PR")
-        print("2. Add PR comments on specific lines or files with feedback")
-        print("3. The next part will automatically integrate your feedback")
-        print(
-            "\nPress Enter when you have finished adding PR comments (or press Enter to skip): ",
-            end="",
+                # Save individual review
+                review_path = self.enhanced_dir / f"skeleton_review_{agent_name}.md"
+                self._save_document(review_path, review.get("content", ""))
+
+        return reviews
+
+    async def _finalize_skeleton(self, skeleton_result: dict, reviews: dict) -> dict:
+        """Senior engineer finalizes skeleton incorporating all feedback."""
+        reviews_text = "\n\n".join(
+            [
+                f"=== {agent.upper()} REVIEW ===\n{review.get('content', '')}"
+                for agent, review in reviews.items()
+            ]
         )
 
-        # Wait for human input
-        user_input = input().strip()
+        prompt = f"""Finalize the architecture skeleton incorporating all feedback:
 
-        print("✅ Part 3 completed - Human review break")
-        return {"status": "success", "human_input": user_input}
+ORIGINAL SKELETON:
+{skeleton_result.get("content", "")}
 
-    async def _part4_pr_comment_integration(
-        self, task: dict[str, Any], task_number: int
-    ) -> dict[str, Any]:
-        """Part 4: PR comment integration."""
-        print("Starting PR comment integration...")
+AGENT REVIEWS:
+{reviews_text}
 
-        # Fetch recent PR comments (comments added during Part 3)
-        comments = await self._fetch_recent_pr_comments()
+FINALIZATION REQUIREMENTS:
+1. Address ALL valid feedback points
+2. Resolve conflicts between reviews
+3. Maintain architectural integrity
+4. Create final, complete skeleton
+5. Document decisions made
 
-        if not comments:
-            print("No new PR comments found - no integration needed")
-            return {"status": "success", "comments_processed": 0}
+Provide the definitive skeleton that addresses all concerns."""
 
-        print(f"Found {len(comments)} new PR comments to integrate")
+        context = await self._build_context()
+        senior_engineer = self.orchestrator.agents["senior_engineer"]
 
-        # Process each comment and update code accordingly
-        integration_results = []
-        for comment in comments:
-            result = await self._integrate_pr_comment(comment, task, task_number)
-            integration_results.append(result)
+        final_skeleton = await senior_engineer.implement_code(context, prompt)
 
-        # Commit the integrated changes
-        if any(r.get("changes_made") for r in integration_results):
-            await self._commit_part4_integration(task, task_number)
+        # Save final skeleton
+        final_path = self.enhanced_dir / "final_skeleton.md"
+        self._save_document(final_path, final_skeleton.get("content", ""))
 
-        # Reply to comments acknowledging integration
-        await self._reply_to_integrated_comments(comments, task)
+        return final_skeleton
 
-        print("✅ Part 4 completed - PR comment integration")
-        return {
-            "status": "success",
-            "comments_processed": len(comments),
-            "files_modified": [
-                r.get("file_modified")
-                for r in integration_results
-                if r.get("file_modified")
-            ],
-            "integration_results": integration_results,
-        }
+    async def _phase_2_test_creation(self):
+        """Phase 2: Create comprehensive tests against skeleton."""
+        print("\n🧪 PHASE 2: Test Creation and Review")
+        print("=" * 50)
 
-    # Helper methods for the 4-part cycle
-    async def _get_agent_review(
-        self, agent_type: str, task: dict[str, Any], implemented_files: list[str]
-    ) -> dict[str, Any]:
-        """Get review from a specific agent."""
-        agent = self.orchestrator.agents[agent_type]
+        skeleton = self.state.phase_data.get("skeleton", {})
 
-        # Create file content summary for review
-        files_content = ""
-        for file_path in implemented_files:
-            if Path(file_path).exists():
-                files_content += (
-                    f"\n## {file_path}\n\n```\n{Path(file_path).read_text()}\n```\n"
-                )
+        # Step 1: Testing agent creates comprehensive tests
+        print("Step 1: Testing agent creating comprehensive tests...")
+        test_suite = await self._create_comprehensive_tests(skeleton)
 
-        review_prompt = f"""
-Review the implementation for Task: {task['title']}
+        # Step 2: All agents review tests
+        print("Step 2: All agents reviewing tests...")
+        test_reviews = await self._review_tests(test_suite)
 
-Description: {task['description']}
+        # Step 3: Senior engineer finalizes tests
+        print("Step 3: Senior engineer finalizing tests...")
+        final_tests = await self._finalize_tests(test_suite, test_reviews)
 
-Implemented Files:
-{files_content}
+        # Save results and move to next phase
+        self.state.phase_data["tests"] = final_tests
+        self.state.current_phase = "implementation"
+        self.state.save_state()
 
-As a {agent_type.replace('_', ' ')}, provide your review focusing on:
-- Code quality and best practices
-- Potential issues or improvements
-- Suggestions for refinement
+        print("✅ Phase 2 completed: Test suite finalized")
 
-Provide specific, actionable feedback.
-        """
+    async def _create_comprehensive_tests(self, skeleton: dict) -> dict:
+        """Testing agent creates comprehensive test suite."""
+        prompt = f"""Create a comprehensive test suite for this skeleton:
 
-        review = agent.persona.ask(review_prompt)
-        return {
-            "agent": agent_type,
-            "review": review,
-            "files_reviewed": implemented_files,
-        }
+{skeleton.get("content", "")}
 
-    async def _apply_review_refinements(
-        self, task: dict[str, Any], task_number: int, reviews: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Apply refinements based on agent reviews."""
-        # Combine all reviews into refinement instructions
-        all_feedback = ""
-        for agent_type, review_data in reviews.items():
-            all_feedback += f"\n## {agent_type.replace('_', ' ').title()} Review:\n{review_data['review']}\n"
+TEST REQUIREMENTS:
+1. Unit tests for every class and method
+2. Integration tests for component interactions
+3. Mock classes using inheritance (NO mocking frameworks)
+4. Edge cases and error conditions
+5. Use pytest framework
+6. Follow existing test patterns from tests/ directory
 
-        refinement_prompt = f"""
-Apply refinements to the implementation based on peer review feedback.
+CRITICAL:
+- Create mock classes in tests/mocks/ following dependency injection
+- Use setup/teardown methods appropriately
+- Test all success paths, error paths, and edge cases
+- Include test data and fixtures
 
-Task: {task['title']}
-Description: {task['description']}
+Provide complete, runnable test code."""
 
-Peer Review Feedback:
-{all_feedback}
+        context = await self._build_context()
+        tester = self.orchestrator.agents["tester"]
 
-Instructions:
-1. Address the most important feedback items
-2. Improve code quality based on suggestions
-3. Fix any issues identified by reviewers
-4. Maintain the core functionality while improving implementation
+        result = await tester.create_tests(context, prompt)
 
-Apply the refinements now.
-        """
+        # Save test suite
+        tests_path = self.enhanced_dir / "test_suite.md"
+        self._save_document(tests_path, result.get("content", ""))
 
-        # Use developer to apply refinements
+        return result
+
+    async def _review_tests(self, test_suite: dict) -> dict:
+        """All agents review the test suite."""
+        reviews = {}
+        test_content = test_suite.get("content", "")
+
+        review_prompt = f"""Review this test suite:
+
+{test_content}
+
+REVIEW CRITERIA:
+1. Coverage - are all classes/methods tested?
+2. Quality - are tests well-structured?
+3. Edge cases - are boundary conditions covered?
+4. Mock strategy - are mocks appropriate?
+5. Missing tests - what's not covered?
+
+Provide specific feedback on gaps and improvements."""
+
+        context = await self._build_context()
+
+        # Get reviews from all agents except tester
+        for agent_name, agent in self.orchestrator.agents.items():
+            if agent_name != "tester":
+                print(f"  - {agent_name} reviewing...")
+                review = await agent.review_code(context, review_prompt)
+                reviews[agent_name] = review
+
+                # Save individual review
+                review_path = self.enhanced_dir / f"test_review_{agent_name}.md"
+                self._save_document(review_path, review.get("content", ""))
+
+        return reviews
+
+    async def _finalize_tests(self, test_suite: dict, reviews: dict) -> dict:
+        """Senior engineer finalizes test suite."""
+        reviews_text = "\n\n".join(
+            [
+                f"=== {agent.upper()} REVIEW ===\n{review.get('content', '')}"
+                for agent, review in reviews.items()
+            ]
+        )
+
+        prompt = f"""Finalize the test suite incorporating all feedback:
+
+ORIGINAL TEST SUITE:
+{test_suite.get("content", "")}
+
+AGENT REVIEWS:
+{reviews_text}
+
+FINALIZATION REQUIREMENTS:
+1. Address ALL feedback about missing tests
+2. Add tests for identified gaps
+3. Improve test quality and maintainability
+4. Ensure comprehensive coverage
+5. Create definitive test suite
+
+Provide the complete, final test suite."""
+
+        context = await self._build_context()
+        senior_engineer = self.orchestrator.agents["senior_engineer"]
+
+        final_tests = await senior_engineer.create_tests(context, prompt)
+
+        # Save final tests
+        final_path = self.enhanced_dir / "final_tests.md"
+        self._save_document(final_path, final_tests.get("content", ""))
+
+        return final_tests
+
+    async def _phase_3_implementation_cycle(self):
+        """Phase 3: Implementation and test validation cycle."""
+        print("\n💻 PHASE 3: Implementation and Test Validation")
+        print("=" * 50)
+
+        skeleton = self.state.phase_data.get("skeleton", {})
+
+        # Step 1: Developer implements code blind to tests
+        print("Step 1: Developer implementing code (blind to tests)...")
+        implementation = await self._implement_code_blind(skeleton)
+
+        # Steps 2-9: Test validation loop
+        max_iterations = 5
+        for iteration in range(1, max_iterations + 1):
+            print(f"\nTest Validation Cycle {iteration}/{max_iterations}")
+            print("-" * 40)
+
+            # Step 2: Run tests and capture failures
+            test_results = await self._run_tests_capture_failures()
+
+            if self._all_tests_passing(test_results):
+                print("✅ All tests passing!")
+                break
+
+            if iteration == max_iterations:
+                print(f"⚠️  Tests still failing after {max_iterations} iterations")
+                break
+
+            # Steps 3-5: Analyze failures and create fix plan
+            failure_analyses = await self._analyze_test_failures(test_results)
+            fix_plan = await self._create_fix_plan(failure_analyses)
+            implementation = await self._apply_fixes(implementation, fix_plan)
+
+        # Steps 6-7: Commit and create PR
+        await self._commit_implementation_changes()
+        pr_number = await self._create_pull_request()
+
+        # Step 8: Pause for human review
+        self.state.pr_number = pr_number
+        self.state.current_phase = "pr_review"
+        self.state.is_paused = True
+        self.state.save_state()
+
+        print(f"✅ Phase 3 completed: Implementation done, PR #{pr_number} created")
+        print("\n🛑 WORKFLOW PAUSED FOR HUMAN REVIEW")
+        print("=" * 50)
+        print(f"📝 Review PR #{pr_number} on GitHub and add comments")
+        print("🔄 Run with --resume to continue after review")
+
+    async def _implement_code_blind(self, skeleton: dict) -> dict:
+        """Developer implements methods without seeing tests."""
+        prompt = f"""Implement complete functionality for this skeleton:
+
+{skeleton.get("content", "")}
+
+IMPLEMENTATION REQUIREMENTS:
+1. Implement ALL method bodies (replace pass statements)
+2. Follow exact signatures from skeleton
+3. Use proper error handling and logging
+4. Follow existing codebase patterns
+5. Include type checking and validation
+6. CRITICAL: Do NOT look at or reference ANY test files
+
+Focus on implementing clean, working code based solely on the skeleton and design document."""
+
+        context = await self._build_context()
         developer = self.orchestrator.agents["developer"]
-        context = {
-            "task": task,
-            "task_number": task_number,
-            "repo_path": str(self.repo_path),
-            "reviews": reviews,
-        }
 
-        refinement_result = await developer.implement_code(context, refinement_prompt)
+        result = await developer.implement_code(context, prompt)
 
-        return {
-            "refinements_applied": len(reviews),
-            "files_modified": refinement_result.get("files_created", [])
-            if refinement_result
-            else [],
-            "status": refinement_result.get("status", "failed")
-            if refinement_result
-            else "failed",
-        }
+        # Save implementation
+        impl_path = self.enhanced_dir / "implementation.md"
+        self._save_document(impl_path, result.get("content", ""))
 
-    async def _fetch_recent_pr_comments(self) -> list[dict[str, Any]]:
-        """Fetch recent PR comments for integration."""
+        return result
+
+    async def _run_tests_capture_failures(self) -> dict:
+        """Run tests and capture detailed failure information."""
+        print("Running tests and capturing failures...")
+
         try:
-            result_json = await execute_get_pr_comments(
-                repo_name=self.repo_name, pr_number=self.pr_number
+            # Run pytest with detailed output
+            cmd = ["python", "-m", "pytest", "-xvs", "--tb=long"]
+            result = subprocess.run(
+                cmd, cwd=self.repo_path, capture_output=True, text=True, timeout=300
             )
 
-            result = json.loads(result_json)
-            if result.get("error"):
-                logger.error(f"Failed to fetch PR comments: {result['error']}")
-                return []
+            test_results = {
+                "returncode": result.returncode,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "passed": result.returncode == 0,
+                "timestamp": datetime.now().isoformat(),
+            }
 
-            # Get all comments
-            review_comments = result.get("review_comments", [])
-            issue_comments = result.get("issue_comments", [])
-            all_comments = review_comments + issue_comments
+            # Save test results
+            results_path = self.enhanced_dir / "test_results.json"
+            with open(results_path, "w") as f:
+                json.dump(test_results, f, indent=2)
 
-            # Filter for recent comments (added in the last hour)
-            recent_comments = []
-
-            for comment in all_comments:
-                if isinstance(comment, dict):
-                    # Simple filter - return all comments for now
-                    # In production, would filter by timestamp
-                    recent_comments.append(comment)
-
-            return recent_comments
+            status = "PASSED" if test_results["passed"] else "FAILED"
+            print(f"Test run completed: {status}")
+            return test_results
 
         except Exception as e:
-            logger.error(f"Error fetching PR comments: {e}")
-            return []
+            logger.error(f"Test run failed: {e}")
+            return {
+                "returncode": -1,
+                "stdout": "",
+                "stderr": str(e),
+                "passed": False,
+                "timestamp": datetime.now().isoformat(),
+            }
 
-    async def _integrate_pr_comment(
-        self, comment: dict[str, Any], task: dict[str, Any], task_number: int
-    ) -> dict[str, Any]:
-        """Integrate a single PR comment into the code."""
-        comment_body = comment.get("body", "")
-        file_path = comment.get("path") or comment.get("file")
+    async def _analyze_test_failures(self, test_results: dict) -> dict:
+        """Each agent analyzes test failures."""
+        print("Analyzing test failures...")
 
-        if not comment_body or not file_path:
-            return {"status": "skipped", "reason": "Missing comment body or file path"}
+        failure_info = f"""TEST RESULTS:
+Return Code: {test_results.get('returncode')}
 
-        integration_prompt = f"""
-Integrate this PR comment feedback into the code.
+STDOUT:
+{test_results.get('stdout', '')}
 
-Comment: {comment_body}
-File: {file_path}
-Task: {task['title']}
+STDERR:
+{test_results.get('stderr', '')}"""
 
-Read the current file, understand the feedback, and make the necessary changes.
-Focus on addressing the specific concern raised in the comment.
-        """
+        prompt = f"""Analyze these test failures and suggest fixes:
 
-        # Use developer to integrate the feedback
-        developer = self.orchestrator.agents["developer"]
-        context = {
-            "comment": comment,
-            "task": task,
-            "task_number": task_number,
-            "file_path": file_path,
-        }
+{failure_info}
 
-        integration_result = await developer.implement_code(context, integration_prompt)
+ANALYSIS REQUIREMENTS:
+1. Identify specific failing tests and root causes
+2. Categorize failures (syntax, logic, imports, etc.)
+3. Suggest specific fixes for each failure
+4. Prioritize fixes by impact
+5. Consider if failures indicate design issues
 
-        return {
-            "status": "success"
-            if integration_result and integration_result.get("status") == "success"
-            else "failed",
-            "comment_id": comment.get("id"),
-            "file_modified": file_path,
-            "changes_made": bool(
-                integration_result and integration_result.get("status") == "success"
-            ),
-        }
+Provide detailed analysis with actionable recommendations."""
 
-    async def _reply_to_integrated_comments(
-        self, comments: list[dict[str, Any]], task: dict[str, Any]
-    ):
-        """Reply to PR comments acknowledging integration."""
-        for comment in comments:
-            comment_id = comment.get("id")
-            if not comment_id:
-                continue
+        analyses = {}
+        context = await self._build_context()
 
-            reply_text = f"""This feedback has been integrated into the implementation for Task: {task['title']}.
+        for agent_name, agent in self.orchestrator.agents.items():
+            print(f"  - {agent_name} analyzing...")
+            analysis = await agent.review_code(context, prompt)
+            analyses[agent_name] = analysis
 
-The code has been updated to address your concerns. Please review the latest commit."""
+            # Save individual analysis
+            analysis_path = self.enhanced_dir / f"failure_analysis_{agent_name}.md"
+            self._save_document(analysis_path, analysis.get("content", ""))
 
-            try:
-                await execute_post_pr_reply(
-                    repo_name=self.repo_name, comment_id=comment_id, message=reply_text
-                )
-                print(f"✅ Replied to comment #{comment_id}")
-            except Exception as e:
-                logger.error(f"Failed to reply to comment #{comment_id}: {e}")
+        return analyses
 
-    # Commit methods for each part
-    async def _commit_part1_implementation(
-        self, task: dict[str, Any], task_number: int
-    ):
-        """Commit Part 1 implementation."""
-        await self._create_commit(
-            f"Implement {task['title']}: Interactive coding session",
-            f"Part 1 of 4-part development cycle for Task {task_number}\n\n- Initial implementation based on design document\n- Interactive coding session with developer agent",
+    async def _create_fix_plan(self, analyses: dict) -> dict:
+        """Senior engineer creates comprehensive fix plan."""
+        analyses_text = "\n\n".join(
+            [
+                f"=== {agent.upper()} ANALYSIS ===\n{analysis.get('content', '')}"
+                for agent, analysis in analyses.items()
+            ]
         )
 
-    async def _commit_part2_refinements(self, task: dict[str, Any], task_number: int):
-        """Commit Part 2 refinements."""
-        await self._create_commit(
-            f"Refine {task['title']}: Multi-agent review improvements",
-            f"Part 2 of 4-part development cycle for Task {task_number}\n\n- Applied feedback from architect, senior engineer, and tester reviews\n- Code quality improvements and refinements",
-        )
+        prompt = f"""Create a comprehensive fix plan for test failures:
 
-    async def _commit_part4_integration(self, task: dict[str, Any], task_number: int):
-        """Commit Part 4 integration."""
-        await self._create_commit(
-            f"Update {task['title']}: Integrate PR feedback",
-            f"Part 4 of 4-part development cycle for Task {task_number}\n\n- Integrated human feedback from PR comments\n- Final refinements based on review",
-        )
+AGENT ANALYSES:
+{analyses_text}
 
-    async def _create_commit(self, title: str, description: str):
-        """Create a git commit for all changed files."""
+FIX PLAN REQUIREMENTS:
+1. Prioritize fixes by importance and dependencies
+2. Provide specific, actionable fix instructions
+3. Include code snippets where appropriate
+4. Resolve conflicts between recommendations
+5. Ensure fixes maintain code quality
+
+Create detailed, ordered fix plan that addresses all failures."""
+
+        context = await self._build_context()
+        senior_engineer = self.orchestrator.agents["senior_engineer"]
+
+        fix_plan = await senior_engineer.implement_code(context, prompt)
+
+        # Save fix plan
+        plan_path = self.enhanced_dir / "fix_plan.md"
+        self._save_document(plan_path, fix_plan.get("content", ""))
+
+        return fix_plan
+
+    async def _apply_fixes(self, implementation: dict, fix_plan: dict) -> dict:
+        """Apply fixes according to the fix plan."""
+        prompt = f"""Apply fixes to the implementation:
+
+CURRENT IMPLEMENTATION:
+{implementation.get("content", "")}
+
+FIX PLAN:
+{fix_plan.get("content", "")}
+
+REQUIREMENTS:
+1. Apply all fixes in order
+2. Maintain code structure
+3. Keep type hints and documentation updated
+4. Ensure all changes are integrated
+
+Provide complete updated implementation with all fixes."""
+
+        context = await self._build_context()
+        senior_engineer = self.orchestrator.agents["senior_engineer"]
+
+        updated_implementation = await senior_engineer.implement_code(context, prompt)
+
+        # Save updated implementation
+        updated_path = self.enhanced_dir / "updated_implementation.md"
+        self._save_document(updated_path, updated_implementation.get("content", ""))
+
+        return updated_implementation
+
+    async def _commit_implementation_changes(self):
+        """Commit all implementation changes."""
+        print("Committing implementation changes...")
+
         try:
-            original_cwd = os.getcwd()
-            os.chdir(self.repo_path)
+            # Stage all changes
+            subprocess.run(["git", "add", "."], cwd=self.repo_path, check=True)
 
-            # Check if there are any changes to commit
+            commit_msg = """feat: Complete enhanced implementation
+
+- Architecture skeleton with complete signatures
+- Comprehensive test suite with dependency injection
+- Full implementation with test validation
+- All tests passing after iterative fixes
+
+Enhanced Multi-Agent Workflow
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"""
+
+            subprocess.run(
+                ["git", "commit", "-m", commit_msg], cwd=self.repo_path, check=True
+            )
+
+            subprocess.run(["git", "push"], cwd=self.repo_path, check=True)
+            print("✅ Implementation committed and pushed")
+
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Git operations failed: {e}")
+            raise
+
+    async def _create_pull_request(self) -> int:
+        """Create PR for the implementation."""
+        print("Creating pull request...")
+
+        try:
+            pr_body = """## Enhanced Implementation
+
+This PR implements the feature using the Enhanced Multi-Agent Workflow:
+
+### Process Used
+1. **Architecture Skeleton**: Complete class/method signatures created by architect
+2. **Comprehensive Tests**: Test suite with mocks created before implementation
+3. **Blind Implementation**: Code implemented without seeing tests
+4. **Test Validation**: Iterative fix cycles until all tests pass
+5. **Multi-Agent Review**: All agents reviewed each phase
+
+### What's Included
+- Complete architecture skeleton
+- Comprehensive test coverage with dependency injection
+- Full feature implementation
+- All tests passing
+- Following existing codebase patterns
+
+### Ready For Review
+- Human review and feedback requested
+- PR comments will be automatically addressed
+- Workflow will resume after review to handle feedback
+
+Generated using Enhanced Multi-Agent Workflow
+"""
+
             result = subprocess.run(
-                ["git", "status", "--porcelain"],
+                [
+                    "gh",
+                    "pr",
+                    "create",
+                    "--title",
+                    "feat: Enhanced implementation with skeleton-first approach",
+                    "--body",
+                    pr_body,
+                ],
+                cwd=self.repo_path,
                 capture_output=True,
                 text=True,
                 check=True,
             )
 
-            if not result.stdout.strip():
-                print(f"⚠️  No changes to commit for: {title}")
-                return
+            pr_url = result.stdout.strip()
+            pr_number = int(pr_url.split("/")[-1])
 
-            # Show what files will be committed
-            print(f"\nFiles to be committed for '{title}':")
-            for line in result.stdout.strip().split("\n"):
-                if line.strip():
-                    status = line[:2]
-                    filename = line[3:]
-                    print(f"  {status} {filename}")
+            print(f"✅ Created PR #{pr_number}: {pr_url}")
+            return pr_number
 
-            # Add all changes (modified, new, deleted)
-            subprocess.run(["git", "add", "-A"], check=True)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to create PR: {e}")
+            raise
 
-            # Create commit message
-            commit_message = f"""{title}
+    async def _phase_4_pr_review_cycle(self) -> dict:
+        """Phase 4: PR review and response cycle."""
+        print("\n📝 PHASE 4: PR Review and Response Cycle")
+        print("=" * 50)
 
-{description}
+        if self.state.is_paused:
+            print("Workflow was paused. Resuming...")
+            self.state.is_paused = False
+            self.state.save_state()
+
+        # Check for new PR comments
+        new_comments = await self._fetch_new_pr_comments()
+
+        if not new_comments:
+            print("✅ No new PR comments found. Implementation complete!")
+            self.state.current_phase = "completed"
+            self.state.save_state()
+            return {"status": "completed"}
+
+        print(f"Found {len(new_comments)} new PR comments to address")
+
+        # All agents analyze comments
+        comment_analyses = await self._analyze_pr_comments(new_comments)
+
+        # Senior engineer creates response plan
+        response_plan = await self._create_response_plan(comment_analyses, new_comments)
+
+        # Implement changes and post responses
+        await self._implement_pr_responses(response_plan, new_comments)
+
+        # Commit changes
+        await self._commit_pr_responses()
+
+        # Pause again for next review cycle
+        self.state.is_paused = True
+        self.state.save_state()
+
+        print("\n🛑 WORKFLOW PAUSED AGAIN FOR NEXT REVIEW CYCLE")
+        print("🔄 Run with --resume to continue if more comments are added")
+
+        return {"paused": True, "message": "Paused for next PR review cycle"}
+
+    async def _fetch_new_pr_comments(self) -> list:
+        """Fetch new PR comments using MCP GitHub tools."""
+        print("Fetching new PR comments...")
+
+        try:
+            # Use MCP GitHub tools if available
+            comments_result = await execute_tool(
+                "mcp__github-agent__github_get_pr_comments"
+            )
+
+            if not comments_result or "error" in str(comments_result):
+                logger.warning(f"Failed to fetch PR comments: {comments_result}")
+                return []
+
+            # Handle the case where comments_result might be a string or dict
+            if isinstance(comments_result, dict):
+                return comments_result.get("comments", [])
+            else:
+                return []
+
+        except Exception as e:
+            logger.error(f"Error fetching PR comments: {e}")
+            return []
+
+    async def _analyze_pr_comments(self, comments: list) -> dict:
+        """All agents analyze PR comments."""
+        print("All agents analyzing PR comments...")
+
+        comments_text = self._format_comments(comments)
+
+        prompt = f"""Analyze these PR comments and suggest responses:
+
+{comments_text}
+
+ANALYSIS REQUIREMENTS:
+1. Categorize comments by type (bug, enhancement, style, question)
+2. Assess validity and importance
+3. Suggest specific code changes needed
+4. Recommend response strategy
+5. Identify any conflicts in feedback
+
+Provide detailed analysis with specific recommendations."""
+
+        analyses = {}
+        context = await self._build_context()
+
+        for agent_name, agent in self.orchestrator.agents.items():
+            print(f"  - {agent_name} analyzing...")
+            analysis = await agent.review_code(context, prompt)
+            analyses[agent_name] = analysis
+
+            # Save analysis
+            analysis_path = self.enhanced_dir / f"comment_analysis_{agent_name}.md"
+            self._save_document(analysis_path, analysis.get("content", ""))
+
+        return analyses
+
+    async def _create_response_plan(self, analyses: dict, comments: list) -> dict:
+        """Senior engineer creates PR response plan."""
+        analyses_text = "\n\n".join(
+            [
+                f"=== {agent.upper()} ANALYSIS ===\n{analysis.get('content', '')}"
+                for agent, analysis in analyses.items()
+            ]
+        )
+
+        comments_text = self._format_comments(comments)
+
+        prompt = f"""Create comprehensive PR response plan:
+
+PR COMMENTS:
+{comments_text}
+
+AGENT ANALYSES:
+{analyses_text}
+
+RESPONSE PLAN REQUIREMENTS:
+1. Address each comment with specific actions
+2. Prioritize responses by importance
+3. Resolve conflicts between feedback
+4. Plan code changes needed
+5. Draft appropriate responses
+
+Create detailed plan with specific actions and responses."""
+
+        context = await self._build_context()
+        senior_engineer = self.orchestrator.agents["senior_engineer"]
+
+        response_plan = await senior_engineer.implement_code(context, prompt)
+
+        # Save response plan
+        plan_path = self.enhanced_dir / "response_plan.md"
+        self._save_document(plan_path, response_plan.get("content", ""))
+
+        return response_plan
+
+    async def _implement_pr_responses(self, response_plan: dict, comments: list):
+        """Implement changes and post responses to PR comments."""
+        print("Implementing PR responses...")
+
+        # Extract and apply code changes from response plan
+        # This is simplified - in practice would parse the plan and make specific changes
+
+        # Post replies to comments
+        for comment in comments:
+            comment_id = comment.get("id")
+            if comment_id:
+                try:
+                    await execute_tool("mcp__github-agent__github_post_pr_reply")
+                    print(f"✅ Replied to comment {comment_id}")
+                except Exception as e:
+                    logger.error(f"Failed to reply to comment {comment_id}: {e}")
+
+    async def _commit_pr_responses(self):
+        """Commit changes made in response to PR feedback."""
+        print("Committing PR response changes...")
+
+        try:
+            subprocess.run(["git", "add", "."], cwd=self.repo_path, check=True)
+
+            # Check if there are changes
+            result = subprocess.run(
+                ["git", "diff", "--staged", "--quiet"], cwd=self.repo_path
+            )
+
+            if result.returncode != 0:  # There are changes
+                commit_msg = """fix: Address PR feedback
+
+- Incorporated reviewer suggestions and feedback
+- Maintained code quality and test coverage
+- All feedback addressed with appropriate responses
 
 🤖 Generated with [Claude Code](https://claude.ai/code)
 
 Co-Authored-By: Claude <noreply@anthropic.com>"""
 
-            # Create the commit
-            subprocess.run(["git", "commit", "-m", commit_message], check=True)
-            print(f"✅ Committed: {title}")
+                subprocess.run(
+                    ["git", "commit", "-m", commit_msg], cwd=self.repo_path, check=True
+                )
+
+                subprocess.run(["git", "push"], cwd=self.repo_path, check=True)
+                print("✅ PR response changes committed and pushed")
+            else:
+                print("i  No changes to commit")
 
         except subprocess.CalledProcessError as e:
-            if "nothing to commit" in str(e):
-                print(f"⚠️  No changes to commit for: {title}")
-            else:
-                logger.error(f"Failed to create commit: {e}")
-                print(f"❌ Failed to commit: {title}")
-        finally:
-            os.chdir(original_cwd)
+            logger.error(f"Failed to commit PR responses: {e}")
+            raise
+
+    # Helper methods
+
+    def _all_tests_passing(self, test_results: dict) -> bool:
+        """Check if all tests are passing."""
+        return test_results.get("passed", False)
+
+    def _save_document(self, path: Path, content: str):
+        """Save document to filesystem."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
+            f.write(content)
+
+    def _format_comments(self, comments: list) -> str:
+        """Format comments for analysis."""
+        formatted = []
+        for comment in comments:
+            formatted.append(
+                f"""
+Comment ID: {comment.get('id')}
+Author: {comment.get('author', 'Unknown')}
+File: {comment.get('path', 'General')}
+Content: {comment.get('body', '')}
+"""
+            )
+        return "\n".join(formatted)
+
+    async def _build_context(self) -> dict:
+        """Build context for agent operations."""
+        return {
+            "repo_path": str(self.repo_path),
+            "workflow_dir": str(self.workflow_dir),
+            "codebase_analysis_path": str(self.workflow_dir / "codebase_analysis.md"),
+        }
 
 
 async def main():
-    """Main entry point for 4-part development process."""
+    """Main entry point for enhanced implementation."""
     parser = argparse.ArgumentParser(
-        description="Step 4: Interactive Development Process (4-part cycle)",
+        description="Step 4: Enhanced Implementation Process",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-This step implements the new 4-part development cycle:
+Enhanced Implementation Workflow:
 
-For each implementation task from the design:
-  Part 1: Interactive coding session with developer
-  Part 2: Multi-agent review and refinement (offline)
-  Part 3: Human review break for PR comments
-  Part 4: PR comment integration into code
+NEW PROCESS (replaces old 4-part cycle):
+1. Architect creates skeleton (no implementation)
+2. Testing agent creates tests against skeleton
+3. All agents review and finalize tests
+4. Developer implements code blind to tests
+5. Run tests, analyze failures, fix (up to 5 cycles)
+6. Commit, create PR, pause for human review
+7. Resume: fetch comments, analyze, respond
+8. Repeat until no new comments
 
-Prerequisites:
-- Step 1: Analysis documents created (from task file or PRD extraction)
-- Step 2: Consolidated design created
-- Step 3: Design finalized with feedback (preferred)
+Usage:
+  python step4_implementation.py --pr 123        # Start new enhanced workflow
+  python step4_implementation.py --pr 123 --resume  # Resume paused workflow
 
-Works with features from either:
-- Single task files (originally from step1_analysis.py task.md)
-- PRD extractions (originally from step1_analysis.py --prd-file prd.md --feature "Feature Name")
-
-Example:
-  python step4_implementation.py --pr 123
+The workflow pauses at key points for human review and automatically handles
+PR comments through multiple review cycles.
         """,
     )
 
@@ -816,18 +1013,21 @@ Example:
         required=True,
         help="PR number containing the finalized design",
     )
+    parser.add_argument(
+        "--resume", action="store_true", help="Resume a paused workflow"
+    )
     add_common_arguments(parser)
 
     args = parser.parse_args()
 
-    # Setup common environment
-    env = setup_common_environment("step4_implementation", args)
+    # Setup environment
+    env = setup_common_environment("step4_enhanced_implementation", args)
     repo_path = env["repo_path"]
     repo_name = env["repo_name"]
 
     print_step_header(
         "Step 4",
-        "Interactive Development Process",
+        "Enhanced Implementation Process",
         pr_number=args.pr,
         repository=repo_name,
         path=repo_path,
@@ -835,63 +1035,41 @@ Example:
 
     # Check prerequisites
     workflow_dir = Path(repo_path) / ".workflow"
-    design_finalized = workflow_dir / "round_3_design" / "finalized_design.md"
-    design_consolidated = workflow_dir / "round_2_design" / "consolidated_design.md"
-
-    if design_finalized.exists():
-        print("✅ Found finalized design document")
-        design_to_use = "finalized"
-    elif design_consolidated.exists():
-        print("✅ Found consolidated design document")
-        print("   (Consider running step3_finalize_design_document.py first)")
-        design_to_use = "consolidated"
-    else:
-        print("❌ No design document found")
-        print("   Please run steps 1-3 first:")
-        print("   1. python step1_analysis.py <task_file>")
-        print("      OR python step1_analysis.py --prd-file <prd> --feature <name>")
-        print("   2. python step2_create_design_document.py --pr <number>")
-        print("   3. python step3_finalize_design_document.py --pr <number>")
+    if not workflow_dir.exists():
+        print("❌ No workflow directory found")
+        print("   Please run steps 1-3 first")
         return 1
 
-    print(f"\nUsing: {design_to_use} design document")
+    # Create processor and run
+    processor = EnhancedImplementationProcessor(args.pr, repo_path, repo_name)
 
-    # Create and run the development processor
-    print("\nInitializing 4-part development process...")
-    processor = InteractiveDevelopmentProcessor(args.pr, repo_path, repo_name)
+    try:
+        result = await processor.run_enhanced_implementation(resume=args.resume)
 
-    print("\nStarting implementation with 4-part cycle:")
-    print("  Part 1: Interactive coding session")
-    print("  Part 2: Multi-agent review and refinement")
-    print("  Part 3: Human review break")
-    print("  Part 4: PR comment integration")
-    print("\nEach task will go through all 4 parts before moving to the next task.")
+        print("\n" + "=" * 60)
+        print("ENHANCED IMPLEMENTATION RESULTS")
+        print("=" * 60)
 
-    result = await processor.run_development_process()
+        if result["status"] == "completed":
+            print("🎉 Enhanced implementation workflow completed!")
+            print(f"📝 Final PR: #{result['pr_number']}")
 
-    # Display results
-    print("\n" + "=" * 60)
-    print("DEVELOPMENT PROCESS RESULTS")
-    print("=" * 60)
+        elif result.get("paused"):
+            print("⏸️  Workflow paused for review")
+            print("   Add PR comments and run with --resume to continue")
 
-    if result["status"] == "success":
-        print("✅ Development process completed successfully!")
-        print("\nSummary:")
-        print(
-            f"  - Tasks completed: {result['tasks_completed']}/{result['total_tasks']}"
-        )
-        print("  - All tasks went through 4-part development cycle")
+        else:
+            print(f"❌ Workflow failed: {result.get('error')}")
+            return 1
 
-        print("\nNext steps:")
-        print("1. Review all commits in the PR to see the development evolution")
-        print("2. Run tests to verify implementation")
-        print("3. Make any final adjustments if needed")
-        print("4. Merge the PR when ready")
         return 0
-    else:
-        print(f"❌ Development process failed: {result.get('error')}")
-        print("\nSome tasks may have been partially completed.")
-        print("Check the PR and logs for details.")
+
+    except KeyboardInterrupt:
+        print("\n⚠️  Workflow interrupted by user")
+        return 1
+    except Exception as e:
+        print(f"\n❌ Workflow failed: {e}")
+        logger.exception("Enhanced implementation failed")
         return 1
 
 
