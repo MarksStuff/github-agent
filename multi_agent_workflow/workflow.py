@@ -16,13 +16,16 @@ Usage:
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any, Optional
 
 try:
     # Try relative import first (when used as module)
+    from .feedback_processor import WorkflowFeedbackProcessor
     from .git_integrator import GitIntegrator
+    from .github_integrator import GitHubIntegrator
     from .output_manager import WorkflowProgressDisplay, workflow_logger
     from .workflow_state import (
         StageStatus,
@@ -32,7 +35,9 @@ try:
     )
 except ImportError:
     # Fallback to direct import (when run as standalone script)
+    from feedback_processor import WorkflowFeedbackProcessor
     from git_integrator import GitIntegrator
+    from github_integrator import GitHubIntegrator
     from output_manager import WorkflowProgressDisplay, workflow_logger
     from workflow_state import (
         StageStatus,
@@ -380,7 +385,12 @@ class DocumentationStage(WorkflowStageExecutor):
 class WorkflowOrchestrator:
     """Main workflow orchestrator that manages stage execution."""
 
-    def __init__(self, enable_git: bool = True):
+    def __init__(
+        self,
+        enable_git: bool = True,
+        enable_github: bool = True,
+        github_token: Optional[str] = None,
+    ):
         self.logger = workflow_logger
         self.display = progress_display
 
@@ -394,6 +404,18 @@ class WorkflowOrchestrator:
             except (ValueError, Exception) as e:
                 self.logger.warning(f"Git integration disabled: {e}")
                 self.git_enabled = False
+
+        # Initialize GitHub integration
+        self.github_enabled = enable_github and self.git_enabled
+        self.github = None
+        self.feedback_processor = None
+        if self.github_enabled:
+            try:
+                self.github = GitHubIntegrator(github_token=github_token)
+                self.logger.info("GitHub integration enabled")
+            except (ValueError, Exception) as e:
+                self.logger.warning(f"GitHub integration disabled: {e}")
+                self.github_enabled = False
 
         # Initialize stage executors
         self.stages = {
@@ -453,6 +475,10 @@ class WorkflowOrchestrator:
                 self.display.show_success(f"Created workflow branch: {workflow_branch}")
             except Exception as e:
                 self.logger.warning(f"Could not create workflow branch: {e}")
+
+        # Initialize feedback processor for this workflow
+        if self.github_enabled:
+            self.feedback_processor = WorkflowFeedbackProcessor(state)
 
         # Display initial workflow status
         self.display.display_workflow_status(state, project_description)
@@ -631,10 +657,22 @@ class WorkflowOrchestrator:
                 )
                 state.save()
 
-                # Auto-commit stage completion if git is enabled
-                if self.git_enabled and self.git:
+                # Auto-commit stage completion with enhanced GitHub integration
+                if self.git_enabled:
                     try:
-                        commit_hash = self.git.commit_stage(stage_name, result, state)
+                        if self.github_enabled and self.github:
+                            # Use enhanced GitHub commit with conventional format
+                            commit_hash = self.github.create_enhanced_commit(
+                                stage_name, result, state
+                            )
+                        elif self.git:
+                            # Fallback to basic git commit
+                            commit_hash = self.git.commit_stage(
+                                stage_name, result, state
+                            )
+                        else:
+                            commit_hash = None
+
                         if commit_hash:
                             self.logger.success(
                                 f"Committed stage {stage_name}: {commit_hash[:8]}"
@@ -662,10 +700,24 @@ class WorkflowOrchestrator:
 
         # Check if workflow is complete
         if state.is_workflow_complete():
-            # Create final workflow summary commit if git is enabled
-            if self.git_enabled and self.git:
+            # Create final workflow summary commit and PR if enabled
+            if self.git_enabled:
                 try:
-                    commit_hash = self.git.create_workflow_summary_commit(state)
+                    if self.github_enabled and self.github:
+                        # Create enhanced summary commit
+                        summary_result = {
+                            "output_files": [],
+                            "metrics": {"workflow_completed": True},
+                        }
+                        commit_hash = self.github.create_enhanced_commit(
+                            "workflow_completion", summary_result, state
+                        )
+                    elif self.git:
+                        # Fallback to basic summary commit
+                        commit_hash = self.git.create_workflow_summary_commit(state)
+                    else:
+                        commit_hash = None
+
                     if commit_hash:
                         self.logger.success(
                             f"Created workflow summary commit: {commit_hash[:8]}"
@@ -673,14 +725,37 @@ class WorkflowOrchestrator:
                         self.display.show_success(f"Summary commit: {commit_hash[:8]}")
 
                     # Push the workflow branch
-                    if self.git.push_branch():
-                        self.logger.success("Pushed workflow branch to remote")
-                        self.display.show_success("Pushed branch to remote repository")
-                    else:
-                        self.logger.warning("Could not push workflow branch")
+                    push_success = False
+                    if self.git:
+                        if self.git.push_branch():
+                            push_success = True
+                            self.logger.success("Pushed workflow branch to remote")
+                            self.display.show_success(
+                                "Pushed branch to remote repository"
+                            )
+                        else:
+                            self.logger.warning("Could not push workflow branch")
+
+                    # Create pull request if GitHub is enabled and push was successful
+                    if self.github_enabled and self.github and push_success:
+                        try:
+                            pr = self.github.create_pull_request(
+                                state.workflow_id,
+                                state,
+                                title=f"Enhanced Multi-Agent Workflow: {state.workflow_id}",
+                            )
+                            if pr:
+                                self.logger.success(
+                                    f"Created pull request #{pr.number}: {pr.url}"
+                                )
+                                self.display.show_success(
+                                    f"Pull request created: {pr.url}"
+                                )
+                        except Exception as e:
+                            self.logger.warning(f"Could not create pull request: {e}")
 
                 except Exception as e:
-                    self.logger.warning(f"Could not finalize git operations: {e}")
+                    self.logger.warning(f"Could not finalize operations: {e}")
 
             self.display.show_workflow_complete(state)
             self.logger.success(f"Workflow {state.workflow_id} completed successfully!")
@@ -728,6 +803,12 @@ Examples:
     start_parser.add_argument(
         "--no-git", action="store_true", help="Disable git integration"
     )
+    start_parser.add_argument(
+        "--no-github", action="store_true", help="Disable GitHub integration"
+    )
+    start_parser.add_argument(
+        "--github-token", help="GitHub API token for enhanced integration"
+    )
 
     # Resume command
     resume_parser = subparsers.add_parser("resume", help="Resume an existing workflow")
@@ -736,6 +817,12 @@ Examples:
     resume_parser.add_argument("--to-stage", help="Stage to stop at")
     resume_parser.add_argument(
         "--no-git", action="store_true", help="Disable git integration"
+    )
+    resume_parser.add_argument(
+        "--no-github", action="store_true", help="Disable GitHub integration"
+    )
+    resume_parser.add_argument(
+        "--github-token", help="GitHub API token for enhanced integration"
     )
 
     # Status command
@@ -751,9 +838,20 @@ Examples:
         parser.print_help()
         sys.exit(1)
 
-    # Create orchestrator with git settings
+    # Create orchestrator with git and GitHub settings
     enable_git = not getattr(args, "no_git", False)
-    orchestrator = WorkflowOrchestrator(enable_git=enable_git)
+    enable_github = not getattr(args, "no_github", False)
+    github_token = getattr(args, "github_token", None)
+
+    # Try to get GitHub token from environment if not provided
+    if enable_github and not github_token:
+        github_token = os.environ.get("GITHUB_TOKEN")
+
+    orchestrator = WorkflowOrchestrator(
+        enable_git=enable_git,
+        enable_github=enable_github,
+        github_token=github_token,
+    )
 
     try:
         if args.command == "start":
