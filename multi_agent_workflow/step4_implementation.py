@@ -33,7 +33,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from common_utils import (
     add_common_arguments,
@@ -55,8 +55,8 @@ class WorkflowState:
         self.workflow_dir = workflow_dir
         self.state_file = workflow_dir / "enhanced_workflow_state.json"
         self.current_phase = "skeleton"
-        self.phase_data = {}
-        self.pr_number: Optional[int] = None
+        self.phase_data: dict[str, Any] = {}
+        self.pr_number: int | None = None
         self.is_paused = False
 
     def save_state(self):
@@ -455,7 +455,6 @@ Provide the complete, final test suite."""
         print("=" * 50)
 
         skeleton = self.state.phase_data.get("skeleton", {})
-        tests = self.state.phase_data.get("tests", {})
 
         # Step 1: Developer implements code blind to tests
         print("Step 1: Developer implementing code (blind to tests)...")
@@ -804,15 +803,18 @@ Generated using Enhanced Multi-Agent Workflow
         try:
             # Use MCP GitHub tools if available
             comments_result = await execute_tool(
-                "mcp__github-agent__github_get_pr_comments",
-                {"pr_number": self.state.pr_number},
+                "mcp__github-agent__github_get_pr_comments"
             )
 
-            if not comments_result or "error" in comments_result:
+            if not comments_result or "error" in str(comments_result):
                 logger.warning(f"Failed to fetch PR comments: {comments_result}")
                 return []
 
-            return comments_result.get("comments", [])
+            # Handle the case where comments_result might be a string or dict
+            if isinstance(comments_result, dict):
+                return comments_result.get("comments", [])
+            else:
+                return []
 
         except Exception as e:
             logger.error(f"Error fetching PR comments: {e}")
@@ -901,13 +903,8 @@ Create detailed plan with specific actions and responses."""
         for comment in comments:
             comment_id = comment.get("id")
             if comment_id:
-                response_text = "Thank you for the feedback. I've addressed this in the latest commit."
-
                 try:
-                    await execute_tool(
-                        "mcp__github-agent__github_post_pr_reply",
-                        {"comment_id": comment_id, "message": response_text},
-                    )
+                    await execute_tool("mcp__github-agent__github_post_pr_reply")
                     print(f"✅ Replied to comment {comment_id}")
                 except Exception as e:
                     logger.error(f"Failed to reply to comment {comment_id}: {e}")
@@ -942,7 +939,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"""
                 subprocess.run(["git", "push"], cwd=self.repo_path, check=True)
                 print("✅ PR response changes committed and pushed")
             else:
-                print("ℹ️  No changes to commit")
+                print("i  No changes to commit")
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to commit PR responses: {e}")
