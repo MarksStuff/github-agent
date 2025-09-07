@@ -1,3 +1,17 @@
-"""Multi-Agent Workflow System for collaborative code development."""
+"""
+Enhanced Multi-Agent Workflow System
 
-__version__ = "0.1.0"
+This package provides an idempotent, resumable workflow system for 
+multi-agent software development processes.
+"""
+
+from .workflow_state import WorkflowState, WorkflowInputs, StageStatus, generate_workflow_id
+from .workflow import WorkflowOrchestrator
+
+__all__ = [
+    'WorkflowState',
+    'WorkflowInputs', 
+    'StageStatus',
+    'generate_workflow_id',
+    'WorkflowOrchestrator',
+]
