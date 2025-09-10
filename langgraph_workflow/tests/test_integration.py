@@ -1,15 +1,14 @@
 """Integration tests for the LangGraph workflow."""
 
 import asyncio
-import json
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from langgraph_workflow.graph import WorkflowGraph
-from langgraph_workflow.state import WorkflowPhase, WorkflowState, initialize_state
+from langgraph_workflow.state import WorkflowPhase, initialize_state
 from langgraph_workflow.utils.artifacts import ArtifactManager
 from langgraph_workflow.utils.validators import StateValidator
 
@@ -25,7 +24,7 @@ class TestWorkflowIntegration:
             # Create a minimal git repo
             (repo_path / ".git").mkdir()
             (repo_path / ".git" / "config").write_text(
-                "[remote \"origin\"]\n    url = git@github.com:test/repo.git"
+                '[remote "origin"]\n    url = git@github.com:test/repo.git'
             )
             yield repo_path
 
@@ -85,6 +84,7 @@ class TestWorkflowIntegration:
     @pytest.mark.asyncio
     async def test_workflow_run_basic(self, workflow_graph):
         """Test basic workflow execution."""
+
         # Mock all node methods to return updated state
         async def mock_node(state):
             return state
@@ -236,7 +236,9 @@ class TestEndToEndScenarios:
 
     def test_state_validation_throughout_workflow(self, full_setup):
         """Test that state remains valid throughout workflow transitions."""
-        state = initialize_state("test-thread", "test/repo", str(full_setup["repo_path"]))
+        state = initialize_state(
+            "test-thread", "test/repo", str(full_setup["repo_path"])
+        )
 
         # Initial state should be valid
         is_valid, errors = StateValidator.validate_state(state)

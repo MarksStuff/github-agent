@@ -1,10 +1,8 @@
 """Tests for state validators."""
 
-import pytest
 
 from langgraph_workflow.state import (
     AgentType,
-    FeedbackGate,
     QualityState,
     WorkflowPhase,
     WorkflowState,
@@ -54,7 +52,9 @@ class TestStateValidation:
         is_valid, errors = StateValidator.validate_state(state)
 
         assert is_valid is False
-        assert any("Invalid agent type in analyses: invalid_agent" in error for error in errors)
+        assert any(
+            "Invalid agent type in analyses: invalid_agent" in error for error in errors
+        )
 
 
 class TestPhaseTransitionValidation:
@@ -247,7 +247,9 @@ class TestTestIntegrationValidation:
 
         is_valid, issues = StateValidator.validate_test_integration(state)
         assert is_valid is False
-        assert any("Test results missing field: returncode" in issue for issue in issues)
+        assert any(
+            "Test results missing field: returncode" in issue for issue in issues
+        )
         assert any("Test results missing field: timestamp" in issue for issue in issues)
 
     def test_inconsistent_test_results(self):
@@ -287,7 +289,9 @@ class TestTestIntegrationValidation:
         state["quality_state"] = QualityState.FAIL
         is_valid, issues = StateValidator.validate_test_integration(state)
         assert is_valid is False
-        assert any("Quality state inconsistent with test results" in issue for issue in issues)
+        assert any(
+            "Quality state inconsistent with test results" in issue for issue in issues
+        )
 
         # Tests failed but quality is OK
         state["test_results"]["passed"] = False
@@ -295,7 +299,9 @@ class TestTestIntegrationValidation:
         state["quality_state"] = QualityState.OK
         is_valid, issues = StateValidator.validate_test_integration(state)
         assert is_valid is False
-        assert any("Quality state inconsistent with failing tests" in issue for issue in issues)
+        assert any(
+            "Quality state inconsistent with failing tests" in issue for issue in issues
+        )
 
 
 class TestRetryLogicValidation:

@@ -31,7 +31,9 @@ class TestModelRouter:
                 "ANTHROPIC_API_KEY": "test-key",
             },
         ):
-            with patch("langgraph_workflow.routing.model_router.ChatOllama") as mock_ollama:
+            with patch(
+                "langgraph_workflow.routing.model_router.ChatOllama"
+            ) as mock_ollama:
                 with patch(
                     "langgraph_workflow.routing.model_router.ChatAnthropic"
                 ) as mock_claude:
@@ -56,7 +58,9 @@ class TestModelRouter:
         state = initialize_state("thread", "repo", "/path")
         state["escalation_needed"] = True
 
-        should_escalate = model_router.should_escalate_to_claude(state, AgentType.DEVELOPER)
+        should_escalate = model_router.should_escalate_to_claude(
+            state, AgentType.DEVELOPER
+        )
         assert should_escalate is True
 
     def test_should_escalate_on_finalization_phase(self, model_router):
@@ -64,7 +68,9 @@ class TestModelRouter:
         state = initialize_state("thread", "repo", "/path")
         state["current_phase"] = "finalization"
 
-        should_escalate = model_router.should_escalate_to_claude(state, AgentType.DEVELOPER)
+        should_escalate = model_router.should_escalate_to_claude(
+            state, AgentType.DEVELOPER
+        )
         assert should_escalate is True
 
     def test_should_escalate_on_retry_count(self, model_router):
@@ -72,12 +78,16 @@ class TestModelRouter:
         state = initialize_state("thread", "repo", "/path")
         state["retry_count"] = 2
 
-        should_escalate = model_router.should_escalate_to_claude(state, AgentType.DEVELOPER)
+        should_escalate = model_router.should_escalate_to_claude(
+            state, AgentType.DEVELOPER
+        )
         assert should_escalate is True
 
         # Should not escalate with lower retry count
         state["retry_count"] = 1
-        should_escalate = model_router.should_escalate_to_claude(state, AgentType.DEVELOPER)
+        should_escalate = model_router.should_escalate_to_claude(
+            state, AgentType.DEVELOPER
+        )
         assert should_escalate is False
 
     def test_should_escalate_on_design_conflicts(self, model_router):
@@ -85,12 +95,16 @@ class TestModelRouter:
         state = initialize_state("thread", "repo", "/path")
         state["design_conflicts"] = [{"conflict": i} for i in range(6)]
 
-        should_escalate = model_router.should_escalate_to_claude(state, AgentType.DEVELOPER)
+        should_escalate = model_router.should_escalate_to_claude(
+            state, AgentType.DEVELOPER
+        )
         assert should_escalate is True
 
         # Should not escalate with fewer conflicts
         state["design_conflicts"] = [{"conflict": i} for i in range(5)]
-        should_escalate = model_router.should_escalate_to_claude(state, AgentType.DEVELOPER)
+        should_escalate = model_router.should_escalate_to_claude(
+            state, AgentType.DEVELOPER
+        )
         assert should_escalate is False
 
     def test_should_escalate_for_complex_agents_in_analysis(self, model_router):
@@ -105,11 +119,15 @@ class TestModelRouter:
         assert should_escalate is True
 
         # Should escalate for architect
-        should_escalate = model_router.should_escalate_to_claude(state, AgentType.ARCHITECT)
+        should_escalate = model_router.should_escalate_to_claude(
+            state, AgentType.ARCHITECT
+        )
         assert should_escalate is True
 
         # Should not escalate for developer
-        should_escalate = model_router.should_escalate_to_claude(state, AgentType.DEVELOPER)
+        should_escalate = model_router.should_escalate_to_claude(
+            state, AgentType.DEVELOPER
+        )
         assert should_escalate is False
 
     def test_should_escalate_on_file_count(self, model_router):
@@ -117,7 +135,9 @@ class TestModelRouter:
         state = initialize_state("thread", "repo", "/path")
         state["implementation_code"] = {f"file{i}.py": "code" for i in range(11)}
 
-        should_escalate = model_router.should_escalate_to_claude(state, AgentType.DEVELOPER)
+        should_escalate = model_router.should_escalate_to_claude(
+            state, AgentType.DEVELOPER
+        )
         assert should_escalate is True
 
     @pytest.mark.asyncio
@@ -130,7 +150,9 @@ class TestModelRouter:
             return_value=MagicMock(content="Claude response")
         )
 
-        result = await model_router.call_model("Test prompt", state, AgentType.DEVELOPER)
+        result = await model_router.call_model(
+            "Test prompt", state, AgentType.DEVELOPER
+        )
 
         assert result == "Claude response"
         model_router.claude_client.ainvoke.assert_called_once()
@@ -144,7 +166,9 @@ class TestModelRouter:
             return_value=MagicMock(content="Ollama response")
         )
 
-        result = await model_router.call_model("Test prompt", state, AgentType.DEVELOPER)
+        result = await model_router.call_model(
+            "Test prompt", state, AgentType.DEVELOPER
+        )
 
         assert result == "Ollama response"
         model_router.ollama_client.ainvoke.assert_called_once()
@@ -155,12 +179,16 @@ class TestModelRouter:
         state = initialize_state("thread", "repo", "/path")
         state["escalation_needed"] = True
 
-        model_router.claude_client.ainvoke = AsyncMock(side_effect=Exception("Claude error"))
+        model_router.claude_client.ainvoke = AsyncMock(
+            side_effect=Exception("Claude error")
+        )
         model_router.ollama_client.ainvoke = AsyncMock(
             return_value=MagicMock(content="Ollama fallback")
         )
 
-        result = await model_router.call_model("Test prompt", state, AgentType.DEVELOPER)
+        result = await model_router.call_model(
+            "Test prompt", state, AgentType.DEVELOPER
+        )
 
         assert result == "Ollama fallback"
         model_router.claude_client.ainvoke.assert_called_once()
@@ -171,12 +199,16 @@ class TestModelRouter:
         """Test escalation to Claude when Ollama fails."""
         state = initialize_state("thread", "repo", "/path")
 
-        model_router.ollama_client.ainvoke = AsyncMock(side_effect=Exception("Ollama error"))
+        model_router.ollama_client.ainvoke = AsyncMock(
+            side_effect=Exception("Ollama error")
+        )
         model_router.claude_client.ainvoke = AsyncMock(
             return_value=MagicMock(content="Claude escalation")
         )
 
-        result = await model_router.call_model("Test prompt", state, AgentType.DEVELOPER)
+        result = await model_router.call_model(
+            "Test prompt", state, AgentType.DEVELOPER
+        )
 
         assert result == "Claude escalation"
         model_router.ollama_client.ainvoke.assert_called_once()
@@ -192,7 +224,9 @@ class TestModelRouter:
         state["messages_window"] = [{"role": "system", "content": "Previous message"}]
 
         prompt = "Original prompt"
-        enriched = model_router._add_context_for_claude(prompt, state, AgentType.ARCHITECT)
+        enriched = model_router._add_context_for_claude(
+            prompt, state, AgentType.ARCHITECT
+        )
 
         assert "Architect" in enriched
         assert "Test Feature" in enriched
@@ -207,7 +241,9 @@ class TestModelRouter:
         state["feature_name"] = "Test Feature"
 
         prompt = "Original prompt"
-        enriched = model_router._add_context_for_ollama(prompt, state, AgentType.DEVELOPER)
+        enriched = model_router._add_context_for_ollama(
+            prompt, state, AgentType.DEVELOPER
+        )
 
         assert "Developer" in enriched
         assert "Test Feature" in enriched
@@ -222,7 +258,9 @@ class TestModelRouter:
         response = model_router._fallback_response("Test prompt", AgentType.DEVELOPER)
         assert "Implementation analysis pending" in response
 
-        response = model_router._fallback_response("Test prompt", AgentType.SENIOR_ENGINEER)
+        response = model_router._fallback_response(
+            "Test prompt", AgentType.SENIOR_ENGINEER
+        )
         assert "Code quality review pending" in response
 
         response = model_router._fallback_response("Test prompt", AgentType.TESTER)

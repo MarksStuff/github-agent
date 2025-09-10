@@ -109,7 +109,9 @@ class TestArtifactManager:
         artifact_manager.save_artifact(
             "thread-1", "analysis", "analysis.md", "Analysis content"
         )
-        artifact_manager.save_artifact("thread-1", "design", "design.md", "Design content")
+        artifact_manager.save_artifact(
+            "thread-1", "design", "design.md", "Design content"
+        )
         artifact_manager.save_artifact("thread-1", "code", "main.py", "Code content")
 
         # List all artifacts
@@ -186,7 +188,9 @@ class TestArtifactManager:
     def test_export_artifacts(self, artifact_manager, temp_repo):
         """Test exporting artifacts to ZIP."""
         # Create some artifacts
-        artifact_manager.save_artifact("thread-1", "analysis", "analysis.md", "Analysis")
+        artifact_manager.save_artifact(
+            "thread-1", "analysis", "analysis.md", "Analysis"
+        )
         artifact_manager.save_artifact("thread-1", "design", "design.md", "Design")
         artifact_manager.save_artifact("thread-1", "code", "main.py", "Code")
 
