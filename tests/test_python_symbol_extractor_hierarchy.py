@@ -3,8 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from abstract_symbol_extractor import AbstractSymbolExtractor
 from python_symbol_extractor import PythonSymbolExtractor
 from symbol_storage import SymbolKind
@@ -38,19 +36,19 @@ class MyClass:
 
             # Hierarchy returns a flat list with parent_id set for relationships
             assert len(hierarchy) == 3  # Class + 2 methods
-            
+
             # Find the class
             class_symbol = [s for s in hierarchy if s.kind == SymbolKind.CLASS][0]
             assert class_symbol.name == "MyClass"
             assert class_symbol.parent_id is None
-            
+
             # Find methods
             methods = [s for s in hierarchy if s.kind == SymbolKind.METHOD]
             assert len(methods) == 2
             method_names = [m.name for m in methods]
             assert any("method1" in name for name in method_names)
             assert any("method2" in name for name in method_names)
-            
+
             # Check parent relationships
             for method in methods:
                 assert method.parent_id is not None
@@ -77,17 +75,17 @@ class OuterClass:
             hierarchy = extractor.extract_symbol_hierarchy(temp_path)
 
             assert len(hierarchy) == 4  # OuterClass + InnerClass + 2 methods
-            
+
             # Find outer class
             outer_class = [s for s in hierarchy if s.name == "OuterClass"][0]
             assert outer_class.kind == SymbolKind.CLASS
             assert outer_class.parent_id is None
-            
+
             # Find inner class
             inner_class = [s for s in hierarchy if "InnerClass" in s.name][0]
             assert inner_class.kind == SymbolKind.CLASS
             assert inner_class.parent_id is not None
-            
+
             # Find methods
             methods = [s for s in hierarchy if s.kind == SymbolKind.METHOD]
             assert len(methods) == 2
@@ -119,12 +117,14 @@ def another_function():
             extractor = PythonSymbolExtractor()
             hierarchy = extractor.extract_symbol_hierarchy(temp_path)
 
-            assert len(hierarchy) == 5  # 2 functions + 1 class + 1 method + 1 nested function
+            assert (
+                len(hierarchy) == 5
+            )  # 2 functions + 1 class + 1 method + 1 nested function
 
             # Find root elements (no parent_id)
             root_symbols = [s for s in hierarchy if s.parent_id is None]
             assert len(root_symbols) == 3  # Two functions and one class at root
-            
+
             names = [h.name for h in root_symbols]
             assert "standalone_function" in names
             assert "MyClass" in names
@@ -133,14 +133,22 @@ def another_function():
             # Find MyClass and its method
             my_class = [s for s in hierarchy if s.name == "MyClass"][0]
             assert my_class.kind == SymbolKind.CLASS
-            class_methods = [s for s in hierarchy if s.parent_id and s.parent_id.startswith("MyClass:")]
+            class_methods = [
+                s
+                for s in hierarchy
+                if s.parent_id and s.parent_id.startswith("MyClass:")
+            ]
             assert len(class_methods) == 1
             assert "method" in class_methods[0].name
 
             # Find another_function and its nested function
             another_func = [s for s in hierarchy if s.name == "another_function"][0]
             assert another_func.kind == SymbolKind.FUNCTION
-            nested_funcs = [s for s in hierarchy if s.parent_id and s.parent_id.startswith("another_function:")]
+            nested_funcs = [
+                s
+                for s in hierarchy
+                if s.parent_id and s.parent_id.startswith("another_function:")
+            ]
             assert len(nested_funcs) == 1
             assert "nested_function" in nested_funcs[0].name
         finally:
@@ -172,16 +180,20 @@ class DecoratedClass:
             hierarchy = extractor.extract_symbol_hierarchy(temp_path)
 
             assert len(hierarchy) == 4  # 1 class + 3 methods
-            
+
             # Find the class
             cls = [s for s in hierarchy if s.kind == SymbolKind.CLASS][0]
             assert cls.name == "DecoratedClass"
             assert cls.parent_id is None
-            
+
             # Find methods
-            methods = [s for s in hierarchy if s.parent_id and s.parent_id.startswith("DecoratedClass:")]
+            methods = [
+                s
+                for s in hierarchy
+                if s.parent_id and s.parent_id.startswith("DecoratedClass:")
+            ]
             assert len(methods) == 3
-            
+
             method_names = [m.name for m in methods]
             assert any("prop" in name for name in method_names)
             assert any("static_method" in name for name in method_names)
@@ -212,7 +224,9 @@ class AsyncClass:
             extractor = PythonSymbolExtractor()
             hierarchy = extractor.extract_symbol_hierarchy(temp_path)
 
-            assert len(hierarchy) == 5  # 1 async function + 1 class + 2 methods + 1 inner function
+            assert (
+                len(hierarchy) == 5
+            )  # 1 async function + 1 class + 2 methods + 1 inner function
 
             # Find async function
             async_func = [s for s in hierarchy if s.name == "async_function"][0]
@@ -223,11 +237,15 @@ class AsyncClass:
             async_class = [s for s in hierarchy if s.name == "AsyncClass"][0]
             assert async_class.kind == SymbolKind.CLASS
             assert async_class.parent_id is None
-            
+
             # Find methods in AsyncClass
-            class_methods = [s for s in hierarchy if s.parent_id and s.parent_id.startswith("AsyncClass:")]
+            class_methods = [
+                s
+                for s in hierarchy
+                if s.parent_id and s.parent_id.startswith("AsyncClass:")
+            ]
             assert len(class_methods) == 2
-            
+
             # Find inner async function (note: it may not have correct parent_id due to AST limitations)
             inner_async = [s for s in hierarchy if "inner_async" in s.name]
             assert len(inner_async) == 1
@@ -361,11 +379,15 @@ class Derived(Base1, Base2):
             # Find classes
             classes = [s for s in hierarchy if s.kind == SymbolKind.CLASS]
             assert len(classes) == 3
-            
+
             # Find Derived class and its method
             derived = [s for s in hierarchy if s.name == "Derived"][0]
             assert derived.kind == SymbolKind.CLASS
-            derived_methods = [s for s in hierarchy if s.parent_id and s.parent_id.startswith("Derived:")]
+            derived_methods = [
+                s
+                for s in hierarchy
+                if s.parent_id and s.parent_id.startswith("Derived:")
+            ]
             assert len(derived_methods) == 1
             assert "derived_method" in derived_methods[0].name
         finally:
@@ -390,11 +412,11 @@ class Container:
             hierarchy = extractor.extract_symbol_hierarchy(temp_path)
 
             assert len(hierarchy) == 4  # 1 class + 1 method + 2 lambda variables
-            
+
             # Find the class
             container = [s for s in hierarchy if s.kind == SymbolKind.CLASS][0]
             assert container.name == "Container"
-            
+
             # Find methods
             methods = [s for s in hierarchy if s.kind == SymbolKind.METHOD]
             assert len(methods) >= 1
@@ -490,14 +512,14 @@ class TestPythonSymbolExtractorEdgeCases:
             # Should handle deep nesting
             # Should have at least 10 symbols (one per level)
             assert len(hierarchy) >= 10
-            
+
             # Check nesting by counting different levels
             levels = set()
             for symbol in hierarchy:
                 # Count indentation level from the name
                 if "." in symbol.name:
                     levels.add(symbol.name.count("."))
-            
+
             # Should have deep nesting
             assert len(levels) >= 5
         finally:

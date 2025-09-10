@@ -553,7 +553,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor, BaseSymbolExtractor):
         """
         # Track parent relationships during extraction
         self.parent_stack: list[tuple[str, int]] = []  # (name, line_number) pairs
-        
+
         # Extract symbols with hierarchy tracking
         try:
             symbols = self.extract_from_file(file_path, "")
@@ -585,9 +585,11 @@ class PythonSymbolExtractor(AbstractSymbolExtractor, BaseSymbolExtractor):
                             parent_name = self.scope_stack[-1]
                             symbol.parent_id = f"{parent_name}:{node.lineno}"
                         # Set end position
-                        symbol.end_line = getattr(node, "end_lineno", symbol.line_number)
+                        symbol.end_line = getattr(
+                            node, "end_lineno", symbol.line_number
+                        )
                         symbol.end_column = getattr(node, "end_col_offset", 0)
-                    
+
                     self.scope_stack.append(name)
                     self.generic_visit(node)
                     self.scope_stack.pop()
@@ -601,9 +603,11 @@ class PythonSymbolExtractor(AbstractSymbolExtractor, BaseSymbolExtractor):
                             parent_name = self.scope_stack[-1]
                             symbol.parent_id = f"{parent_name}:{node.lineno}"
                         # Set end position
-                        symbol.end_line = getattr(node, "end_lineno", symbol.line_number)
+                        symbol.end_line = getattr(
+                            node, "end_lineno", symbol.line_number
+                        )
                         symbol.end_column = getattr(node, "end_col_offset", 0)
-                    
+
                     self.scope_stack.append(name)
                     self.generic_visit(node)
                     self.scope_stack.pop()
@@ -626,7 +630,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor, BaseSymbolExtractor):
                     if symbol.parent_id not in parent_to_children:
                         parent_to_children[symbol.parent_id] = []
                     parent_to_children[symbol.parent_id].append(symbol)
-            
+
             # Assign children to parent symbols
             for symbol in symbols:
                 parent_key = f"{symbol.name}:{symbol.line_number}"

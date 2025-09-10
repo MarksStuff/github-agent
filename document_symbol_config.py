@@ -48,19 +48,29 @@ class DocumentSymbolConfig:
     batch_size: int = 10
 
     # Extractor configuration
-    extractors: dict[str, str] = field(default_factory=lambda: {"python": "PythonSymbolExtractor"})
-    file_extensions: dict[str, str] = field(default_factory=lambda: {".py": "python", ".pyw": "python"})
+    extractors: dict[str, str] = field(
+        default_factory=lambda: {"python": "PythonSymbolExtractor"}
+    )
+    file_extensions: dict[str, str] = field(
+        default_factory=lambda: {".py": "python", ".pyw": "python"}
+    )
 
     def __post_init__(self):
         """Set defaults and validate configuration."""
         if self.database_path is None:
-            self.database_path = str(Path.home() / ".github-agent" / "document_symbols.db")
-        
+            self.database_path = str(
+                Path.home() / ".github-agent" / "document_symbols.db"
+            )
+
         # Validation
         if self.max_workers <= 0:
-            raise ConfigurationError(f"max_workers must be positive: {self.max_workers}")
+            raise ConfigurationError(
+                f"max_workers must be positive: {self.max_workers}"
+            )
         if self.cache_ttl_seconds < 0:
-            raise ConfigurationError(f"cache_ttl_seconds cannot be negative: {self.cache_ttl_seconds}")
+            raise ConfigurationError(
+                f"cache_ttl_seconds cannot be negative: {self.cache_ttl_seconds}"
+            )
         if self.database_path == "":
             raise ConfigurationError("database_path cannot be empty")
 
@@ -119,7 +129,7 @@ class DocumentSymbolConfig:
             errors.append("backup_retention_days must be non-negative")
         if self.max_workers <= 0:
             errors.append("max_workers must be positive")
-        
+
         if errors:
             raise ConfigurationError(f"Invalid configuration: {', '.join(errors)}")
 
@@ -136,30 +146,30 @@ class DocumentSymbolConfig:
         other_dict = other.to_dict()
         merged_dict.update(other_dict)
         return DocumentSymbolConfig.from_dict(merged_dict)
-    
+
     def merge(self, other: "DocumentSymbolConfig") -> None:
         """Merge another configuration into this one in-place.
-        
+
         Only merges fields that were explicitly set in the other config
         (i.e., different from defaults).
 
         Args:
             other: Configuration to merge into this one
-            
+
         Raises:
             ConfigurationError: If merged configuration would be invalid
         """
         # Get default values for comparison
         default_config = DocumentSymbolConfig()
         default_dict = default_config.to_dict()
-        
+
         # Only merge values that differ from defaults in other
         other_dict = other.to_dict()
         for key, value in other_dict.items():
             if key in default_dict and value != default_dict[key]:
                 if hasattr(self, key):
                     setattr(self, key, value)
-        
+
         # Validate the merged configuration
         self.validate()
 
@@ -181,7 +191,7 @@ class DocumentSymbolConfig:
 
         Returns:
             Loaded configuration
-        
+
         Raises:
             ConfigurationError: If file cannot be read or parsed
         """
@@ -189,7 +199,9 @@ class DocumentSymbolConfig:
             with open(file_path) as f:
                 return cls.from_dict(json.load(f))
         except (FileNotFoundError, OSError) as e:
-            raise ConfigurationError(f"Failed to load config from {file_path}: {e}") from e
+            raise ConfigurationError(
+                f"Failed to load config from {file_path}: {e}"
+            ) from e
         except json.JSONDecodeError as e:
             raise ConfigurationError(f"Invalid JSON in {file_path}: {e}") from e
 
@@ -201,42 +213,42 @@ class DocumentSymbolConfig:
             Path to default config file
         """
         return Path.home() / ".github-agent" / "document_symbols.json"
-    
+
     def get_extractor_for_file(self, file_path: str) -> str | None:
         """Get the extractor name for a given file.
-        
+
         Args:
             file_path: Path to the file
-            
+
         Returns:
             Extractor name or None if no extractor for file type
         """
         from pathlib import Path
-        
+
         file_ext = Path(file_path).suffix
         if file_ext in self.file_extensions:
             extractor_type = self.file_extensions[file_ext]
             return self.extractors.get(extractor_type)
         return None
-    
+
     def is_supported_file(self, file_path: str) -> bool:
         """Check if a file is supported for symbol extraction.
-        
+
         Args:
             file_path: Path to the file
-            
+
         Returns:
             True if file is supported, False otherwise
         """
         return self.get_extractor_for_file(file_path) is not None
-    
+
     def ensure_database_directory(self) -> None:
         """Ensure the database directory exists.
-        
+
         Creates the parent directory of the database path if it doesn't exist.
         """
         from pathlib import Path
-        
+
         db_path = Path(self.database_path)
         db_path.parent.mkdir(parents=True, exist_ok=True)
 

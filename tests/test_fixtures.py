@@ -21,37 +21,37 @@ class SymbolTestFixtures:
                 "kind": 5,  # Class
                 "range": {
                     "start": {"line": 0, "character": 0},
-                    "end": {"line": 10, "character": 0}
+                    "end": {"line": 10, "character": 0},
                 },
                 "selectionRange": {
                     "start": {"line": 0, "character": 6},
-                    "end": {"line": 0, "character": 13}
-                }
+                    "end": {"line": 0, "character": 13},
+                },
             },
             {
                 "name": "__init__",
                 "kind": 9,  # Constructor
                 "range": {
                     "start": {"line": 1, "character": 4},
-                    "end": {"line": 3, "character": 0}
+                    "end": {"line": 3, "character": 0},
                 },
                 "selectionRange": {
                     "start": {"line": 1, "character": 8},
-                    "end": {"line": 1, "character": 16}
-                }
+                    "end": {"line": 1, "character": 16},
+                },
             },
             {
                 "name": "my_method",
                 "kind": 6,  # Method
                 "range": {
                     "start": {"line": 4, "character": 4},
-                    "end": {"line": 6, "character": 0}
+                    "end": {"line": 6, "character": 0},
                 },
                 "selectionRange": {
                     "start": {"line": 4, "character": 8},
-                    "end": {"line": 4, "character": 17}
-                }
-            }
+                    "end": {"line": 4, "character": 17},
+                },
+            },
         ]
 
     @staticmethod
@@ -67,7 +67,7 @@ class SymbolTestFixtures:
                 "kind": 5,  # Class
                 "range": {
                     "start": {"line": 0, "character": 0},
-                    "end": {"line": 10, "character": 0}
+                    "end": {"line": 10, "character": 0},
                 },
                 "children": [
                     {
@@ -75,27 +75,27 @@ class SymbolTestFixtures:
                         "kind": 9,  # Constructor
                         "range": {
                             "start": {"line": 1, "character": 4},
-                            "end": {"line": 3, "character": 0}
-                        }
+                            "end": {"line": 3, "character": 0},
+                        },
                     },
                     {
                         "name": "my_method",
                         "kind": 6,  # Method
                         "range": {
                             "start": {"line": 4, "character": 4},
-                            "end": {"line": 6, "character": 0}
-                        }
-                    }
-                ]
+                            "end": {"line": 6, "character": 0},
+                        },
+                    },
+                ],
             },
             {
                 "name": "standalone_function",
                 "kind": 12,  # Function
                 "range": {
                     "start": {"line": 12, "character": 0},
-                    "end": {"line": 14, "character": 0}
-                }
-            }
+                    "end": {"line": 14, "character": 0},
+                },
+            },
         ]
 
     @staticmethod
@@ -111,7 +111,7 @@ class SymbolTestFixtures:
             file_path="test.py",
             line_number=1,
             column=0,
-            parent_id="ClassC:10"  # Circular reference
+            parent_id="ClassC:10",  # Circular reference
         )
         symbol_b = Symbol(
             name="ClassB",
@@ -119,7 +119,7 @@ class SymbolTestFixtures:
             file_path="test.py",
             line_number=5,
             column=0,
-            parent_id="ClassA:1"
+            parent_id="ClassA:1",
         )
         symbol_c = Symbol(
             name="ClassC",
@@ -127,7 +127,7 @@ class SymbolTestFixtures:
             file_path="test.py",
             line_number=10,
             column=0,
-            parent_id="ClassB:5"
+            parent_id="ClassB:5",
         )
         return [symbol_a, symbol_b, symbol_c]
 
@@ -143,7 +143,7 @@ class SymbolTestFixtures:
         """
         symbols = []
         parent_id = None
-        
+
         for i in range(depth):
             symbol = Symbol(
                 name=f"Level{i}",
@@ -153,11 +153,11 @@ class SymbolTestFixtures:
                 column=i * 4,
                 parent_id=parent_id,
                 end_line=i * 5 + 4,
-                end_column=0
+                end_column=0,
             )
             symbols.append(symbol)
             parent_id = f"Level{i}:{i * 5 + 1}"
-        
+
         return symbols
 
     @staticmethod
@@ -172,9 +172,9 @@ class SymbolTestFixtures:
             # Missing 'kind' field
             "range": {
                 "start": {},  # Missing line/character
-                "end": {"line": "not_a_number"}  # Invalid type
+                "end": {"line": "not_a_number"},  # Invalid type
             },
-            "children": "not_a_list"  # Should be a list
+            "children": "not_a_list",  # Should be a list
         }
 
     @staticmethod
@@ -190,29 +190,29 @@ class SymbolTestFixtures:
                 kind=SymbolKind.CLASS,
                 file_path="main.py",
                 line_number=1,
-                column=0
+                column=0,
             ),
             Symbol(
                 name="typescript_function",
                 kind=SymbolKind.FUNCTION,
                 file_path="main.ts",
                 line_number=10,
-                column=0
+                column=0,
             ),
             Symbol(
                 name="RustStruct",
                 kind=SymbolKind.CLASS,
                 file_path="lib.rs",
                 line_number=5,
-                column=0
+                column=0,
             ),
             Symbol(
                 name="GO_CONSTANT",
                 kind=SymbolKind.CONSTANT,
                 file_path="main.go",
                 line_number=3,
-                column=0
-            )
+                column=0,
+            ),
         ]
 
     @staticmethod
@@ -227,7 +227,7 @@ class SymbolTestFixtures:
         """
         symbols = []
         kinds = list(SymbolKind)
-        
+
         for i in range(count):
             symbol = Symbol(
                 name=f"Symbol_{i:06d}",
@@ -235,10 +235,10 @@ class SymbolTestFixtures:
                 file_path=f"file_{i // 100}.py",
                 line_number=i + 1,
                 column=(i % 80),
-                docstring=f"Documentation for symbol {i}" if i % 10 == 0 else None
+                docstring=f"Documentation for symbol {i}" if i % 10 == 0 else None,
             )
             symbols.append(symbol)
-        
+
         return symbols
 
     @staticmethod
@@ -257,36 +257,36 @@ CONSTANT_VALUE = 42
 
 class MyClass:
     """A sample class for testing."""
-    
+
     class_variable = "test"
-    
+
     def __init__(self, value: int):
         """Initialize the class."""
         self.value = value
-    
+
     @property
     def computed_value(self) -> int:
         """Compute a value."""
         return self.value * 2
-    
+
     @computed_value.setter
     def computed_value(self, new_value: int):
         """Set computed value."""
         self.value = new_value // 2
-    
+
     @staticmethod
     def static_method():
         """A static method."""
         return "static"
-    
+
     @classmethod
     def class_method(cls):
         """A class method."""
         return cls.__name__
-    
+
     class NestedClass:
         """A nested class."""
-        
+
         def nested_method(self):
             """Method in nested class."""
             pass
@@ -317,11 +317,12 @@ if __name__ == "__main__":
             Dictionary mapping encoding name to byte content
         """
         test_content = "# -*- coding: {encoding} -*-\nclass TestClass:\n    pass\n"
-        
+
         return {
             "utf-8": test_content.format(encoding="utf-8").encode("utf-8"),
-            "utf-8-sig": b'\xef\xbb\xbf' + test_content.format(encoding="utf-8").encode("utf-8"),
+            "utf-8-sig": b"\xef\xbb\xbf"
+            + test_content.format(encoding="utf-8").encode("utf-8"),
             "latin-1": test_content.format(encoding="latin-1").encode("latin-1"),
             "cp1252": test_content.format(encoding="cp1252").encode("cp1252"),
-            "ascii": b"class SimpleClass:\n    pass\n"
+            "ascii": b"class SimpleClass:\n    pass\n",
         }

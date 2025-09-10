@@ -28,7 +28,7 @@ class TestCircularDependencies(unittest.TestCase):
 
         validator = HierarchyValidator()
         cycles = validator.detect_cycles(symbols)
-        
+
         # Should detect the circular inheritance
         self.assertEqual(len(cycles), 1)
         self.assertEqual(set(cycles[0]), {"ClassA", "ClassB"})
@@ -75,7 +75,7 @@ class TestCircularDependencies(unittest.TestCase):
 
         validator = HierarchyValidator()
         cycles = validator.detect_cycles(symbols)
-        
+
         # Should detect a self-reference cycle
         self.assertGreater(len(cycles), 0)
         # The cycle should contain RecursiveClass
@@ -235,17 +235,17 @@ class HierarchyValidator:
             for symbol in symbols:
                 name = symbol.get("name")
                 graph[name] = []
-                
+
                 # Add children as dependencies
                 for child in symbol.get("children", []):
                     child_name = child.get("name") if isinstance(child, dict) else child
                     if child_name:
                         graph[name].append(child_name)
-                
+
                 # Add inheritance as dependency
                 if "inherits" in symbol:
                     graph[name].append(symbol["inherits"])
-        
+
         # Use DFS to find cycles
         visited = set()
         rec_stack = set()
@@ -325,10 +325,10 @@ class ImportAnalyzer:
     def detect_circular_imports(self, modules):
         """Detect circular import chains."""
         import_graph = self._build_import_graph(modules)
-        
+
         # Use Tarjan's algorithm for strongly connected components
         cycles = self._find_strong_components(import_graph)
-        
+
         # Filter to only return actual cycles (components with more than 1 node or self-loops)
         actual_cycles = []
         for cycle in cycles:
@@ -339,7 +339,7 @@ class ImportAnalyzer:
                 node = cycle[0]
                 if node in import_graph.get(node, []):
                     actual_cycles.append(cycle)
-        
+
         return actual_cycles
 
     def _build_import_graph(self, modules):
@@ -367,14 +367,14 @@ class ImportAnalyzer:
         index = {}
         on_stack = {}
         sccs = []
-        
+
         def strongconnect(node):
             index[node] = index_counter[0]
             lowlinks[node] = index_counter[0]
             index_counter[0] += 1
             on_stack[node] = True
             stack.append(node)
-            
+
             # Visit successors
             for successor in graph.get(node, []):
                 if successor not in index:
@@ -382,7 +382,7 @@ class ImportAnalyzer:
                     lowlinks[node] = min(lowlinks[node], lowlinks[successor])
                 elif on_stack.get(successor, False):
                     lowlinks[node] = min(lowlinks[node], index[successor])
-            
+
             # If node is a root node, pop the stack and return SCC
             if lowlinks[node] == index[node]:
                 component = []
@@ -393,11 +393,11 @@ class ImportAnalyzer:
                     if w == node:
                         break
                 sccs.append(component)
-        
+
         for node in graph:
             if node not in index:
                 strongconnect(node)
-        
+
         return sccs
 
 
@@ -418,7 +418,7 @@ class InheritanceValidator:
                         # Normalize cycle to start from smallest element
                         min_idx = cycle.index(min(cycle))
                         normalized = cycle[min_idx:] + cycle[:min_idx]
-                        
+
                         # Check if this cycle is already found
                         if not any(set(normalized) == set(c) for c in cycles):
                             cycles.append(normalized)
@@ -572,7 +572,9 @@ class AsyncCycleDetector:
             # Check dependencies
             deps = tasks.get(task_name, [])
             if deps:
-                await asyncio.gather(*[check_task(dep, new_path, visited) for dep in deps])
+                await asyncio.gather(
+                    *[check_task(dep, new_path, visited) for dep in deps]
+                )
 
         # Check all tasks
         await asyncio.gather(*[check_task(task, [], set()) for task in tasks])
@@ -585,13 +587,13 @@ def validate_nested_hierarchy(structure):
     # Build a map of all class names and dependency graph
     all_classes = set()
     dependencies = {}
-    
+
     def extract_classes(node, current_path=""):
         for key, value in node.items():
             full_name = f"{current_path}.{key}" if current_path else key
             all_classes.add(key)  # Add short name
             all_classes.add(full_name)  # Add full path
-            
+
             if isinstance(value, dict):
                 # Check for parent reference
                 if "parent" in value:
@@ -599,33 +601,33 @@ def validate_nested_hierarchy(structure):
                     if key not in dependencies:
                         dependencies[key] = []
                     dependencies[key].append(parent_ref)
-                
+
                 # Process nested classes
                 for nested_key, nested_value in value.items():
                     if nested_key != "parent" and isinstance(nested_value, dict):
                         extract_classes({nested_key: nested_value}, full_name)
-    
+
     extract_classes(structure)
-    
+
     # Check for cycles in the dependency graph
     def has_cycle(node, visited, rec_stack, path):
         visited.add(node)
         rec_stack.add(node)
         path.append(node)
-        
+
         for neighbor in dependencies.get(node, []):
             if neighbor in rec_stack:
                 # Found a cycle
-                cycle_path = path[path.index(neighbor):] + [neighbor]
+                cycle_path = path[path.index(neighbor) :] + [neighbor]
                 raise HierarchyValidationError(
                     f"Circular reference detected: {' -> '.join(cycle_path)} creates cycle"
                 )
             elif neighbor not in visited and neighbor in dependencies:
                 has_cycle(neighbor, visited, rec_stack, path[:])
-        
+
         rec_stack.remove(node)
         return False
-    
+
     # Check all nodes for cycles
     visited = set()
     for node in dependencies:

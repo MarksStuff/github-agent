@@ -1,7 +1,7 @@
 """Unit tests for symbol storage hierarchy extensions."""
 
-from tests.mocks.mock_storage_with_hierarchy import MockStorageWithHierarchy
 from symbol_storage import Symbol, SymbolKind
+from tests.mocks.mock_storage_with_hierarchy import MockStorageWithHierarchy
 
 
 class TestSymbolStorageHierarchyFields:
@@ -306,11 +306,7 @@ class TestMockStorageHierarchyQueries:
 
         # Query children
         all_symbols = storage.get_symbols_by_file("test.py")
-        children = [
-            s
-            for s in all_symbols
-            if getattr(s, "parent_id", None) == "1"
-        ]
+        children = [s for s in all_symbols if getattr(s, "parent_id", None) == "1"]
 
         assert len(children) == 3
         assert all(c.name.startswith("child_") for c in children)
@@ -369,15 +365,9 @@ class TestMockStorageHierarchyQueries:
 
         all_symbols = storage.get_symbols_by_file("test.py")
 
-        level_0 = [
-            s for s in all_symbols if getattr(s, "hierarchy_level", None) == 0
-        ]
-        level_1 = [
-            s for s in all_symbols if getattr(s, "hierarchy_level", None) == 1
-        ]
-        level_2 = [
-            s for s in all_symbols if getattr(s, "hierarchy_level", None) == 2
-        ]
+        level_0 = [s for s in all_symbols if getattr(s, "hierarchy_level", None) == 0]
+        level_1 = [s for s in all_symbols if getattr(s, "hierarchy_level", None) == 1]
+        level_2 = [s for s in all_symbols if getattr(s, "hierarchy_level", None) == 2]
 
         assert len(level_0) == 1
         assert len(level_1) == 2

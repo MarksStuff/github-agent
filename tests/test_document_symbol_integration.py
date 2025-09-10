@@ -51,14 +51,14 @@ def main():
 
             # Extract symbols
             symbols = await provider.get_document_symbols(str(test_file), "test_repo")
-            
+
             # Filter out variables as they're not structural symbols
-            symbols = [s for s in symbols if s.kind.value != 'variable']
+            symbols = [s for s in symbols if s.kind.value != "variable"]
             assert len(symbols) == 4  # Calculator, add, subtract, main
 
             # Get hierarchy
             hierarchy = await provider.get_symbol_hierarchy(str(test_file), "test_repo")
-            
+
             assert hierarchy["file"] == str(test_file)
             assert hierarchy["repository_id"] == "test_repo"
             assert len(hierarchy["symbols"]) == 2  # Calculator and main at root
@@ -146,7 +146,7 @@ def function{i}():
             # Extract from text file - should fail
             with pytest.raises(InvalidFileTypeError):
                 await provider.get_document_symbols(str(txt_file))
-            
+
             # Ensure storage cleanup
             storage.close()
 
@@ -173,7 +173,7 @@ class PersistentClass:
 
             symbols1 = await provider1.get_document_symbols(str(test_file), "repo1")
             assert len(symbols1) == 2
-            
+
             # Save symbols to storage
             for symbol in symbols1:
                 storage1.save_symbol(symbol)

@@ -65,11 +65,11 @@ class MockStorageWithHierarchy:
                         parent["children"].append(symbol_dict)
                         parent_found = True
                         break
-                
+
                 # If parent not found, treat as orphaned (root level)
                 if not parent_found:
                     orphaned_symbols.append(symbol_dict)
-        
+
         # Add orphaned symbols to hierarchy as roots
         hierarchy.extend(orphaned_symbols)
 

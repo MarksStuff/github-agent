@@ -143,7 +143,7 @@ class TestDocumentSymbolConfigSerialization:
     def test_save_to_file(self):
         """Test saving config to file."""
         from document_symbol_config import DocumentSymbolConfigManager
-        
+
         config = DocumentSymbolConfig(max_workers=3)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
@@ -152,7 +152,7 @@ class TestDocumentSymbolConfigSerialization:
         try:
             manager = DocumentSymbolConfigManager(config_file=temp_path)
             manager.save_config(config)
-            
+
             with open(temp_path) as f:
                 data = json.load(f)
 

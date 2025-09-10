@@ -56,10 +56,11 @@ class DocumentSymbolProvider(AbstractDocumentSymbolProvider):
         if config is not None:
             # Integration test pattern with config
             from document_symbol_config import DocumentSymbolConfig
+
             if isinstance(config, DocumentSymbolConfig):
                 cache_dir = config.cache_dir if config.cache_enabled else None
                 cache_ttl = config.cache_ttl_seconds
-        
+
         self.lsp_client = lsp_client
         self.symbol_extractor = symbol_extractor
         self.cache_dir = cache_dir
@@ -71,10 +72,10 @@ class DocumentSymbolProvider(AbstractDocumentSymbolProvider):
 
         if cache_dir:
             cache_dir.mkdir(parents=True, exist_ok=True)
-    
+
     def register_extractor(self, language: str, extractor: Any) -> None:
         """Register a symbol extractor for a language.
-        
+
         Args:
             language: Language identifier (e.g., "python")
             extractor: Extractor instance
@@ -83,75 +84,83 @@ class DocumentSymbolProvider(AbstractDocumentSymbolProvider):
         # Set as default symbol extractor if none set
         if self.symbol_extractor is None:
             self.symbol_extractor = extractor
-    
+
     async def batch_extract_symbols(
-        self, 
-        files: list[str], 
+        self,
+        files: list[str],
         repository_id: str | None = None,
-        progress_callback: Any | None = None
+        progress_callback: Any | None = None,
     ) -> dict[str, list[Symbol]]:
         """Extract symbols from multiple files.
-        
+
         Args:
             files: List of file paths
             repository_id: Optional repository identifier
             progress_callback: Optional callback for progress updates
-            
+
         Returns:
             Dictionary mapping file paths to symbol lists
         """
         results = {}
         total = len(files)
-        
+
         for i, file_path in enumerate(files):
             try:
                 symbols = await self.get_document_symbols(file_path, repository_id)
                 results[file_path] = symbols
-                
+
                 if progress_callback:
                     progress_callback(file_path, (i + 1) / total)
             except Exception as e:
                 logger.warning(f"Failed to extract symbols from {file_path}: {e}")
                 results[file_path] = []
-        
+
         return results
-    
-    async def get_symbol_hierarchy(self, file_path: str, repository_id: str | None = None) -> dict[str, Any]:
+
+    async def get_symbol_hierarchy(
+        self, file_path: str, repository_id: str | None = None
+    ) -> dict[str, Any]:
         """Get hierarchical symbol structure for a file.
-        
+
         Args:
             file_path: Path to the file
             repository_id: Optional repository identifier
-            
+
         Returns:
             Dictionary with file, repository_id, and hierarchical symbols
         """
         symbols = await self.get_document_symbols(file_path, repository_id)
-        
+
         # Build hierarchy from flat list
         hierarchy: dict[str, Any] = {
             "file": file_path,
             "repository_id": repository_id or "",
-            "symbols": []
+            "symbols": [],
         }
-        
+
         # If symbols already have children populated, use them directly
-        if symbols and hasattr(symbols[0], 'children') and any(s.children for s in symbols):
+        if (
+            symbols
+            and hasattr(symbols[0], "children")
+            and any(s.children for s in symbols)
+        ):
             # Symbols already have hierarchy, just convert to dict format
-            root_symbols = [s for s in symbols if not getattr(s, 'parent_id', None)]
-            
+            root_symbols = [s for s in symbols if not getattr(s, "parent_id", None)]
+
             def symbol_to_dict(symbol: Any) -> dict[str, Any]:
                 result = {
                     "name": symbol.name,
-                    "kind": symbol.kind.value if hasattr(symbol.kind, 'value') else str(symbol.kind),
+                    "kind": symbol.kind.value
+                    if hasattr(symbol.kind, "value")
+                    else str(symbol.kind),
                     "line": symbol.line_number,
-                    "children": []
+                    "children": [],
                 }
-                if hasattr(symbol, 'children') and symbol.children:
+                if hasattr(symbol, "children") and symbol.children:
                     for child in symbol.children:
                         result["children"].append(symbol_to_dict(child))
                 return result
-            
+
             for symbol in root_symbols:
                 hierarchy["symbols"].append(symbol_to_dict(symbol))
         else:
@@ -159,23 +168,27 @@ class DocumentSymbolProvider(AbstractDocumentSymbolProvider):
             root_symbols = []
             children_by_parent: dict[str, list[Any]] = {}
             symbol_by_name: dict[str, Any] = {}
-            
+
             # First, collect all symbols by name for lookup
             for symbol in symbols:
                 # Track both full name and base name
-                base_name = symbol.name.split('.')[0] if '.' in symbol.name else symbol.name
+                base_name = (
+                    symbol.name.split(".")[0] if "." in symbol.name else symbol.name
+                )
                 # Only store the first symbol with each base name (the class/function definition)
                 if base_name not in symbol_by_name:
                     symbol_by_name[base_name] = symbol
                 symbol_by_name[symbol.name] = symbol
-            
+
             for symbol in symbols:
-                parent_id = getattr(symbol, 'parent_id', None)
+                parent_id = getattr(symbol, "parent_id", None)
                 if parent_id:
                     # The parent_id format is "ParentName:line_number"
                     # We need to find the actual parent symbol to get its correct line number
-                    parent_name = parent_id.split(':')[0] if ':' in parent_id else parent_id
-                    
+                    parent_name = (
+                        parent_id.split(":")[0] if ":" in parent_id else parent_id
+                    )
+
                     # Find the actual parent symbol
                     if parent_name in symbol_by_name:
                         parent_symbol = symbol_by_name[parent_name]
@@ -189,32 +202,38 @@ class DocumentSymbolProvider(AbstractDocumentSymbolProvider):
                 else:
                     # No parent, this is a root symbol
                     # Filter out variables from root level - they should have parents
-                    if not (hasattr(symbol, 'kind') and symbol.kind.value == 'variable'):
+                    if not (
+                        hasattr(symbol, "kind") and symbol.kind.value == "variable"
+                    ):
                         root_symbols.append(symbol)
-            
+
             def build_symbol_dict(symbol: Any) -> dict[str, Any]:
                 symbol_dict = {
                     "name": symbol.name,
-                    "kind": symbol.kind.value if hasattr(symbol.kind, 'value') else str(symbol.kind),
+                    "kind": symbol.kind.value
+                    if hasattr(symbol.kind, "value")
+                    else str(symbol.kind),
                     "line": symbol.line_number,
-                    "children": []
+                    "children": [],
                 }
-                
+
                 # Look for children using the symbol's identifier
                 symbol_key = f"{symbol.name}:{symbol.line_number}"
                 if symbol_key in children_by_parent:
                     for child in children_by_parent[symbol_key]:
                         symbol_dict["children"].append(build_symbol_dict(child))
-                
+
                 return symbol_dict
-            
+
             # Build root level symbols
             for symbol in root_symbols:
                 hierarchy["symbols"].append(build_symbol_dict(symbol))
-        
+
         return hierarchy
 
-    async def get_document_symbols(self, file_path: str, repository_id: str | None = None) -> list[Symbol]:
+    async def get_document_symbols(
+        self, file_path: str, repository_id: str | None = None
+    ) -> list[Symbol]:
         """Get hierarchical symbols for a file.
 
         Attempts to retrieve symbols via LSP first, falls back to AST extraction
@@ -230,14 +249,16 @@ class DocumentSymbolProvider(AbstractDocumentSymbolProvider):
         # Validate file type if config is available
         if self.config:
             from pathlib import Path
+
             from errors import InvalidFileTypeError
+
             file_ext = Path(file_path).suffix.lower()
             if not self.config.is_supported_file(file_path):
                 raise InvalidFileTypeError(
                     f"Unsupported file type: {file_ext}",
-                    {"file": file_path, "extension": file_ext}
+                    {"file": file_path, "extension": file_ext},
                 )
-        
+
         self.repository_id = repository_id  # Store for use in extraction
         # Check cache first
         cached = self._check_cache(file_path)
@@ -247,7 +268,11 @@ class DocumentSymbolProvider(AbstractDocumentSymbolProvider):
 
         try:
             # Try LSP first
-            if self.lsp_client and hasattr(self.lsp_client, 'is_connected') and self.lsp_client.is_connected():
+            if (
+                self.lsp_client
+                and hasattr(self.lsp_client, "is_connected")
+                and self.lsp_client.is_connected()
+            ):
                 lsp_response = await self.lsp_client.get_document_symbols(file_path)
                 if lsp_response:
                     symbols = self._convert_lsp_response(lsp_response)
@@ -443,39 +468,45 @@ class DocumentSymbolProvider(AbstractDocumentSymbolProvider):
         # Additional file type check before attempting extraction
         if self.config:
             from pathlib import Path
+
             from errors import InvalidFileTypeError
+
             if not self.config.is_supported_file(file_path):
                 file_ext = Path(file_path).suffix.lower()
                 raise InvalidFileTypeError(
                     f"Unsupported file type: {file_ext}",
-                    {"file": file_path, "extension": file_ext}
+                    {"file": file_path, "extension": file_ext},
                 )
-        
+
         if not self.symbol_extractor:
             return []
-            
+
         try:
             # Use the appropriate extraction method based on available interface
             # Prefer hierarchy-aware extraction if available
-            if hasattr(self.symbol_extractor, 'extract_symbol_hierarchy'):
+            if hasattr(self.symbol_extractor, "extract_symbol_hierarchy"):
                 # Hierarchy-aware extraction (preferred)
                 symbols = self.symbol_extractor.extract_symbol_hierarchy(file_path)
                 # Set repository_id if available
-                repository_id = getattr(self, 'repository_id', None)
+                repository_id = getattr(self, "repository_id", None)
                 if repository_id:
                     for symbol in symbols:
                         symbol.repository_id = repository_id
-            elif hasattr(self.symbol_extractor, 'extract_from_file'):
+            elif hasattr(self.symbol_extractor, "extract_from_file"):
                 # PythonSymbolExtractor pattern
-                repository_id = getattr(self, 'repository_id', 'unknown')
-                symbols = self.symbol_extractor.extract_from_file(file_path, repository_id)
-            elif hasattr(self.symbol_extractor, 'extract'):
+                repository_id = getattr(self, "repository_id", "unknown")
+                symbols = self.symbol_extractor.extract_from_file(
+                    file_path, repository_id
+                )
+            elif hasattr(self.symbol_extractor, "extract"):
                 # Simple extraction
                 symbols = self.symbol_extractor.extract(file_path)
             else:
-                logger.warning(f"Extractor {type(self.symbol_extractor)} has no known extraction method")
+                logger.warning(
+                    f"Extractor {type(self.symbol_extractor)} has no known extraction method"
+                )
                 return []
-                
+
             self._save_to_cache(file_path, symbols)
             return symbols
         except Exception as e:
