@@ -1,37 +1,40 @@
 """Interrupt nodes for human-in-the-loop workflow control."""
 
 import logging
-from typing import Any
 
 from langgraph.types import interrupt
-from langgraph_workflow.state import WorkflowState, FeedbackGate
+
+from langgraph_workflow.state import FeedbackGate, WorkflowState
 
 logger = logging.getLogger(__name__)
 
+
 class InterruptNodes:
     """Interrupt nodes for pausing workflow for human review."""
-    
+
     @staticmethod
     async def wait_for_review(state: WorkflowState) -> dict:
         """Pause workflow for human review and feedback.
-        
+
         This creates a static interrupt that pauses the workflow
         until manually resumed.
         """
         logger.info("Pausing workflow for human review")
-        
+
         # Set feedback gate to hold
         state["feedback_gate"] = FeedbackGate.HOLD
         state["paused_for_review"] = True
-        
+
         # Add pause message to window
-        state["messages_window"].append({
-            "role": "system",
-            "content": "Workflow paused for human review",
-            "pause_reason": "awaiting_feedback",
-            "pr_number": state.get("pr_number")
-        })
-        
+        state["messages_window"].append(
+            {
+                "role": "system",
+                "content": "Workflow paused for human review",
+                "pause_reason": "awaiting_feedback",
+                "pr_number": state.get("pr_number"),
+            }
+        )
+
         # Create interrupt with context
         interrupt_message = f"""
 🛑 Workflow Paused for Review
@@ -52,34 +55,38 @@ class InterruptNodes:
 
 **Artifacts Available**:
 """
-        
+
         # Add artifact links
         for artifact_name in state.get("artifacts_index", {}):
             interrupt_message += f"- {artifact_name}\n"
-        
+
         # This creates a static interrupt that requires manual resume
         interrupt(interrupt_message)
-        
+
         return state
-    
+
     @staticmethod
-    async def preview_changes(state: WorkflowState, changes_summary: str = None) -> dict:
+    async def preview_changes(
+        state: WorkflowState, changes_summary: str = None
+    ) -> dict:
         """Preview changes before applying them.
-        
+
         Shows a diff or summary of changes and waits for approval.
         """
         logger.info("Pausing to preview changes")
-        
+
         if not changes_summary:
             changes_summary = "Code changes ready for review"
-        
+
         # Add preview to messages
-        state["messages_window"].append({
-            "role": "system",
-            "content": "Previewing changes for approval",
-            "changes": changes_summary
-        })
-        
+        state["messages_window"].append(
+            {
+                "role": "system",
+                "content": "Previewing changes for approval",
+                "changes": changes_summary,
+            }
+        )
+
         preview_message = f"""
 📋 Change Preview
 
@@ -96,33 +103,37 @@ class InterruptNodes:
 
 Resume to continue with changes.
 """
-        
+
         interrupt(preview_message)
-        
+
         return state
-    
+
     @staticmethod
-    async def escalation_gate(state: WorkflowState, escalation_reason: str = None) -> dict:
+    async def escalation_gate(
+        state: WorkflowState, escalation_reason: str = None
+    ) -> dict:
         """Pause before escalating to more expensive models.
-        
+
         Gives human a chance to review before using Claude for complex tasks.
         """
         logger.info("Pausing before model escalation")
-        
+
         if not escalation_reason:
             escalation_reason = "Complex task requiring escalation"
-        
+
         # Mark escalation needed
         state["escalation_needed"] = True
-        
+
         # Add escalation info to messages
-        state["messages_window"].append({
-            "role": "system",
-            "content": "Requesting escalation approval",
-            "reason": escalation_reason,
-            "retry_count": state.get("retry_count", 0)
-        })
-        
+        state["messages_window"].append(
+            {
+                "role": "system",
+                "content": "Requesting escalation approval",
+                "reason": escalation_reason,
+                "retry_count": state.get("retry_count", 0),
+            }
+        )
+
         escalation_message = f"""
 ⚡ Model Escalation Required
 
@@ -142,45 +153,49 @@ Resume to continue with changes.
 
 Resume to proceed with escalation.
 """
-        
+
         interrupt(escalation_message)
-        
+
         return state
-    
+
     @staticmethod
     async def quality_gate(state: WorkflowState) -> dict:
         """Quality gate interrupt for critical checkpoints.
-        
+
         Pauses at key quality checkpoints to ensure standards are met.
         """
         logger.info("Quality gate checkpoint")
-        
+
         quality_state = state.get("quality_state")
         test_results = state.get("test_results", {})
         lint_status = state.get("lint_status", {})
-        
+
         # Build quality summary
         quality_summary = []
-        
+
         if test_results:
             test_status = "PASS" if test_results.get("passed") else "FAIL"
             quality_summary.append(f"Tests: {test_status}")
-        
+
         if lint_status:
             lint_pass = lint_status.get("passed", True)
             lint_summary = f"Lint: {'PASS' if lint_pass else 'FAIL'}"
             if not lint_pass:
                 lint_summary += f" ({lint_status.get('error_count', 0)} errors)"
             quality_summary.append(lint_summary)
-        
-        quality_summary.append(f"Overall: {quality_state.value if hasattr(quality_state, 'value') else quality_state}")
-        
-        state["messages_window"].append({
-            "role": "system",
-            "content": "Quality gate checkpoint",
-            "quality_summary": quality_summary
-        })
-        
+
+        quality_summary.append(
+            f"Overall: {quality_state.value if hasattr(quality_state, 'value') else quality_state}"
+        )
+
+        state["messages_window"].append(
+            {
+                "role": "system",
+                "content": "Quality gate checkpoint",
+                "quality_summary": quality_summary,
+            }
+        )
+
         gate_message = f"""
 🔍 Quality Gate Checkpoint
 
@@ -201,33 +216,37 @@ Resume to proceed with escalation.
 
 Resume to continue or address quality issues.
 """
-        
+
         interrupt(gate_message)
-        
+
         return state
-    
+
     @staticmethod
     async def feedback_processing(state: WorkflowState) -> dict:
         """Pause after processing feedback to review responses.
-        
+
         Shows how feedback was processed and what responses will be sent.
         """
         logger.info("Pausing after feedback processing")
-        
+
         pr_comments = state.get("pr_comments", [])
         feedback_addressed = state.get("feedback_addressed", {})
-        
+
         # Count addressed vs pending
         total_comments = len(pr_comments)
-        addressed_count = sum(1 for addressed in feedback_addressed.values() if addressed)
-        
-        state["messages_window"].append({
-            "role": "system",
-            "content": "Feedback processing complete",
-            "total_comments": total_comments,
-            "addressed_count": addressed_count
-        })
-        
+        addressed_count = sum(
+            1 for addressed in feedback_addressed.values() if addressed
+        )
+
+        state["messages_window"].append(
+            {
+                "role": "system",
+                "content": "Feedback processing complete",
+                "total_comments": total_comments,
+                "addressed_count": addressed_count,
+            }
+        )
+
         feedback_message = f"""
 💬 Feedback Processing Complete
 
@@ -251,7 +270,7 @@ Resume to continue or address quality issues.
 
 Resume to post responses and continue workflow.
 """
-        
+
         interrupt(feedback_message)
-        
+
         return state
