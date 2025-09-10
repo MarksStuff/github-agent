@@ -95,6 +95,12 @@ install_python_deps() {
             "python-lsp-server[all]"
             "watchdog"
             "cachetools"
+            # LangGraph workflow packages
+            "langgraph>=0.2.0"
+            "langgraph-checkpoint-sqlite>=0.1.0"
+            "langchain-core>=0.3.0"
+            "langchain-ollama>=0.2.0"
+            "langchain-anthropic>=0.3.0"
         )
         USE_REQUIREMENTS_FILE=false
     fi
@@ -462,11 +468,19 @@ run_verification() {
     
     # Test Python and libraries
     log_info "Testing Python libraries..."
-    if $PYTHON_CMD -c "import mcp, github, git, requests, pydantic, watchdog, cachetools; print('All libraries available')" 2>/dev/null; then
-        log_success "Python libraries verified (including codebase server)"
+    if $PYTHON_CMD -c "import mcp, github, git, requests, pydantic, watchdog, cachetools; print('All core libraries available')" 2>/dev/null; then
+        log_success "Core Python libraries verified"
     else
-        log_error "Python libraries test failed"
+        log_error "Core Python libraries test failed"
         ((errors++))
+    fi
+    
+    # Test LangGraph libraries
+    log_info "Testing LangGraph libraries..."
+    if $PYTHON_CMD -c "import langgraph, langchain_core; print('LangGraph libraries available')" 2>/dev/null; then
+        log_success "LangGraph libraries verified"
+    else
+        log_warning "LangGraph libraries not available (optional for basic functionality)"
     fi
     
     # Test agents
