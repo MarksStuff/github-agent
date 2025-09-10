@@ -10,7 +10,7 @@ import sqlite3
 import threading
 import time
 from abc import ABC, abstractmethod
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -35,6 +35,7 @@ class SymbolKind(Enum):
     VARIABLE = "variable"
     CONSTANT = "constant"
     MODULE = "module"
+    OTHER = "other"  # For unknown or unsupported symbol types
 
 
 @dataclass
@@ -43,23 +44,76 @@ class Symbol:
 
     name: str
     kind: SymbolKind
-    file_path: str
+    file_path: str | None
     line_number: int
-    column_number: int
-    repository_id: str
+    column: int = 0  # Add column as alias
+    repository_id: str | None = None
     docstring: str | None = None
+    # Hierarchy extensions
+    parent_id: str | None = None
+    children: list["Symbol"] = field(default_factory=list)
+    end_line: int | None = None
+    end_column: int | None = None
+
+    # Maintain backward compatibility
+    @property
+    def column_number(self) -> int:
+        """Backward compatibility for column_number."""
+        return self.column
 
     def to_dict(self) -> dict[str, Any]:
         """Convert symbol to dictionary representation."""
         return {
             "name": self.name,
-            "kind": self.kind.value,
+            "kind": self.kind.value if isinstance(self.kind, SymbolKind) else self.kind,
             "file_path": self.file_path,
             "line_number": self.line_number,
-            "column_number": self.column_number,
+            "column": self.column,
+            "column_number": self.column_number,  # For backward compat
             "repository_id": self.repository_id,
             "docstring": self.docstring,
+            # Include hierarchy fields only if present
+            "parent_id": self.parent_id,
+            "end_line": self.end_line,
+            "end_column": self.end_column,
         }
+
+    def to_hierarchical_dict(self) -> dict[str, Any]:
+        """Serialize with hierarchy information.
+
+        Returns:
+            Dictionary with nested children structure
+        """
+        result = self.to_dict()
+        if self.children:
+            result["children"] = [
+                child.to_hierarchical_dict() for child in self.children
+            ]
+        return result
+
+    def validate_hierarchy(self) -> bool:
+        """Validate parent-child relationships and ranges.
+
+        Returns:
+            True if hierarchy is valid
+        """
+        # Check range validity
+        if self.end_line is not None:
+            if self.end_line < self.line_number:
+                return False
+            if self.end_line == self.line_number and self.end_column is not None:
+                if self.end_column < self.column:
+                    return False
+
+        # Recursively validate children
+        for child in self.children:
+            if not child.validate_hierarchy():
+                return False
+            # Check child is within parent's range
+            if self.end_line is not None and child.line_number > self.end_line:
+                return False
+
+        return True
 
 
 @dataclass
@@ -198,6 +252,11 @@ class AbstractSymbolStorage(ABC):
         Returns:
             int: Number of records cleaned up
         """
+        pass
+
+    @abstractmethod
+    def migrate_schema_for_hierarchy(self) -> None:
+        """Add hierarchy columns to existing schema if not present."""
         pass
 
 
@@ -343,6 +402,9 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
                     column_number INTEGER NOT NULL,
                     repository_id TEXT NOT NULL,
                     docstring TEXT,
+                    parent_id TEXT,
+                    end_line INTEGER,
+                    end_column INTEGER,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -476,14 +538,18 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
                             s.column_number,
                             s.repository_id,
                             s.docstring,
+                            s.parent_id,
+                            s.end_line,
+                            s.end_column,
                         )
                         for s in batch_symbols
                     ]
                     conn.executemany(
                         """
                         INSERT INTO symbols (name, kind, file_path, line_number,
-                                           column_number, repository_id, docstring)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                                           column_number, repository_id, docstring,
+                                           parent_id, end_line, end_column)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                         data,
                     )
@@ -597,9 +663,12 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
                         kind=SymbolKind(row["kind"]),
                         file_path=row["file_path"],
                         line_number=row["line_number"],
-                        column_number=row["column_number"],
+                        column=row["column_number"],
                         repository_id=row["repository_id"],
                         docstring=row["docstring"],
+                        parent_id=row.get("parent_id"),
+                        end_line=row.get("end_line"),
+                        end_column=row.get("end_column"),
                     )
                     for row in rows
                 ]
@@ -621,9 +690,12 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
                 kind=SymbolKind(row["kind"]),
                 file_path=row["file_path"],
                 line_number=row["line_number"],
-                column_number=row["column_number"],
+                column=row["column_number"],
                 repository_id=row["repository_id"],
                 docstring=row["docstring"],
+                parent_id=row.get("parent_id"),
+                end_line=row.get("end_line"),
+                end_column=row.get("end_column"),
             )
 
     def get_symbols_by_file(self, file_path: str, repository_id: str) -> list[Symbol]:
@@ -644,9 +716,12 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
                     kind=SymbolKind(row["kind"]),
                     file_path=row["file_path"],
                     line_number=row["line_number"],
-                    column_number=row["column_number"],
+                    column=row["column_number"],
                     repository_id=row["repository_id"],
                     docstring=row["docstring"],
+                    parent_id=row.get("parent_id"),
+                    end_line=row.get("end_line"),
+                    end_column=row.get("end_column"),
                 )
                 for row in rows
             ]
@@ -715,6 +790,26 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
         return self._execute_with_retry(
             "cleanup_old_comment_replies", _cleanup_old_replies
         )
+
+    def migrate_schema_for_hierarchy(self) -> None:
+        """Add hierarchy columns to existing schema if not present."""
+
+        def _migrate_schema():
+            conn = self._get_connection()
+            cursor = conn.execute("PRAGMA table_info(symbols)")
+            columns = {row[1] for row in cursor.fetchall()}
+
+            if "parent_id" not in columns:
+                conn.execute("ALTER TABLE symbols ADD COLUMN parent_id TEXT")
+            if "end_line" not in columns:
+                conn.execute("ALTER TABLE symbols ADD COLUMN end_line INTEGER")
+            if "end_column" not in columns:
+                conn.execute("ALTER TABLE symbols ADD COLUMN end_column INTEGER")
+
+            conn.commit()
+            logger.info("Schema migrated to support hierarchy")
+
+        self._execute_with_retry("migrate_schema_for_hierarchy", _migrate_schema)
 
 
 class ProductionSymbolStorage(SQLiteSymbolStorage):

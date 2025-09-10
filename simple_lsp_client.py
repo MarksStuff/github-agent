@@ -359,6 +359,20 @@ class SimpleLSPClient:
                 self.logger.warning(f"Cleanup error: {cleanup_error}")
                 # Don't re-raise cleanup errors
 
+    async def get_document_symbols(
+        self, file_uri: str, timeout: float = 30.0
+    ) -> list[dict[str, Any]] | None:
+        """Send textDocument/documentSymbol request to LSP server.
+
+        Args:
+            file_uri: URI of the file (file:///path/to/file.py)
+            timeout: Request timeout in seconds (default 30s for larger files)
+
+        Returns:
+            List of document symbols with hierarchy, or None if error
+        """
+        pass
+
     async def _send_message(
         self, proc: asyncio.subprocess.Process, message: dict[str, Any]
     ) -> None:

@@ -25,3 +25,26 @@ class MockLSPClient:
     async def get_hover(self, uri: str, line: int, character: int) -> dict | None:
         """Mock get_hover method."""
         return None
+
+    def set_document_symbols_response(self, uri: str, symbols: list[dict]) -> None:
+        """Set mock response for document symbols.
+
+        Args:
+            uri: File URI
+            symbols: List of symbol dictionaries
+        """
+        pass
+
+    async def get_document_symbols(
+        self, uri: str, timeout: float = 30.0
+    ) -> list[dict] | None:
+        """Mock get_document_symbols method.
+
+        Args:
+            uri: File URI
+            timeout: Request timeout
+
+        Returns:
+            Mock symbol list or None
+        """
+        pass

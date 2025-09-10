@@ -4,7 +4,7 @@ Step 3: Finalize Design Document with GitHub Feedback
 Reads GitHub PR comments on the design document and updates it to address feedback.
 
 Usage:
-    python step3_finalize_design_document.py --pr PR_NUMBER
+    python step3_finalize_design_document.py --pr PR_NUMBER [--claude-code | --amp]
 """
 
 import argparse
@@ -21,6 +21,7 @@ from common_utils import (
     add_common_arguments,
     print_step_header,
     setup_common_environment,
+    validate_github_token,
 )
 from task_context import TaskContext
 from workflow_orchestrator import WorkflowOrchestrator
@@ -499,6 +500,18 @@ Example:
         required=True,
         help="PR number containing the design document and feedback",
     )
+
+    # Add CLI selection arguments
+    cli_group = parser.add_mutually_exclusive_group()
+    cli_group.add_argument(
+        "--claude-code",
+        action="store_true",
+        help="Use Claude Code CLI instead of Sourcegraph Amp",
+    )
+    cli_group.add_argument(
+        "--amp", action="store_true", help="Use Sourcegraph Amp CLI (default)"
+    )
+
     add_common_arguments(parser)
 
     args = parser.parse_args()
@@ -508,12 +521,25 @@ Example:
     repo_path = env["repo_path"]
     repo_name = env["repo_name"]
 
+    # Check for GITHUB_TOKEN early - fail fast if missing
+    if not validate_github_token():
+        return 1
+
+    # Determine which CLI to use
+    use_claude_code = args.claude_code or not args.amp
+
     print_step_header(
-        "Step 3", "Finalize Design Document", repository=repo_name, pr_number=args.pr
+        "Step 3",
+        "Finalize Design Document",
+        repository=repo_name,
+        pr_number=args.pr,
+        cli_type="Claude Code" if use_claude_code else "Sourcegraph Amp",
     )
 
-    # Create orchestrator
-    orchestrator = WorkflowOrchestrator(repo_name, repo_path)
+    # Create orchestrator with CLI preference
+    orchestrator = WorkflowOrchestrator(
+        repo_name, repo_path, use_claude_code=use_claude_code
+    )
 
     # Load existing context
     print("\nLoading design context...")
@@ -544,12 +570,24 @@ Example:
 
     # Fetch and analyze feedback
     print("\nFetching GitHub PR comments...")
-    comments = await finalizer.get_design_feedback()
+    try:
+        comments = await finalizer.get_design_feedback()
 
-    # Check for error (None return) vs no comments (empty list)
-    if comments is None:
-        print("❌ Failed to fetch GitHub PR comments due to an error.")
-        print("Please check the logs and try again.")
+        # Check for error (None return) vs no comments (empty list)
+        if comments is None:
+            print("❌ Failed to fetch GitHub PR comments due to an error.")
+            print("Please check the logs and try again.")
+            return 1
+
+    except Exception as e:
+        error_msg = f"Error fetching PR comments: {e}"
+        print(f"❌ {error_msg}")
+        logger.error(error_msg)
+
+        # Check if it's a CLI-related error
+        if "thread creation" in str(e).lower() or "405" in str(e):
+            print("\n💡 Tip: If using Sourcegraph Amp, try --claude-code flag instead")
+
         return 1
 
     if not comments:
@@ -573,36 +611,61 @@ Example:
 
     # Categorize feedback
     print("\nAnalyzing feedback...")
-    feedback_categories = await finalizer.analyze_feedback(comments)
+    try:
+        feedback_categories = await finalizer.analyze_feedback(comments)
 
-    # Display feedback summary
-    print("\nFeedback summary:")
-    for category, items in feedback_categories.items():
-        if items:
-            print(f"  - {category.title()}: {len(items)} comments")
+        # Display feedback summary
+        print("\nFeedback summary:")
+        for category, items in feedback_categories.items():
+            if items:
+                print(f"  - {category.title()}: {len(items)} comments")
+
+    except Exception as e:
+        error_msg = f"Error analyzing feedback: {e}"
+        print(f"❌ {error_msg}")
+        logger.error(error_msg)
+
+        # Check if it's a CLI-related error
+        if "thread creation" in str(e).lower() or "405" in str(e):
+            print("\n💡 Tip: If using Sourcegraph Amp, try --claude-code flag instead")
+
+        return 1
 
     # Update design document
     print("\nUpdating design document with feedback...")
-    success = await finalizer.update_design_document(feedback_categories)
+    try:
+        success = await finalizer.update_design_document(feedback_categories)
 
-    if success:
-        print("\n✅ Design document finalized successfully!")
-        print("\nDocuments created:")
-        print(
-            f"  - {repo_path}/.workflow/round_3_design/finalized_design.md (complete updated design)"
-        )
-        print(
-            f"  - {repo_path}/.workflow/round_3_design/feedback_incorporation_summary.md (summary of changes)"
-        )
-        print("\nNext steps:")
-        print("1. Review the finalized design document")
-        print("2. Commit and push the updated design to the PR")
-        print(
-            f"3. Run 'python step4_implementation.py --pr {args.pr}' to start implementation"
-        )
-        return 0
-    else:
-        print("❌ Failed to finalize design document")
+        if success:
+            print("\n✅ Design document finalized successfully!")
+            print("\nDocuments created:")
+            print(
+                f"  - {repo_path}/.workflow/round_3_design/finalized_design.md (complete updated design)"
+            )
+            print(
+                f"  - {repo_path}/.workflow/round_3_design/feedback_incorporation_summary.md (summary of changes)"
+            )
+            print("\nNext steps:")
+            print("1. Review the finalized design document")
+            print("2. Commit and push the updated design to the PR")
+            print(
+                f"3. Run 'python step4_implementation.py --pr {args.pr}' to start implementation"
+            )
+            return 0
+        else:
+            print("❌ Failed to finalize design document")
+            logger.error("Design document finalization failed")
+            return 1
+
+    except Exception as e:
+        error_msg = f"Error during design finalization: {e}"
+        print(f"❌ {error_msg}")
+        logger.error(error_msg)
+
+        # Check if it's a CLI-related error
+        if "thread creation" in str(e).lower() or "405" in str(e):
+            print("\n💡 Tip: If using Sourcegraph Amp, try --claude-code flag instead")
+
         return 1
 
 

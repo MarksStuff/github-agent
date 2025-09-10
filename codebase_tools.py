@@ -64,6 +64,7 @@ class CodebaseTools:
         "find_definition": "find_definition",
         "find_references": "find_references",
         "find_hover": "find_hover",
+        "get_document_symbols": "get_document_symbols",
     }
 
     def __init__(
@@ -890,6 +891,18 @@ class CodebaseTools:
         except Exception as e:
             logger.error(f"❌ Codebase service validation failed: {e}")
             raise
+
+    async def get_document_symbols(self, repository_id: str, file_path: str) -> str:
+        """MCP tool handler for document symbols.
+
+        Args:
+            repository_id: The repository identifier
+            file_path: Path to the file relative to repository root
+
+        Returns:
+            JSON string containing hierarchical document symbols
+        """
+        pass
 
     async def shutdown(self) -> None:
         """Shutdown - SimpleLSPClient doesn't require resource cleanup."""

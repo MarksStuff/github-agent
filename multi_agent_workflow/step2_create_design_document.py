@@ -4,7 +4,7 @@ Step 2: Create Consolidated Design Document
 Executes Round 2 of the workflow where agents review each other's analysis and create a unified design.
 
 Usage:
-    python step2_create_design_document.py --pr PR_NUMBER
+    python step2_create_design_document.py --pr PR_NUMBER [--claude-code | --amp]
 """
 
 import argparse
@@ -17,6 +17,7 @@ from common_utils import (
     add_common_arguments,
     print_step_header,
     setup_common_environment,
+    validate_github_token,
 )
 from task_context import TaskContext
 from workflow_orchestrator import WorkflowOrchestrator
@@ -52,6 +53,18 @@ Example:
         required=True,
         help="PR number containing the analysis documents",
     )
+
+    # Add CLI selection arguments
+    cli_group = parser.add_mutually_exclusive_group()
+    cli_group.add_argument(
+        "--claude-code",
+        action="store_true",
+        help="Use Claude Code CLI instead of Sourcegraph Amp",
+    )
+    cli_group.add_argument(
+        "--amp", action="store_true", help="Use Sourcegraph Amp CLI (default)"
+    )
+
     add_common_arguments(parser)
 
     args = parser.parse_args()
@@ -61,15 +74,25 @@ Example:
     repo_path = env["repo_path"]
     repo_name = env["repo_name"]
 
+    # Check for GITHUB_TOKEN early - fail fast if missing
+    if not validate_github_token():
+        return 1
+
+    # Determine which CLI to use
+    use_claude_code = args.claude_code or not args.amp
+
     print_step_header(
         "Step 2",
         "Create Consolidated Design Document",
         repository=repo_name,
         pr_number=args.pr,
+        cli_type="Claude Code" if use_claude_code else "Sourcegraph Amp",
     )
 
-    # Create orchestrator
-    orchestrator = WorkflowOrchestrator(repo_name, repo_path)
+    # Create orchestrator with CLI preference
+    orchestrator = WorkflowOrchestrator(
+        repo_name, repo_path, use_claude_code=use_claude_code
+    )
 
     # Load existing context
     print("\nLoading analysis context...")
@@ -147,14 +170,27 @@ Example:
 
             return 0
         else:
-            print(
-                f"❌ Design consolidation failed: {result.get('error', 'Unknown error')}"
-            )
+            error_msg = result.get("error", "Unknown error")
+            print(f"❌ Design consolidation failed: {error_msg}")
+            logger.error(f"Design consolidation failed: {error_msg}")
+
+            # Fail fast - don't continue if design consolidation fails
+            if "thread creation" in error_msg.lower() or "405" in error_msg:
+                print(
+                    "\n💡 Tip: If using Sourcegraph Amp, try --claude-code flag instead"
+                )
+
             return 1
 
     except Exception as e:
-        logger.error(f"Unexpected error during design consolidation: {e}")
-        print(f"❌ Unexpected error: {e}")
+        error_msg = f"Unexpected error during design consolidation: {e}"
+        logger.error(error_msg)
+        print(f"❌ {error_msg}")
+
+        # Check if it's a CLI-related error
+        if "thread creation" in str(e).lower() or "405" in str(e):
+            print("\n💡 Tip: If using Sourcegraph Amp, try --claude-code flag instead")
+
         return 1
 
 

@@ -1,16 +1,13 @@
-"""
-Tests for memory pressure scenarios and memory management.
+"""Test memory exhaustion and resource management scenarios."""
 
-This module tests how the system behaves under memory constraints
-and ensures proper memory management during large operations.
-"""
-
+import concurrent.futures
 import gc
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from document_symbol_provider import DocumentSymbolProvider
 from python_symbol_extractor import PythonSymbolExtractor
 from repository_indexer import PythonRepositoryIndexer
 from symbol_storage import SQLiteSymbolStorage, Symbol, SymbolKind
@@ -312,6 +309,206 @@ class Class_{i}:
 
             with self.assertRaises(MemoryError):
                 extractor.extract_from_file(str(large_file), "test_repo")
+
+    def test_recursive_structure_memory_bomb(self):
+        """Test handling of deeply recursive structures that could cause memory explosion."""
+        # Create deeply nested structure
+        depth = 10000
+        nested_dict = current = {}
+        for i in range(depth):
+            current["child"] = {}
+            current = current["child"]
+
+        # Test that provider handles deep recursion without stack overflow
+        provider = DocumentSymbolProvider()
+
+        try:
+            # Should handle deep structures gracefully
+            result = provider._process_nested_structure(nested_dict, max_depth=100)
+
+            # Should have limited depth
+            actual_depth = self._measure_depth(result)
+            self.assertLessEqual(actual_depth, 100)
+
+        except RecursionError:
+            self.fail("Provider should handle deep recursion without error")
+
+    def test_circular_reference_memory_leak(self):
+        """Test that circular references don't cause memory leaks."""
+
+        # Create symbols with circular references
+        class CircularSymbol:
+            def __init__(self, name):
+                self.name = name
+                self.parent = None
+                self.children = []
+
+        # Create circular structure
+        root = CircularSymbol("root")
+        child1 = CircularSymbol("child1")
+        child2 = CircularSymbol("child2")
+
+        root.children = [child1, child2]
+        child1.parent = root
+        child2.parent = root
+        child1.children = [root]  # Circular reference
+
+        provider = DocumentSymbolProvider()
+        initial_memory = self._get_memory_usage()
+
+        # Process many circular structures
+        for i in range(1000):
+            # Create new circular structure
+            new_root = CircularSymbol(f"root_{i}")
+            new_child = CircularSymbol(f"child_{i}")
+            new_root.children = [new_child]
+            new_child.parent = new_root
+            new_child.children = [new_root]
+
+            # Process it
+            provider._handle_circular_structure(new_root)
+
+        # Force garbage collection
+        del root, child1, child2
+        gc.collect()
+
+        # Memory should be released
+        final_memory = self._get_memory_usage()
+        memory_growth = final_memory - initial_memory
+
+        self.assertLess(
+            memory_growth, 50 * 1024 * 1024, "Circular references causing memory leak"
+        )
+
+    def test_concurrent_extraction_memory_limit(self):
+        """Test memory usage with concurrent symbol extraction."""
+        files = []
+        for i in range(50):
+            file_path = Path(self.temp_dir) / f"concurrent_{i}.py"
+            file_path.write_text(
+                f"""
+class TestClass_{i}:
+    def method1(self): pass
+    def method2(self): pass
+    def method3(self): pass
+"""
+            )
+            files.append(file_path)
+
+        initial_memory = self._get_memory_usage()
+        max_memory_used = initial_memory
+
+        def extract_file(file_path):
+            nonlocal max_memory_used
+            extractor = PythonSymbolExtractor()
+            symbols = extractor.extract_from_file(str(file_path), "test_repo")
+
+            current_memory = self._get_memory_usage()
+            max_memory_used = max(max_memory_used, current_memory)
+
+            return symbols
+
+        # Run concurrent extractions
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(extract_file, f) for f in files]
+            results = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+        # Check peak memory usage
+        peak_memory_growth = max_memory_used - initial_memory
+        self.assertLess(
+            peak_memory_growth,
+            200 * 1024 * 1024,
+            f"Peak memory growth too high: {peak_memory_growth / 1024 / 1024:.2f}MB",
+        )
+
+        # Verify all extracted
+        self.assertEqual(len(results), 50)
+
+    def test_streaming_extraction(self):
+        """Test streaming extraction for large files."""
+        # Create very large file
+        large_file = Path(self.temp_dir) / "huge.py"
+
+        with open(large_file, "w") as f:
+            for i in range(10000):
+                f.write(
+                    f"""
+def function_{i}(param1, param2):
+    '''Function {i} docstring'''
+    return param1 + param2 + {i}
+
+"""
+                )
+
+        # Extract using streaming to avoid loading entire file
+        extractor = StreamingSymbolExtractor()
+        initial_memory = self._get_memory_usage()
+
+        symbol_count = 0
+        for symbol in extractor.extract_streaming(str(large_file)):
+            symbol_count += 1
+
+            # Memory should stay bounded
+            if symbol_count % 1000 == 0:
+                current_memory = self._get_memory_usage()
+                memory_growth = current_memory - initial_memory
+                self.assertLess(
+                    memory_growth,
+                    50 * 1024 * 1024,
+                    "Streaming extraction using too much memory",
+                )
+
+        self.assertEqual(symbol_count, 10000)
+
+    def _get_memory_usage(self):
+        """Get current process memory usage in bytes."""
+        try:
+            import psutil
+
+            process = psutil.Process()
+            return process.memory_info().rss
+        except ImportError:
+            # Fallback to resource module
+            import resource
+
+            return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+
+    def _measure_depth(self, structure, current_depth=0):
+        """Measure the depth of a nested structure."""
+        if not isinstance(structure, dict) or "child" not in structure:
+            return current_depth
+
+        return self._measure_depth(structure["child"], current_depth + 1)
+
+
+class StreamingSymbolExtractor:
+    """Extracts symbols using streaming to minimize memory usage."""
+
+    def extract_streaming(self, file_path):
+        """Extract symbols one at a time without loading entire file."""
+        with open(file_path) as f:
+            current_function = None
+            line_number = 0
+
+            for line in f:
+                line_number += 1
+
+                if line.strip().startswith("def "):
+                    # Yield previous function if exists
+                    if current_function:
+                        yield current_function
+
+                    # Start new function
+                    func_name = line.strip()[4:].split("(")[0]
+                    current_function = {
+                        "name": func_name,
+                        "type": "function",
+                        "line": line_number,
+                    }
+
+            # Yield last function
+            if current_function:
+                yield current_function
 
 
 if __name__ == "__main__":
