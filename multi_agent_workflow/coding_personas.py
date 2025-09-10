@@ -1,24 +1,89 @@
 #!/usr/bin/env python3
 """
-Coding personas using AmpCLI with different system prompts.
+Coding personas using AmpCLI or ClaudeCodeCLI with different system prompts.
 
 This module defines 4 distinct coding personalities that can be used
-for different aspects of software development.
+for different aspects of software development. Supports both Sourcegraph's Amp
+and Claude Code CLI backends.
 """
 
-from amp_cli_wrapper import AmpCLI
+import os
+from typing import Union
+
+# Import both CLI wrappers
+try:
+    from amp_cli_wrapper import AmpCLI, AmpCLIError
+
+    AMP_AVAILABLE = True
+except ImportError:
+    AMP_AVAILABLE = False
+    AmpCLI = None
+    AmpCLIError = Exception
+
+try:
+    from claude_code_cli_wrapper import ClaudeCodeCLI, ClaudeCodeCLIError
+
+    CLAUDE_CODE_AVAILABLE = True
+except ImportError:
+    CLAUDE_CODE_AVAILABLE = False
+    ClaudeCodeCLI = None
+    ClaudeCodeCLIError = Exception
+
+# Type alias for either CLI
+if AMP_AVAILABLE and CLAUDE_CODE_AVAILABLE:
+    CLIWrapper = Union[AmpCLI, ClaudeCodeCLI]
+    CLIError = Union[AmpCLIError, ClaudeCodeCLIError]
+elif AMP_AVAILABLE:
+    CLIWrapper = AmpCLI
+    CLIError = AmpCLIError
+elif CLAUDE_CODE_AVAILABLE:
+    CLIWrapper = ClaudeCodeCLI
+    CLIError = ClaudeCodeCLIError
+else:
+    raise ImportError("Neither AmpCLI nor ClaudeCodeCLI is available")
 
 
 class CodingPersonas:
     """Factory class for creating different coding personas."""
 
-    @staticmethod
-    def fast_coder() -> AmpCLI:
+    def __init__(self, use_claude_code: bool | None = None):
+        """
+        Initialize the personas factory.
+
+        Args:
+            use_claude_code: If True, use Claude Code CLI. If False, use Amp CLI.
+                           If None, check USE_CLAUDE_CODE environment variable.
+        """
+        # Determine which CLI to use
+        if use_claude_code is None:
+            use_claude_code = os.getenv("USE_CLAUDE_CODE", "false").lower() in (
+                "true",
+                "1",
+                "yes",
+            )
+
+        self.use_claude_code = use_claude_code
+
+        # Set the CLI class to use
+        if self.use_claude_code:
+            if not CLAUDE_CODE_AVAILABLE:
+                raise RuntimeError(
+                    "Claude Code CLI requested but not available. Install with: npm i -g @anthropic-ai/claude-code"
+                )
+            self.cli_class = ClaudeCodeCLI
+        else:
+            if not AMP_AVAILABLE:
+                raise RuntimeError(
+                    "Amp CLI requested but not available. Make sure amp_cli_wrapper.py is in the path"
+                )
+            self.cli_class = AmpCLI
+
+    def fast_coder(self) -> CLIWrapper:
         """
         Create a fast coder persona focused on rapid iteration and progress.
 
         Returns:
-            AmpCLI instance configured as a fast coder
+            CLI instance configured as a fast coder
         """
         system_prompt = """You are a Fast Coder who prioritizes rapid development and iteration.
 
@@ -48,15 +113,14 @@ COMMUNICATION STYLE:
 - Emphasize getting something working quickly
 - Mention testing as a follow-up step, not a blocker"""
 
-        return AmpCLI(isolated=True, system_prompt=system_prompt)
+        return self.cli_class(isolated=True, system_prompt=system_prompt)
 
-    @staticmethod
-    def test_focused_coder() -> AmpCLI:
+    def test_focused_coder(self) -> CLIWrapper:
         """
         Create a test-focused coder persona who prioritizes comprehensive testing.
 
         Returns:
-            AmpCLI instance configured as a test-focused coder
+            CLI instance configured as a test-focused coder
         """
         system_prompt = """You are a Test-Focused Coder who believes in test-driven development and comprehensive testing.
 
@@ -93,15 +157,14 @@ COMMUNICATION STYLE:
 - Emphasize the testing pyramid (lots of unit tests, some integration, few E2E)
 - Advocate for dependency injection and clean interfaces"""
 
-        return AmpCLI(isolated=True, system_prompt=system_prompt)
+        return self.cli_class(isolated=True, system_prompt=system_prompt)
 
-    @staticmethod
-    def senior_engineer() -> AmpCLI:
+    def senior_engineer(self) -> CLIWrapper:
         """
         Create a senior engineer persona focused on maintainable, expressive code.
 
         Returns:
-            AmpCLI instance configured as a senior engineer
+            CLI instance configured as a senior engineer
         """
         system_prompt = """You are a Senior Engineer who prioritizes code quality, maintainability, and expressiveness.
 
@@ -144,15 +207,14 @@ COMMUNICATION STYLE:
 - Balance current needs with future flexibility
 - Focus on expressing business logic clearly in code"""
 
-        return AmpCLI(isolated=True, system_prompt=system_prompt)
+        return self.cli_class(isolated=True, system_prompt=system_prompt)
 
-    @staticmethod
-    def architect() -> AmpCLI:
+    def architect(self) -> CLIWrapper:
         """
         Create an architect persona focused on system design and scalability.
 
         Returns:
-            AmpCLI instance configured as an architect
+            CLI instance configured as an architect
         """
         system_prompt = """You are a Software Architect who ensures architectural integrity, consistent design patterns, and realistic scalability.
 
@@ -202,25 +264,40 @@ COMMUNICATION STYLE:
 - Focus on real scalability needs based on requirements
 - Emphasize the importance of architectural decisions on long-term success"""
 
-        return AmpCLI(isolated=True, system_prompt=system_prompt)
+        return self.cli_class(isolated=True, system_prompt=system_prompt)
 
 
-def demo_personas():
-    """Demonstrate the different coding personas with a simple task."""
+def demo_personas(use_claude_code: bool | None = None):
+    """
+    Demonstrate the different coding personas with a simple task.
+
+    Args:
+        use_claude_code: If True, use Claude Code. If False, use Amp. If None, check env var.
+    """
 
     task = "I need to build a user authentication system for a web application. How should I approach this?"
 
     print("=" * 80)
     print("CODING PERSONAS DEMONSTRATION")
+    if use_claude_code is None:
+        use_claude_code = os.getenv("USE_CLAUDE_CODE", "false").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
+    print(f"Using: {'Claude Code CLI' if use_claude_code else 'Amp CLI'}")
     print("=" * 80)
     print(f"Task: {task}")
     print()
 
+    # Create personas factory
+    factory = CodingPersonas(use_claude_code=use_claude_code)
+
     personas = [
-        ("Fast Coder", CodingPersonas.fast_coder),
-        ("Test-Focused Coder", CodingPersonas.test_focused_coder),
-        ("Senior Engineer", CodingPersonas.senior_engineer),
-        ("Architect", CodingPersonas.architect),
+        ("Fast Coder", factory.fast_coder),
+        ("Test-Focused Coder", factory.test_focused_coder),
+        ("Senior Engineer", factory.senior_engineer),
+        ("Architect", factory.architect),
     ]
 
     responses = {}
@@ -242,8 +319,13 @@ def demo_personas():
     return responses
 
 
-def compare_approaches():
-    """Compare how different personas approach the same coding problem."""
+def compare_approaches(use_claude_code: bool | None = None):
+    """
+    Compare how different personas approach the same coding problem.
+
+    Args:
+        use_claude_code: If True, use Claude Code. If False, use Amp. If None, check env var.
+    """
 
     coding_problem = """I have this function that's getting complex:
 
@@ -280,16 +362,26 @@ How should I improve this code?"""
 
     print("=" * 80)
     print("PERSONA COMPARISON: Code Improvement Approaches")
+    if use_claude_code is None:
+        use_claude_code = os.getenv("USE_CLAUDE_CODE", "false").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
+    print(f"Using: {'Claude Code CLI' if use_claude_code else 'Amp CLI'}")
     print("=" * 80)
     print("Problem:")
     print(coding_problem)
     print()
 
+    # Create personas factory
+    factory = CodingPersonas(use_claude_code=use_claude_code)
+
     personas = [
-        ("Fast Coder", CodingPersonas.fast_coder),
-        ("Test-Focused Coder", CodingPersonas.test_focused_coder),
-        ("Senior Engineer", CodingPersonas.senior_engineer),
-        ("Architect", CodingPersonas.architect),
+        ("Fast Coder", factory.fast_coder),
+        ("Test-Focused Coder", factory.test_focused_coder),
+        ("Senior Engineer", factory.senior_engineer),
+        ("Architect", factory.architect),
     ]
 
     for name, persona_factory in personas:
@@ -306,17 +398,38 @@ How should I improve this code?"""
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Demonstrate coding personas")
+    parser.add_argument(
+        "--claude-code",
+        action="store_true",
+        help="Use Claude Code CLI instead of Amp CLI",
+    )
+    parser.add_argument(
+        "--amp", action="store_true", help="Use Amp CLI (default if neither specified)"
+    )
+    args = parser.parse_args()
+
+    # Determine which CLI to use
+    if args.claude_code:
+        use_claude_code = True
+    elif args.amp:
+        use_claude_code = False
+    else:
+        use_claude_code = None  # Will check env var
+
     print("Testing Coding Personas...")
 
     # Demo basic persona differences
-    demo_responses = demo_personas()
+    demo_responses = demo_personas(use_claude_code=use_claude_code)
 
     print("\n" + "=" * 80)
     print("Press Enter to continue to code improvement comparison...")
     input()
 
     # Compare approaches to code improvement
-    compare_approaches()
+    compare_approaches(use_claude_code=use_claude_code)
 
     print("\n" + "=" * 80)
     print("Demo completed!")

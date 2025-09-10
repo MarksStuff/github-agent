@@ -9,6 +9,7 @@ import ast
 import logging
 from abc import ABC, abstractmethod
 
+from abstract_symbol_extractor import AbstractSymbolExtractor as BaseSymbolExtractor
 from symbol_storage import Symbol, SymbolKind
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ class AbstractSymbolExtractor(ABC):
         pass
 
 
-class PythonSymbolExtractor(AbstractSymbolExtractor):
+class PythonSymbolExtractor(AbstractSymbolExtractor, BaseSymbolExtractor):
     """Python AST-based symbol extractor."""
 
     def __init__(self):
@@ -218,7 +219,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
             kind=SymbolKind.CLASS,
             file_path=self.current_file_path,
             line_number=node.lineno,
-            column_number=node.col_offset,
+            column=node.col_offset,
             repository_id=self.current_repository_id,
             docstring=docstring,
         )
@@ -260,7 +261,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
             kind=kind,
             file_path=self.current_file_path,
             line_number=node.lineno,
-            column_number=node.col_offset,
+            column=node.col_offset,
             repository_id=self.current_repository_id,
             docstring=docstring,
         )
@@ -299,7 +300,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
                 kind=SymbolKind.MODULE,
                 file_path=self.current_file_path,
                 line_number=node.lineno,
-                column_number=node.col_offset,
+                column=node.col_offset,
                 repository_id=self.current_repository_id,
             )
             self.symbols.append(symbol)
@@ -321,7 +322,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
                 kind=SymbolKind.MODULE,
                 file_path=self.current_file_path,
                 line_number=node.lineno,
-                column_number=node.col_offset,
+                column=node.col_offset,
                 repository_id=self.current_repository_id,
             )
             self.symbols.append(symbol)
@@ -338,7 +339,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
                 kind=kind,
                 file_path=self.current_file_path,
                 line_number=node.lineno,
-                column_number=node.col_offset,
+                column=node.col_offset,
                 repository_id=self.current_repository_id,
             )
             self.symbols.append(symbol)
@@ -355,7 +356,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
                 kind=kind,
                 file_path=self.current_file_path,
                 line_number=node.lineno,
-                column_number=node.col_offset,
+                column=node.col_offset,
                 repository_id=self.current_repository_id,
             )
             self.symbols.append(symbol)
@@ -414,7 +415,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
                 kind=SymbolKind.VARIABLE,
                 file_path=self.current_file_path,
                 line_number=node.lineno,
-                column_number=node.col_offset,
+                column=node.col_offset,
                 repository_id=self.current_repository_id,
             )
             self.symbols.append(symbol)
@@ -437,7 +438,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
                 kind=kind,
                 file_path=self.current_file_path,
                 line_number=source_node.lineno,
-                column_number=source_node.col_offset,
+                column=source_node.col_offset,
                 repository_id=self.current_repository_id,
             )
             self.symbols.append(symbol)
@@ -540,3 +541,136 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
         elif var_name.isupper():
             return SymbolKind.CONSTANT
         return SymbolKind.VARIABLE
+
+    def extract_symbol_hierarchy(self, file_path: str) -> list[Symbol]:
+        """Extract symbols with parent-child relationships.
+
+        Args:
+            file_path: Path to the source file
+
+        Returns:
+            List of symbols with hierarchy information populated
+        """
+        # Track parent relationships during extraction
+        self.parent_stack: list[tuple[str, int]] = []  # (name, line_number) pairs
+
+        # Extract symbols with hierarchy tracking
+        try:
+            symbols = self.extract_from_file(file_path, "")
+        except Exception as e:
+            logger.warning(f"Could not extract symbols from {file_path}: {e}")
+            return []
+
+        # Build hierarchy based on scope and position
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                source = f.read()
+            tree = ast.parse(source, filename=file_path)
+
+            # Build a map of symbols by name for quick lookup
+            symbol_map = {s.name: s for s in symbols}
+
+            # Track scope for parent relationships
+            class HierarchyBuilder(ast.NodeVisitor):
+                def __init__(self, extractor):
+                    self.scope_stack = []
+                    self.extractor = extractor
+
+                def visit_ClassDef(self, node):
+                    name = self._get_full_name(node.name)
+                    if name in symbol_map:
+                        symbol = symbol_map[name]
+                        # Set parent based on scope
+                        if self.scope_stack:
+                            parent_name = self.scope_stack[-1]
+                            symbol.parent_id = f"{parent_name}:{node.lineno}"
+                        # Set end position
+                        symbol.end_line = getattr(
+                            node, "end_lineno", symbol.line_number
+                        )
+                        symbol.end_column = getattr(node, "end_col_offset", 0)
+
+                    self.scope_stack.append(name)
+                    self.generic_visit(node)
+                    self.scope_stack.pop()
+
+                def visit_FunctionDef(self, node):
+                    name = self._get_full_name(node.name)
+                    if name in symbol_map:
+                        symbol = symbol_map[name]
+                        # Set parent based on scope
+                        if self.scope_stack:
+                            parent_name = self.scope_stack[-1]
+                            symbol.parent_id = f"{parent_name}:{node.lineno}"
+                        # Set end position
+                        symbol.end_line = getattr(
+                            node, "end_lineno", symbol.line_number
+                        )
+                        symbol.end_column = getattr(node, "end_col_offset", 0)
+
+                    self.scope_stack.append(name)
+                    self.generic_visit(node)
+                    self.scope_stack.pop()
+
+                def visit_AsyncFunctionDef(self, node):
+                    self.visit_FunctionDef(node)
+
+                def _get_full_name(self, name):
+                    if self.scope_stack:
+                        return ".".join(self.scope_stack) + "." + name
+                    return name
+
+            visitor = HierarchyBuilder(self)
+            visitor.visit(tree)
+
+            # Build children lists based on parent_id
+            parent_to_children = {}
+            for symbol in symbols:
+                if symbol.parent_id:
+                    if symbol.parent_id not in parent_to_children:
+                        parent_to_children[symbol.parent_id] = []
+                    parent_to_children[symbol.parent_id].append(symbol)
+
+            # Assign children to parent symbols
+            for symbol in symbols:
+                parent_key = f"{symbol.name}:{symbol.line_number}"
+                if parent_key in parent_to_children:
+                    symbol.children = parent_to_children[parent_key]
+
+        except Exception as e:
+            logger.warning(f"Could not extract hierarchy from {file_path}: {e}")
+
+        return symbols
+
+    def extract_symbols(self, file_path: str) -> list[Symbol]:
+        """Extract symbols from a source file (BaseSymbolExtractor interface).
+
+        Args:
+            file_path: Path to the source file
+
+        Returns:
+            List of extracted symbols without hierarchy
+        """
+        return self.extract_from_file(file_path, "")
+
+    def supports_file_type(self, file_path: str) -> bool:
+        """Check if this extractor supports the given file type.
+
+        Args:
+            file_path: Path to check
+
+        Returns:
+            True if file type is supported
+        """
+        import os
+
+        _, ext = os.path.splitext(file_path)
+        return ext.lower() in self.get_supported_extensions()
+
+    def get_supported_extensions(self) -> list[str]:
+        """Get list of supported file extensions.
+
+        Returns:
+            List of extensions (e.g., ['.py', '.pyi'])
+        """
+        return [".py", ".pyi", ".pyw"]

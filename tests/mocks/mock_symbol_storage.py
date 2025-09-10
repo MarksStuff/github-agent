@@ -132,3 +132,7 @@ class MockSymbolStorage(AbstractSymbolStorage):
     def clear_comment_replies(self) -> None:
         """Testing helper method to clear all comment replies."""
         self._comment_replies.clear()
+
+    def migrate_schema_for_hierarchy(self) -> None:
+        """Add hierarchy columns to existing schema if not present (no-op for mock)."""
+        pass

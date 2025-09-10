@@ -19,6 +19,7 @@ from common_utils import (
     add_common_arguments,
     print_step_header,
     setup_common_environment,
+    validate_github_token,
 )
 from workflow_orchestrator import WorkflowOrchestrator
 
@@ -58,6 +59,16 @@ Examples:
         "--feature",
         help="Feature name/identifier to extract from PRD file (required with --prd-file)",
     )
+    parser.add_argument(
+        "--claude-code",
+        action="store_true",
+        help="Use Claude Code CLI instead of Amp CLI",
+    )
+    parser.add_argument(
+        "--amp",
+        action="store_true",
+        help="Use Amp CLI (default if neither CLI option specified)",
+    )
 
     args = parser.parse_args()
 
@@ -73,6 +84,10 @@ Examples:
     env = setup_common_environment("step1_analysis", args)
     repo_path = env["repo_path"]
     repo_name = env["repo_name"]
+
+    # Check for GITHUB_TOKEN early - fail fast if missing
+    if not validate_github_token():
+        return 1
 
     print_step_header(
         "Step 1", "Multi-Agent Analysis", repository=repo_name, path=repo_path
@@ -94,8 +109,18 @@ Examples:
 
             print(f"Extracting feature: {args.feature}")
 
+            # Determine CLI choice
+            use_claude_code = None
+            if args.claude_code:
+                use_claude_code = True
+            elif args.amp:
+                use_claude_code = False
+            # else None - will check environment variable
+
             # Use senior engineer agent to extract the feature
-            orchestrator = WorkflowOrchestrator(repo_name, repo_path)
+            orchestrator = WorkflowOrchestrator(
+                repo_name, repo_path, use_claude_code=use_claude_code
+            )
             senior_engineer = orchestrator.agents["senior_engineer"]
 
             extraction_prompt = f"""Extract the complete feature description for "{args.feature}" from the following PRD document.
@@ -186,9 +211,20 @@ If the feature "{args.feature}" is not found in the PRD, respond with "FEATURE_N
             json.dump(metadata, f, indent=2)
         print(f"Saved extraction metadata to: {metadata_file}")
 
+    # Determine CLI choice (if not already set from PRD extraction)
+    if "use_claude_code" not in locals():
+        use_claude_code = None
+        if args.claude_code:
+            use_claude_code = True
+        elif args.amp:
+            use_claude_code = False
+        # else None - will check environment variable
+
     # Create orchestrator and run analysis
     print("\nInitializing workflow orchestrator...")
-    orchestrator = WorkflowOrchestrator(repo_name, repo_path)
+    orchestrator = WorkflowOrchestrator(
+        repo_name, repo_path, use_claude_code=use_claude_code
+    )
 
     # Run codebase analysis first if not already done
     print("\nChecking for codebase analysis...")
@@ -235,15 +271,32 @@ If the feature "{args.feature}" is not found in the PRD, respond with "FEATURE_N
             print(f"  - {agent}: {path}")
 
         print("\nNext steps:")
-        print(
-            f"1. Review the analysis documents in {repo_path}/.workflow/round_1_analysis/"
-        )
-        print("2. Provide feedback via GitHub PR comments")
-        print(
-            "3. Run 'python step2_create_design_document.py --pr {}'".format(
-                result["pr_number"]
+        if result.get("next_step"):
+            # Use the orchestrator-provided next steps
+            if isinstance(result["next_step"], str) and "\n" in result["next_step"]:
+                for i, step in enumerate(result["next_step"].split("\n"), 1):
+                    if step.strip():
+                        print(f"{i}. {step.strip()}")
+            else:
+                print(f"1. {result['next_step']}")
+        else:
+            # Fallback to default steps
+            print(
+                f"1. Review the analysis documents in {repo_path}/.workflow/round_1_analysis/"
             )
-        )
+            if result["pr_number"] and result["pr_number"] > 0:
+                print("2. Provide feedback via GitHub PR comments")
+                print(
+                    f"3. Run 'python step2_create_design_document.py --pr {result['pr_number']}'"
+                )
+            else:
+                print("2. Manually create a GitHub PR if desired")
+                print(
+                    "3. Set GITHUB_TOKEN environment variable for automatic PR management"
+                )
+                print(
+                    "4. Run 'python step2_create_design_document.py --pr <pr_number>' once PR is available"
+                )
 
         return 0
     else:

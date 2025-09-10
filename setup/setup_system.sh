@@ -80,7 +80,7 @@ install_python_deps() {
         USE_REQUIREMENTS_FILE=true
     else
         log_warning "requirements.txt not found, using manual package list"
-        # Required packages for PR agent
+        # Required packages for PR agent and LangGraph workflow
         PACKAGES=(
             "mcp"
             "pygithub"
@@ -95,6 +95,13 @@ install_python_deps() {
             "python-lsp-server[all]"
             "watchdog"
             "cachetools"
+            # LangGraph packages
+            "langgraph>=0.2.0"
+            "langgraph-checkpoint-sqlite"
+            "langchain-ollama"
+            "langchain-anthropic"
+            "httpx"
+            "aiofiles"
         )
         USE_REQUIREMENTS_FILE=false
     fi
@@ -367,6 +374,86 @@ check_required_files() {
     done
 }
 
+# Setup LangGraph environment
+setup_langgraph() {
+    log_info "Setting up LangGraph environment..."
+    
+    REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+    
+    # Create LangGraph directories
+    LANGGRAPH_DIR="$REPO_ROOT/langgraph_workflow"
+    if [ ! -d "$LANGGRAPH_DIR" ]; then
+        log_info "Creating LangGraph workflow directory structure..."
+        mkdir -p "$LANGGRAPH_DIR/nodes"
+        mkdir -p "$LANGGRAPH_DIR/routing"
+        mkdir -p "$LANGGRAPH_DIR/utils"
+        touch "$LANGGRAPH_DIR/__init__.py"
+        touch "$LANGGRAPH_DIR/nodes/__init__.py"
+        touch "$LANGGRAPH_DIR/routing/__init__.py"
+        touch "$LANGGRAPH_DIR/utils/__init__.py"
+        log_success "LangGraph directory structure created"
+    else
+        log_success "LangGraph directory already exists"
+    fi
+    
+    # Check for Ollama configuration
+    log_info "Configuring Ollama connection..."
+    if [ -z "$OLLAMA_BASE_URL" ]; then
+        log_warning "OLLAMA_BASE_URL not set"
+        log_info "Please set OLLAMA_BASE_URL to your remote Ollama instance"
+        log_info "Example: export OLLAMA_BASE_URL=http://windows-machine:11434"
+        log_info "You can add this to your .env file"
+    else
+        log_success "Ollama configured at: $OLLAMA_BASE_URL"
+        # Test Ollama connection
+        if curl -s "$OLLAMA_BASE_URL/api/tags" >/dev/null 2>&1; then
+            log_success "Ollama connection verified"
+        else
+            log_warning "Could not connect to Ollama at $OLLAMA_BASE_URL"
+            log_info "Please ensure Ollama is running and accessible"
+        fi
+    fi
+    
+    # Create SQLite database directory for checkpoints
+    CHECKPOINT_DIR="$REPO_ROOT/.langgraph_checkpoints"
+    if [ ! -d "$CHECKPOINT_DIR" ]; then
+        mkdir -p "$CHECKPOINT_DIR"
+        log_success "Created checkpoint directory at $CHECKPOINT_DIR"
+    fi
+    
+    # Create example .env.langgraph if it doesn't exist
+    ENV_LANGGRAPH="$REPO_ROOT/.env.langgraph"
+    if [ ! -f "$ENV_LANGGRAPH" ]; then
+        log_info "Creating example .env.langgraph file..."
+        cat > "$ENV_LANGGRAPH" << 'EOF'
+# LangGraph Configuration
+# Add this to your main .env file or source it separately
+
+# Remote Ollama configuration (Windows machine)
+OLLAMA_BASE_URL=http://your-windows-machine:11434
+
+# Anthropic API for Claude
+ANTHROPIC_API_KEY=your-anthropic-api-key
+
+# LangGraph settings
+LANGGRAPH_DB_PATH=.langgraph_checkpoints/agent_state.db
+LANGGRAPH_ARTIFACTS_DIR=.workflow/artifacts
+LANGGRAPH_SERVER_PORT=8123
+
+# Model routing preferences
+MODEL_ROUTER_ESCALATION_THRESHOLD=2
+MODEL_ROUTER_DIFF_SIZE_LIMIT=300
+MODEL_ROUTER_FILES_LIMIT=10
+EOF
+        log_success "Created example .env.langgraph"
+        log_warning "Please update .env.langgraph with your actual configuration"
+    else
+        log_success ".env.langgraph already exists"
+    fi
+    
+    log_success "LangGraph environment setup complete"
+}
+
 # Setup GitHub MCP multi-repository configuration
 setup_github_mcp() {
     log_info "Setting up GitHub MCP multi-repository configuration..."
@@ -462,11 +549,19 @@ run_verification() {
     
     # Test Python and libraries
     log_info "Testing Python libraries..."
-    if $PYTHON_CMD -c "import mcp, github, git, requests, pydantic, watchdog, cachetools; print('All libraries available')" 2>/dev/null; then
-        log_success "Python libraries verified (including codebase server)"
+    if $PYTHON_CMD -c "import mcp, github, git, requests, pydantic, watchdog, cachetools; print('Core libraries available')" 2>/dev/null; then
+        log_success "Core Python libraries verified"
     else
-        log_error "Python libraries test failed"
+        log_error "Core Python libraries test failed"
         ((errors++))
+    fi
+    
+    # Test LangGraph libraries
+    log_info "Testing LangGraph libraries..."
+    if $PYTHON_CMD -c "import langgraph, langchain_ollama, langchain_anthropic, httpx, aiofiles; print('LangGraph libraries available')" 2>/dev/null; then
+        log_success "LangGraph libraries verified"
+    else
+        log_warning "LangGraph libraries not fully installed (optional for base functionality)"
     fi
     
     # Test agents
@@ -515,6 +610,7 @@ main() {
     install_python_deps
     install_agents
     check_git
+    setup_langgraph
     setup_github_mcp
     
     echo
@@ -566,8 +662,15 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo "  - Python libraries: mcp, pygithub, gitpython, requests, pydantic, python-dotenv"
     echo "  - LSP servers: python-lsp-server"
     echo "  - Codebase indexing: watchdog, cachetools"
+    echo "  - LangGraph workflow: langgraph, langgraph-checkpoint-sqlite, langchain-ollama, langchain-anthropic"
     echo "  - Claude Code (via npm)"
     echo "  - SourceGraph Amp (via npm)"
+    echo
+    echo "The script will also:"
+    echo "  - Create LangGraph workflow directory structure"
+    echo "  - Configure remote Ollama connection"
+    echo "  - Set up SQLite checkpoint database"
+    echo "  - Create example .env.langgraph configuration"
     echo
     exit 0
 fi

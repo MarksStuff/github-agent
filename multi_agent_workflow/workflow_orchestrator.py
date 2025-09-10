@@ -38,20 +38,25 @@ logger = logging.getLogger(__name__)
 class WorkflowOrchestrator:
     """Orchestrates multi-agent collaboration workflow."""
 
-    def __init__(self, repo_name: str, repo_path: str):
+    def __init__(
+        self, repo_name: str, repo_path: str, use_claude_code: bool | None = None
+    ):
         """Initialize orchestrator.
 
         Args:
             repo_name: GitHub repository name (org/repo)
             repo_path: Local path to repository
+            use_claude_code: If True, use Claude Code CLI. If False, use Amp CLI.
+                           If None, check USE_CLAUDE_CODE environment variable.
         """
         self.repo_name = repo_name
         self.repo_path = Path(repo_path)
+        self.use_claude_code = use_claude_code
         self.agents = {
-            "architect": ArchitectAgent(),
-            "developer": DeveloperAgent(),
-            "senior_engineer": SeniorEngineerAgent(),
-            "tester": TesterAgent(),
+            "architect": ArchitectAgent(use_claude_code=use_claude_code),
+            "developer": DeveloperAgent(use_claude_code=use_claude_code),
+            "senior_engineer": SeniorEngineerAgent(use_claude_code=use_claude_code),
+            "tester": TesterAgent(use_claude_code=use_claude_code),
         }
         self._codebase_analysis = None  # Will store senior engineer's analysis
 
@@ -319,15 +324,22 @@ CRITICAL:
             context = TaskContext(feature_spec, codebase_state, str(self.repo_path))
             context.update_phase("round_1_analysis")
 
-            # Create or find PR
+            # Run Round 1: Parallel analysis first
+            analysis_results = await self._run_analysis_round(context)
+
+            # Commit analysis artifacts locally
+            await self._commit_analysis_artifacts(context, analysis_results)
+
+            # Now try to create PR with the new commits
             pr_number = await self._setup_github_pr(feature_spec, context)
             context.set_pr_number(pr_number)
 
-            # Run Round 1: Parallel analysis
-            analysis_results = await self._run_analysis_round(context)
-
-            # Commit analysis artifacts to PR
-            await self._commit_analysis_artifacts(context, analysis_results)
+            # If PR creation failed, provide guidance
+            if pr_number == 0:
+                logger.info(
+                    "PR not created automatically. Analysis documents are committed locally. "
+                    "You can create a PR manually on GitHub when ready."
+                )
 
             # Wait for human feedback
             logger.info(
@@ -338,16 +350,37 @@ CRITICAL:
             context_file = self.workflow_dir / f"context_pr_{pr_number}.json"
             context.save_to_file(context_file)
 
+            # Prepare the return message and URL based on PR availability
+            if pr_number and pr_number > 0:
+                pr_url = f"https://github.com/{self.repo_name}/pull/{pr_number}"
+                message = f"Analysis complete. Please review and provide feedback on PR #{pr_number}"
+                next_step = (
+                    f"Run 'python step2_create_design_document.py --pr {pr_number}'"
+                )
+            else:
+                pr_url = "No GitHub PR created (local analysis only)"
+                message = "Analysis complete. Analysis documents are saved locally."
+                next_step = (
+                    "1. Review the analysis documents in .workflow/round_1_analysis/\n"
+                    "2. Commit the analysis files: git add .workflow && git commit -m 'Add analysis documents'\n"
+                    "3. Push the branch: git push origin "
+                    + context.codebase_state.branch
+                    + "\n"
+                    "4. Create PR manually on GitHub\n"
+                    "5. Run 'python step2_create_design_document.py --pr <pr_number>' once PR is created"
+                )
+
             return {
                 "status": "success",
                 "pr_number": pr_number,
-                "pr_url": f"https://github.com/{self.repo_name}/pull/{pr_number}",
+                "pr_url": pr_url,
                 "analysis_artifacts": {
                     agent_type: f".workflow/round_1_analysis/{agent_type}_analysis.md"
                     for agent_type in self.agents.keys()
                 },
                 "context_file": str(context_file),
-                "message": f"Analysis complete. Please review and provide feedback on PR #{pr_number}",
+                "message": message,
+                "next_step": next_step,
             }
 
         except Exception as e:
@@ -589,7 +622,13 @@ CRITICAL:
             logger.info(f"Created PR #{pr_number}")
             return pr_number
         else:
-            logger.warning("Failed to create PR automatically")
+            logger.info(
+                "PR not created. Possible reasons:"
+                "\n  - No commits between current branch and main"
+                "\n  - Branch is up to date with main"
+                "\n  - Authentication or repository access issues"
+                "\nSee specific error messages above for details. Analysis will proceed locally."
+            )
             return 0
 
     async def _create_github_pr(
@@ -676,6 +715,12 @@ All analysis documents are in `.workflow/round_1_analysis/`
                 "base": "main",  # or "master" - we could detect this
             }
 
+            # Log PR creation details for debugging
+            logger.debug(
+                f"Creating PR: {pr_data['title'][:50]}... | "
+                f"Head: {pr_data['head']} | Base: {pr_data['base']}"
+            )
+
             response = requests.post(api_url, json=pr_data, headers=headers)
 
             if response.status_code == 201:
@@ -686,9 +731,40 @@ All analysis documents are in `.workflow/round_1_analysis/`
                 )
                 return cast(int, pr_number)
             else:
-                logger.error(
-                    f"Failed to create PR: {response.status_code} - {response.text}"
-                )
+                # Always log the full error for debugging
+                error_text = response.text
+                logger.error(f"GitHub API Error: {response.status_code} - {error_text}")
+
+                # Try to parse JSON error for more details
+                try:
+                    error_data = response.json()
+                    if "errors" in error_data and error_data["errors"]:
+                        for error in error_data["errors"]:
+                            logger.error(f"  → {error.get('message', 'Unknown error')}")
+                except Exception:
+                    pass  # JSON parsing failed, already logged raw text above
+
+                # Parse specific error cases for user-friendly messaging
+                if response.status_code == 422 and "No commits between" in error_text:
+                    logger.info(
+                        f"→ Branch '{branch_name}' has no commits ahead of main. "
+                        "This is normal when starting new analysis. "
+                        "Analysis documents will be created and can be committed later."
+                    )
+                elif response.status_code == 401:
+                    logger.error(
+                        "→ GitHub API authentication failed. Please check your GITHUB_TOKEN."
+                    )
+                elif response.status_code == 404:
+                    logger.error(
+                        f"→ Repository {self.repo_name} not found or not accessible with current token."
+                    )
+                elif response.status_code == 422:
+                    logger.error(
+                        "→ GitHub API validation error. Check branch name, base branch, or repository permissions."
+                    )
+                else:
+                    logger.error("→ Unexpected GitHub API error. See details above.")
                 return 0
 
         except subprocess.CalledProcessError as e:

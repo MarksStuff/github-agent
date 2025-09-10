@@ -22,7 +22,7 @@ Enhanced Workflow Process:
 16. Repeat PR review cycle until no new comments
 
 Usage:
-    python step4_implementation.py --pr PR_NUMBER [--resume]
+    python step4_implementation.py --pr PR_NUMBER [--resume] [--claude-code | --amp]
 """
 
 import argparse
@@ -39,6 +39,7 @@ from common_utils import (
     add_common_arguments,
     print_step_header,
     setup_common_environment,
+    validate_github_token,
 )
 from workflow_orchestrator import WorkflowOrchestrator
 
@@ -100,15 +101,21 @@ class WorkflowState:
 class EnhancedImplementationProcessor:
     """Orchestrates the enhanced skeleton-first, test-driven implementation workflow."""
 
-    def __init__(self, pr_number: int, repo_path: str, repo_name: str):
+    def __init__(
+        self,
+        pr_number: int,
+        repo_path: str,
+        repo_name: str,
+        use_claude_code: bool = True,
+    ):
         """Initialize the enhanced implementation processor."""
         self.pr_number = pr_number
         self.repo_path = Path(repo_path)
         self.repo_name = repo_name
 
-        # Initialize workflow orchestrator
+        # Initialize workflow orchestrator with CLI preference
         self.orchestrator = WorkflowOrchestrator(
-            repo_name=repo_name, repo_path=repo_path
+            repo_name=repo_name, repo_path=repo_path, use_claude_code=use_claude_code
         )
 
         self.workflow_dir = self.repo_path / ".workflow"
@@ -165,9 +172,17 @@ class EnhancedImplementationProcessor:
             }
 
         except Exception as e:
-            logger.error(f"Enhanced implementation failed: {e}")
+            error_msg = f"Enhanced implementation failed: {e}"
+            logger.error(error_msg)
             self.state.save_state()
-            return {"status": "failed", "error": str(e)}
+
+            # Check if it's a CLI-related error
+            if "thread creation" in str(e).lower() or "405" in str(e):
+                error_msg += (
+                    "\n💡 Tip: Try using --claude-code flag instead of Sourcegraph Amp"
+                )
+
+            return {"status": "failed", "error": error_msg}
 
     async def _load_design_document(self) -> str:
         """Load the design document from previous steps."""
@@ -1016,6 +1031,18 @@ PR comments through multiple review cycles.
     parser.add_argument(
         "--resume", action="store_true", help="Resume a paused workflow"
     )
+
+    # Add CLI selection arguments
+    cli_group = parser.add_mutually_exclusive_group()
+    cli_group.add_argument(
+        "--claude-code",
+        action="store_true",
+        help="Use Claude Code CLI instead of Sourcegraph Amp",
+    )
+    cli_group.add_argument(
+        "--amp", action="store_true", help="Use Sourcegraph Amp CLI (default)"
+    )
+
     add_common_arguments(parser)
 
     args = parser.parse_args()
@@ -1025,12 +1052,20 @@ PR comments through multiple review cycles.
     repo_path = env["repo_path"]
     repo_name = env["repo_name"]
 
+    # Check for GITHUB_TOKEN early - fail fast if missing
+    if not validate_github_token():
+        return 1
+
+    # Determine which CLI to use
+    use_claude_code = args.claude_code or not args.amp
+
     print_step_header(
         "Step 4",
         "Enhanced Implementation Process",
         pr_number=args.pr,
         repository=repo_name,
         path=repo_path,
+        cli_type="Claude Code" if use_claude_code else "Sourcegraph Amp",
     )
 
     # Check prerequisites
@@ -1041,7 +1076,9 @@ PR comments through multiple review cycles.
         return 1
 
     # Create processor and run
-    processor = EnhancedImplementationProcessor(args.pr, repo_path, repo_name)
+    processor = EnhancedImplementationProcessor(
+        args.pr, repo_path, repo_name, use_claude_code=use_claude_code
+    )
 
     try:
         result = await processor.run_enhanced_implementation(resume=args.resume)
@@ -1059,7 +1096,15 @@ PR comments through multiple review cycles.
             print("   Add PR comments and run with --resume to continue")
 
         else:
-            print(f"❌ Workflow failed: {result.get('error')}")
+            error_msg = result.get("error", "Unknown error")
+            print(f"❌ Workflow failed: {error_msg}")
+
+            # Check if it's a CLI-related error and provide helpful suggestion
+            if "thread creation" in error_msg.lower() or "405" in error_msg:
+                print(
+                    "\n💡 Tip: If using Sourcegraph Amp, try --claude-code flag instead"
+                )
+
             return 1
 
         return 0
@@ -1068,8 +1113,14 @@ PR comments through multiple review cycles.
         print("\n⚠️  Workflow interrupted by user")
         return 1
     except Exception as e:
-        print(f"\n❌ Workflow failed: {e}")
+        error_msg = f"Workflow failed: {e}"
+        print(f"\n❌ {error_msg}")
         logger.exception("Enhanced implementation failed")
+
+        # Check if it's a CLI-related error
+        if "thread creation" in str(e).lower() or "405" in str(e):
+            print("\n💡 Tip: If using Sourcegraph Amp, try --claude-code flag instead")
+
         return 1
 
 

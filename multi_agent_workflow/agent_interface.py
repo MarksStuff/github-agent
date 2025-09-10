@@ -5,8 +5,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
 
-from amp_cli_wrapper import AmpCLI
-from coding_personas import CodingPersonas
+from coding_personas import CLIWrapper, CodingPersonas
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 class AgentInterface(ABC):
     """Base class for all agent implementations."""
 
-    def __init__(self, persona_factory: Callable[[], AmpCLI], agent_type: str):
+    def __init__(self, persona_factory: Callable[[], CLIWrapper], agent_type: str):
         """Initialize agent with a specific persona.
 
         Args:
@@ -314,8 +313,9 @@ Please provide the improved implementation addressing these suggestions."""
 class ArchitectAgent(AgentInterface):
     """Architect agent focusing on system design and architecture."""
 
-    def __init__(self):
-        super().__init__(CodingPersonas.architect, "architect")
+    def __init__(self, use_claude_code: bool | None = None):
+        factory = CodingPersonas(use_claude_code=use_claude_code)
+        super().__init__(factory.architect, "architect")
 
     def _build_analysis_prompt(self, context: dict[str, Any], task_spec: str) -> str:
         codebase_analysis_path = context.get("codebase_analysis_path")
@@ -460,8 +460,9 @@ Ground all responses in specific code patterns and implementations - avoid gener
 class DeveloperAgent(AgentInterface):
     """Developer agent focusing on implementation approach."""
 
-    def __init__(self):
-        super().__init__(CodingPersonas.fast_coder, "developer")
+    def __init__(self, use_claude_code: bool | None = None):
+        factory = CodingPersonas(use_claude_code=use_claude_code)
+        super().__init__(factory.fast_coder, "developer")
 
     def _build_analysis_prompt(self, context: dict[str, Any], task_spec: str) -> str:
         codebase_analysis_path = context.get("codebase_analysis_path")
@@ -590,8 +591,9 @@ Base all responses on specific existing code patterns and tools - avoid generic 
 class SeniorEngineerAgent(AgentInterface):
     """Senior engineer agent focusing on code quality and maintainability."""
 
-    def __init__(self):
-        super().__init__(CodingPersonas.senior_engineer, "senior_engineer")
+    def __init__(self, use_claude_code: bool | None = None):
+        factory = CodingPersonas(use_claude_code=use_claude_code)
+        super().__init__(factory.senior_engineer, "senior_engineer")
 
     def _build_analysis_prompt(self, context: dict[str, Any], task_spec: str) -> str:
         codebase_analysis_path = context.get("codebase_analysis_path")
@@ -721,8 +723,9 @@ Reference specific existing code quality patterns and maintainability practices 
 class TesterAgent(AgentInterface):
     """Tester agent focusing on testing strategy and quality assurance."""
 
-    def __init__(self):
-        super().__init__(CodingPersonas.test_focused_coder, "tester")
+    def __init__(self, use_claude_code: bool | None = None):
+        factory = CodingPersonas(use_claude_code=use_claude_code)
+        super().__init__(factory.test_focused_coder, "tester")
 
     def _build_analysis_prompt(self, context: dict[str, Any], task_spec: str) -> str:
         codebase_analysis_path = context.get("codebase_analysis_path")
