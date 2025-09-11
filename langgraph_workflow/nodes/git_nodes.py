@@ -8,12 +8,13 @@ from pathlib import Path
 # Add parent directories for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
+from langgraph_workflow.interfaces.git_interface import GitNodesInterface
 from langgraph_workflow.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
 
-class GitNodes:
+class GitNodes(GitNodesInterface):
     """GitHub operations using existing github_tools.py MCP integration."""
 
     def __init__(self, repo_name: str, repo_path: str):

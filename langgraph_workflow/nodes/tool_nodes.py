@@ -7,12 +7,13 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from langgraph_workflow.interfaces.tool_interface import ToolNodesInterface
 from langgraph_workflow.state import QualityState, WorkflowState
 
 logger = logging.getLogger(__name__)
 
 
-class ToolNodes:
+class ToolNodes(ToolNodesInterface):
     """Local tool execution nodes."""
 
     def __init__(self, repo_path: str):

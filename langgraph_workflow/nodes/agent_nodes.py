@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 sys.path.append(str(Path(__file__).parent.parent.parent / "multi_agent_workflow"))
 
+from langgraph_workflow.interfaces.agent_interface import AgentNodesInterface
 from langgraph_workflow.state import AgentType, WorkflowState
 from langgraph_workflow.utils.artifacts import ArtifactManager
 
@@ -18,7 +19,7 @@ from multi_agent_workflow.workflow_orchestrator import WorkflowOrchestrator
 logger = logging.getLogger(__name__)
 
 
-class AgentNodes:
+class AgentNodes(AgentNodesInterface):
     """Collection of agent nodes for the workflow graph."""
 
     def __init__(
@@ -27,7 +28,7 @@ class AgentNodes:
         """Initialize agent nodes with repository context."""
         self.repo_name = repo_name
         self.repo_path = Path(repo_path)
-        self.orchestrator = WorkflowOrchestrator(repo_name, repo_path, use_claude_code)
+        self.orchestrator = WorkflowOrchestrator(repo_name, repo_path)
         self.artifact_manager = ArtifactManager(repo_path)
 
     async def analyze_codebase(self, state: WorkflowState) -> dict:
@@ -49,12 +50,13 @@ class AgentNodes:
             # Store in state
             state["codebase_analysis"] = analysis_result
 
-            # Save to artifacts
+            # Save to artifacts with feature organization
             artifact_path = self.artifact_manager.save_artifact(
                 thread_id=state["thread_id"],
                 artifact_type="analysis",
                 filename="codebase_analysis.md",
                 content=analysis_result.get("content", ""),
+                feature_name=state.get("feature_name"),
             )
 
             # Update artifact index
@@ -135,6 +137,7 @@ class AgentNodes:
                         artifact_type="analysis",
                         filename=f"{agent_type.value}_analysis.md",
                         content=result.get("analysis", ""),
+                        feature_name=state.get("feature_name"),
                     )
 
                     state["artifacts_index"][f"{agent_type.value}_analysis"] = str(
@@ -209,6 +212,7 @@ class AgentNodes:
                 artifact_type="design",
                 filename="consolidated_design.md",
                 content=consolidated,
+                feature_name=state.get("feature_name"),
             )
 
             state["artifacts_index"]["consolidated_design"] = str(artifact_path)
@@ -284,6 +288,7 @@ Instructions:
                 artifact_type="design",
                 filename="finalized_design.md",
                 content=finalized_design,
+                feature_name=state.get("feature_name"),
             )
 
             state["artifacts_index"]["finalized_design"] = str(artifact_path)
@@ -365,6 +370,7 @@ Provide complete skeleton code for each file that needs to be created."""
                 artifact_type="code",
                 filename="architecture_skeleton.py",
                 content=skeleton,
+                feature_name=state.get("feature_name"),
             )
 
             state["artifacts_index"]["skeleton"] = str(artifact_path)
@@ -433,6 +439,7 @@ Provide complete, runnable test code."""
                 artifact_type="tests",
                 filename="test_suite.py",
                 content=tests,
+                feature_name=state.get("feature_name"),
             )
 
             state["artifacts_index"]["tests"] = str(artifact_path)
@@ -497,6 +504,7 @@ Focus on implementing clean, working code based solely on the skeleton and desig
                 artifact_type="code",
                 filename="implementation.py",
                 content=implementation,
+                feature_name=state.get("feature_name"),
             )
 
             state["artifacts_index"]["implementation"] = str(artifact_path)
@@ -568,6 +576,7 @@ Provide the corrected implementation that fixes all test failures."""
                 artifact_type="code",
                 filename=f"implementation_fix_{state['retry_count']}.py",
                 content=fixed_code,
+                feature_name=state.get("feature_name"),
             )
 
             state["artifacts_index"][f"fix_{state['retry_count']}"] = str(artifact_path)

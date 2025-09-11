@@ -3,12 +3,13 @@
 import asyncio
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import patch
 
 import pytest
 
 from langgraph_workflow.graph import WorkflowGraph
-from langgraph_workflow.state import WorkflowPhase, initialize_state
+from langgraph_workflow.state import WorkflowPhase, WorkflowState, initialize_state
+from langgraph_workflow.tests.mocks import MockAgentNodes, MockGitNodes, MockToolNodes
 from langgraph_workflow.utils.artifacts import ArtifactManager
 from langgraph_workflow.utils.validators import StateValidator
 
@@ -33,10 +34,10 @@ class TestWorkflowIntegration:
         """Create a workflow graph instance."""
         with tempfile.NamedTemporaryFile(suffix=".db") as db_file:
             graph = WorkflowGraph("test/repo", str(temp_repo), db_file.name)
-            # Mock the agent nodes to avoid real model calls
-            graph.agent_nodes = MagicMock()
-            graph.git_nodes = MagicMock()
-            graph.tool_nodes = MagicMock()
+            # Use our mock implementations instead of MagicMock
+            graph.agent_nodes = MockAgentNodes("test/repo", str(temp_repo))
+            graph.git_nodes = MockGitNodes("test/repo", str(temp_repo))
+            graph.tool_nodes = MockToolNodes(str(temp_repo))
             yield graph
 
     def test_workflow_graph_initialization(self, temp_repo):
@@ -45,7 +46,7 @@ class TestWorkflowIntegration:
             graph = WorkflowGraph("test/repo", str(temp_repo), db_file.name)
 
             assert graph.repo_name == "test/repo"
-            assert graph.repo_path == temp_repo
+            assert graph.repo_path == str(temp_repo)
             assert graph.checkpointer is not None
             assert graph.app is not None
 
@@ -84,18 +85,11 @@ class TestWorkflowIntegration:
     @pytest.mark.asyncio
     async def test_workflow_run_basic(self, workflow_graph):
         """Test basic workflow execution."""
-
-        # Mock all node methods to return updated state
-        async def mock_node(state):
-            return state
-
-        workflow_graph.git_nodes.initialize_git = AsyncMock(side_effect=mock_node)
-        workflow_graph.agent_nodes.analyze_codebase = AsyncMock(side_effect=mock_node)
-        workflow_graph.agent_nodes.analyze_feature = AsyncMock(side_effect=mock_node)
-
         # Mock the app stream to simulate workflow execution
         mock_event = {"status": "completed"}
-        workflow_graph.app.astream = AsyncMock(return_value=aiter([mock_event]))
+        async def mock_astream(*args, **kwargs):
+            yield mock_event
+        workflow_graph.app.astream = mock_astream
 
         result = await workflow_graph.run_workflow(
             thread_id="test-thread",
@@ -106,12 +100,19 @@ class TestWorkflowIntegration:
         assert result["status"] == "completed"
         assert result["thread_id"] == "test-thread"
 
+        # Verify our mock nodes can be called
+        assert isinstance(workflow_graph.agent_nodes, MockAgentNodes)
+        assert isinstance(workflow_graph.git_nodes, MockGitNodes)
+        assert isinstance(workflow_graph.tool_nodes, MockToolNodes)
+
     @pytest.mark.asyncio
     async def test_workflow_resume(self, workflow_graph):
         """Test workflow resume functionality."""
         # Mock the app stream for resume
         mock_event = {"status": "resumed"}
-        workflow_graph.app.astream = AsyncMock(return_value=aiter([mock_event]))
+        async def mock_astream(*args, **kwargs):
+            yield mock_event
+        workflow_graph.app.astream = mock_astream
 
         result = await workflow_graph.resume_workflow("test-thread")
 
@@ -120,13 +121,16 @@ class TestWorkflowIntegration:
 
     def test_get_workflow_state(self, workflow_graph):
         """Test getting workflow state."""
-        # Mock the app get_state
-        mock_state = MagicMock()
-        mock_state.values = {
-            "thread_id": "test-thread",
-            "current_phase": WorkflowPhase.ANALYSIS,
-        }
-        workflow_graph.app.get_state = MagicMock(return_value=mock_state)
+        # Create a mock state object with the expected interface
+        class MockState:
+            def __init__(self):
+                self.values = {
+                    "thread_id": "test-thread",
+                    "current_phase": WorkflowPhase.ANALYSIS,
+                }
+
+        mock_state = MockState()
+        workflow_graph.app.get_state = lambda config: mock_state
 
         state = workflow_graph.get_workflow_state("test-thread")
 
@@ -222,6 +226,18 @@ class TestEndToEndScenarios:
     """Test end-to-end workflow scenarios."""
 
     @pytest.fixture
+    def temp_repo(self):
+        """Create a temporary repository directory."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir)
+            # Create a minimal git repo
+            (repo_path / ".git").mkdir()
+            (repo_path / ".git" / "config").write_text(
+                "[remote \"origin\"]\n    url = git@github.com:test/repo.git"
+            )
+            yield repo_path
+
+    @pytest.fixture
     def full_setup(self, temp_repo):
         """Create a full test setup."""
         with tempfile.NamedTemporaryFile(suffix=".db") as db_file:
@@ -282,12 +298,14 @@ class TestEndToEndScenarios:
         }
 
         paths = {}
+        feature_name = "test_feature"
         for artifact_type, content in artifacts.items():
             path = artifact_manager.save_artifact(
                 thread_id=thread_id,
                 artifact_type=artifact_type,
                 filename=f"{artifact_type}.md",
                 content=content,
+                feature_name=feature_name,
             )
             paths[artifact_type] = path
 
@@ -295,12 +313,12 @@ class TestEndToEndScenarios:
         for artifact_type, path in paths.items():
             assert path.exists()
             loaded = artifact_manager.load_artifact(
-                thread_id, artifact_type, f"{artifact_type}.md"
+                thread_id, artifact_type, f"{artifact_type}.md", feature_name=feature_name
             )
             assert loaded == artifacts[artifact_type]
 
         # Create and verify artifact index
-        index = artifact_manager.create_artifact_index(thread_id)
+        index = artifact_manager.create_artifact_index(thread_id, feature_name=feature_name)
         assert len(index) == 4
         assert "analysis:analysis" in index
         assert "design:design" in index
@@ -309,14 +327,19 @@ class TestEndToEndScenarios:
         """Test error handling during workflow execution."""
         graph = full_setup["graph"]
 
-        # Mock a node to raise an error
+        # Mock a node to raise an error by overriding the mock implementation
         async def failing_node(state):
             raise Exception("Node execution failed")
 
-        graph.agent_nodes.analyze_codebase = AsyncMock(side_effect=failing_node)
+        graph.agent_nodes.analyze_codebase = failing_node
 
         # Mock the app stream to handle the error
-        graph.app.astream = AsyncMock(side_effect=Exception("Workflow failed"))
+        async def failing_astream(*args, **kwargs):
+            # Make it an async generator that raises
+            if False:
+                yield  # Make this an async generator
+            raise Exception("Workflow failed")
+        graph.app.astream = failing_astream
 
         # Run workflow and expect failure
         result = asyncio.run(
@@ -339,7 +362,7 @@ class TestEndToEndScenarios:
             await asyncio.sleep(0.1)  # Simulate some work
             yield {"status": "completed"}
 
-        graph.app.astream = AsyncMock(side_effect=mock_stream)
+        graph.app.astream = mock_stream
 
         async def run_concurrent_workflows():
             tasks = []
@@ -361,13 +384,3 @@ class TestEndToEndScenarios:
             assert result["status"] == "completed"
             assert result["thread_id"] == f"thread-{i}"
 
-
-# Helper function for async iteration
-def aiter(items):
-    """Create an async iterator from a list."""
-
-    async def gen():
-        for item in items:
-            yield item
-
-    return gen()
