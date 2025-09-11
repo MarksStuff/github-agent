@@ -3,11 +3,13 @@
 
 import sys
 
+
 def main():
     """Placeholder main function."""
     print("This is a placeholder repository CLI file.")
     print("The actual functionality is in codebase_cli.py")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

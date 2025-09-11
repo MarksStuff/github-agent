@@ -43,33 +43,33 @@ class ArtifactManager:
         else:
             # Fall back to thread-only organization for backward compatibility
             thread_dir = self.artifacts_root / thread_id
-        
+
         thread_dir.mkdir(parents=True, exist_ok=True)
         return thread_dir
-    
+
     def _sanitize_feature_name(self, feature_name: str) -> str:
         """Sanitize feature name for use as directory name.
-        
+
         Args:
             feature_name: Raw feature name
-            
+
         Returns:
             Sanitized directory name
         """
         import re
-        
+
         # Convert to lowercase and replace spaces/special chars with hyphens
-        sanitized = re.sub(r'[^a-zA-Z0-9\s-]', '', feature_name.lower())
-        sanitized = re.sub(r'\s+', '-', sanitized)
-        sanitized = re.sub(r'-+', '-', sanitized)  # Remove multiple consecutive hyphens
-        sanitized = sanitized.strip('-')  # Remove leading/trailing hyphens
-        
+        sanitized = re.sub(r"[^a-zA-Z0-9\s-]", "", feature_name.lower())
+        sanitized = re.sub(r"\s+", "-", sanitized)
+        sanitized = re.sub(r"-+", "-", sanitized)  # Remove multiple consecutive hyphens
+        sanitized = sanitized.strip("-")  # Remove leading/trailing hyphens
+
         # Limit length and ensure it's not empty
         if not sanitized:
             sanitized = "unknown-feature"
         elif len(sanitized) > 50:
-            sanitized = sanitized[:50].rstrip('-')
-            
+            sanitized = sanitized[:50].rstrip("-")
+
         return sanitized
 
     def save_artifact(
@@ -122,7 +122,11 @@ class ArtifactManager:
         return artifact_path
 
     def load_artifact(
-        self, thread_id: str, artifact_type: str, filename: str, feature_name: str = None
+        self,
+        thread_id: str,
+        artifact_type: str,
+        filename: str,
+        feature_name: str = None,
     ) -> Optional[str]:
         """Load an artifact from the filesystem.
 
@@ -135,7 +139,9 @@ class ArtifactManager:
         Returns:
             Artifact content or None if not found
         """
-        artifact_path = self.get_thread_dir(thread_id, feature_name) / artifact_type / filename
+        artifact_path = (
+            self.get_thread_dir(thread_id, feature_name) / artifact_type / filename
+        )
 
         if not artifact_path.exists():
             logger.warning(f"Artifact not found: {artifact_path}")
@@ -153,7 +159,11 @@ class ArtifactManager:
             return None
 
     def load_artifact_metadata(
-        self, thread_id: str, artifact_type: str, filename: str, feature_name: str = None
+        self,
+        thread_id: str,
+        artifact_type: str,
+        filename: str,
+        feature_name: str = None,
     ) -> Optional[dict]:
         """Load artifact metadata.
 
@@ -167,7 +177,9 @@ class ArtifactManager:
             Metadata dict or None if not found
         """
         metadata_path = (
-            self.get_thread_dir(thread_id, feature_name) / artifact_type / f"{filename}.meta.json"
+            self.get_thread_dir(thread_id, feature_name)
+            / artifact_type
+            / f"{filename}.meta.json"
         )
 
         if not metadata_path.exists():
@@ -183,7 +195,10 @@ class ArtifactManager:
             return None
 
     def list_artifacts(
-        self, thread_id: str, artifact_type: Optional[str] = None, feature_name: str = None
+        self,
+        thread_id: str,
+        artifact_type: Optional[str] = None,
+        feature_name: str = None,
     ) -> list[dict]:
         """List all artifacts for a thread.
 
@@ -242,7 +257,9 @@ class ArtifactManager:
 
         return sorted(artifacts, key=lambda x: x["modified_at"], reverse=True)
 
-    def create_artifact_index(self, thread_id: str, feature_name: str = None) -> dict[str, str]:
+    def create_artifact_index(
+        self, thread_id: str, feature_name: str = None
+    ) -> dict[str, str]:
         """Create an index of all artifacts for a thread.
 
         Args:

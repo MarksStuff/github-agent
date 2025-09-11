@@ -24,7 +24,9 @@ class ToolNodesInterface(ABC):
         pass
 
     @abstractmethod
-    async def apply_patch(self, state: WorkflowState, patch_content: str, target_file: str) -> dict:
+    async def apply_patch(
+        self, state: WorkflowState, patch_content: str, target_file: str
+    ) -> dict:
         """Apply a unified diff patch to a file."""
         pass
 

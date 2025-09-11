@@ -29,6 +29,8 @@ class GitNodesInterface(ABC):
         pass
 
     @abstractmethod
-    async def post_pr_reply(self, state: WorkflowState, comment_id: int, message: str) -> dict:
+    async def post_pr_reply(
+        self, state: WorkflowState, comment_id: int, message: str
+    ) -> dict:
         """Post reply to specific PR comment."""
         pass

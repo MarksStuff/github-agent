@@ -13,7 +13,7 @@ class AgentNodesInterface(ABC):
         """Analyze codebase structure."""
         pass
 
-    @abstractmethod  
+    @abstractmethod
     async def analyze_feature(self, state: WorkflowState) -> dict:
         """Analyze feature requirements with all agents."""
         pass

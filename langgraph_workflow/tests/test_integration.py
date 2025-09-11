@@ -3,12 +3,11 @@
 import asyncio
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
 from langgraph_workflow.graph import WorkflowGraph
-from langgraph_workflow.state import WorkflowPhase, WorkflowState, initialize_state
+from langgraph_workflow.state import WorkflowPhase, initialize_state
 from langgraph_workflow.tests.mocks import MockAgentNodes, MockGitNodes, MockToolNodes
 from langgraph_workflow.utils.artifacts import ArtifactManager
 from langgraph_workflow.utils.validators import StateValidator
@@ -87,8 +86,10 @@ class TestWorkflowIntegration:
         """Test basic workflow execution."""
         # Mock the app stream to simulate workflow execution
         mock_event = {"status": "completed"}
+
         async def mock_astream(*args, **kwargs):
             yield mock_event
+
         workflow_graph.app.astream = mock_astream
 
         result = await workflow_graph.run_workflow(
@@ -110,8 +111,10 @@ class TestWorkflowIntegration:
         """Test workflow resume functionality."""
         # Mock the app stream for resume
         mock_event = {"status": "resumed"}
+
         async def mock_astream(*args, **kwargs):
             yield mock_event
+
         workflow_graph.app.astream = mock_astream
 
         result = await workflow_graph.resume_workflow("test-thread")
@@ -121,6 +124,7 @@ class TestWorkflowIntegration:
 
     def test_get_workflow_state(self, workflow_graph):
         """Test getting workflow state."""
+
         # Create a mock state object with the expected interface
         class MockState:
             def __init__(self):
@@ -233,7 +237,7 @@ class TestEndToEndScenarios:
             # Create a minimal git repo
             (repo_path / ".git").mkdir()
             (repo_path / ".git" / "config").write_text(
-                "[remote \"origin\"]\n    url = git@github.com:test/repo.git"
+                '[remote "origin"]\n    url = git@github.com:test/repo.git'
             )
             yield repo_path
 
@@ -313,12 +317,17 @@ class TestEndToEndScenarios:
         for artifact_type, path in paths.items():
             assert path.exists()
             loaded = artifact_manager.load_artifact(
-                thread_id, artifact_type, f"{artifact_type}.md", feature_name=feature_name
+                thread_id,
+                artifact_type,
+                f"{artifact_type}.md",
+                feature_name=feature_name,
             )
             assert loaded == artifacts[artifact_type]
 
         # Create and verify artifact index
-        index = artifact_manager.create_artifact_index(thread_id, feature_name=feature_name)
+        index = artifact_manager.create_artifact_index(
+            thread_id, feature_name=feature_name
+        )
         assert len(index) == 4
         assert "analysis:analysis" in index
         assert "design:design" in index
@@ -339,6 +348,7 @@ class TestEndToEndScenarios:
             if False:
                 yield  # Make this an async generator
             raise Exception("Workflow failed")
+
         graph.app.astream = failing_astream
 
         # Run workflow and expect failure
@@ -383,4 +393,3 @@ class TestEndToEndScenarios:
         for i, result in enumerate(results):
             assert result["status"] == "completed"
             assert result["thread_id"] == f"thread-{i}"
-
