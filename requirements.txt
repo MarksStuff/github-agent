@@ -26,4 +26,10 @@ ruff==0.1.13
 types-requests
 uvicorn[standard]>=0.24.0
 watchdog>=3.0.0
+# LangGraph workflow packages
+langgraph>=0.2.0
+langgraph-checkpoint-sqlite>=0.1.0
+langchain-core>=0.3.0
+langchain-ollama>=0.2.0
+langchain-anthropic>=0.3.0
 
