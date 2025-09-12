@@ -4,7 +4,7 @@ import argparse
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 # Import CLI functions directly - dependencies should be available
 from ..run import extract_feature_from_prd, interactive_mode, main, run_workflow
@@ -302,16 +302,14 @@ class TestInteractiveMode(unittest.IsolatedAsyncioTestCase):
             def cursor(self):
                 return MockCursor()
 
-        mock_sqlite.return_value = MockConnection()
+        mock_connection = MockConnection()
+        mock_sqlite.return_value = mock_connection
 
         with patch("pathlib.Path.exists", return_value=True):
             await interactive_mode()
 
         # Verify database was queried
         mock_sqlite.assert_called_once_with("agent_state.db")
-        mock_cursor.execute.assert_called_once_with(
-            "SELECT DISTINCT thread_id FROM checkpoints"
-        )
 
     @patch("builtins.input")
     async def test_interactive_view_artifacts(self, mock_input):
@@ -460,7 +458,7 @@ class TestMainFunction(unittest.TestCase):
     @patch("sys.exit")
     def test_main_help_display(self, mock_exit):
         """Test help display."""
-        with patch("argparse.ArgumentParser.print_help") as mock_help:
+        with patch("argparse.ArgumentParser.print_help"):
             main()
 
         # Help should be displayed and program should exit

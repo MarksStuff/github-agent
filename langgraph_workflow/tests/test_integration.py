@@ -6,10 +6,9 @@ import unittest
 from pathlib import Path
 
 from ..config import should_escalate_to_claude
+from ..enums import ModelRouter, WorkflowPhase
 from ..langgraph_workflow import (
-    ModelRouter,
     MultiAgentWorkflow,
-    WorkflowPhase,
     WorkflowState,
 )
 from .mocks import create_mock_dependencies

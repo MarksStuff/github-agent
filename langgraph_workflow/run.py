@@ -27,8 +27,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def extract_feature_from_prd(prd_content: str, feature_name: str) -> str | None:
-    """Extract a specific feature from a PRD document.
+async def extract_feature_from_prd(prd_content: str, feature_name: str) -> str | None:
+    """Extract a specific feature from a PRD document using LLM.
 
     Args:
         prd_content: Full PRD content
@@ -37,28 +37,69 @@ def extract_feature_from_prd(prd_content: str, feature_name: str) -> str | None:
     Returns:
         Feature description or None if not found
     """
-    lines = prd_content.split("\n")
-    feature_lines = []
-    in_feature = False
+    import os
 
-    for line in lines:
-        # Look for feature headers (markdown headers or numbered items)
-        if feature_name.lower() in line.lower():
-            # Found the feature
-            in_feature = True
-            feature_lines.append(line)
-        elif in_feature:
-            # Check if we've hit the next feature/section
-            if (
-                line.startswith("#")
-                or line.startswith("##")
-                or (line.strip() and line[0].isdigit() and "." in line[:5])
-            ):
-                # This looks like a new section
-                break
-            feature_lines.append(line)
+    from langchain_anthropic import ChatAnthropic
+    from langchain_core.messages import HumanMessage
 
-    return "\n".join(feature_lines).strip() if feature_lines else None
+    # Initialize Claude model for feature extraction
+    claude_model = ChatAnthropic(
+        model="claude-3-sonnet-20240229", api_key=os.getenv("ANTHROPIC_API_KEY")
+    )
+
+    # Create prompt for feature extraction
+    extraction_prompt = f"""You are a technical document analyzer. Extract the specific feature information from this PRD document.
+
+PRD Content:
+{prd_content}
+
+Feature to Extract: "{feature_name}"
+
+Instructions:
+1. Find the section or sections that describe the "{feature_name}" feature
+2. Extract the complete description including requirements, acceptance criteria, and technical details
+3. If the feature is not found, return exactly "FEATURE_NOT_FOUND"
+4. Return only the relevant feature content, not the entire document
+
+Feature Extract:"""
+
+    try:
+        response = await claude_model.ainvoke([HumanMessage(content=extraction_prompt)])
+        extracted_content = response.content.strip()
+
+        # Check if feature was not found
+        if extracted_content == "FEATURE_NOT_FOUND":
+            return None
+
+        return extracted_content
+
+    except Exception as e:
+        logger.error(f"Error extracting feature with LLM: {e}")
+        # Fallback to simple text search as backup
+        logger.warning("Falling back to simple text extraction")
+
+        lines = prd_content.split("\n")
+        feature_lines = []
+        in_feature = False
+
+        for line in lines:
+            # Look for feature headers (markdown headers or numbered items)
+            if feature_name.lower() in line.lower():
+                # Found the feature
+                in_feature = True
+                feature_lines.append(line)
+            elif in_feature:
+                # Check if we've hit the next feature/section
+                if (
+                    line.startswith("#")
+                    or line.startswith("##")
+                    or (line.strip() and line[0].isdigit() and "." in line[:5])
+                ):
+                    # This looks like a new section
+                    break
+                feature_lines.append(line)
+
+        return "\n".join(feature_lines).strip() if feature_lines else None
 
 
 async def run_workflow(
@@ -94,8 +135,10 @@ async def run_workflow(
         prd_content = feature_path.read_text()
 
         if feature_name:
-            # Extract specific feature from PRD
-            feature_description = extract_feature_from_prd(prd_content, feature_name)
+            # Extract specific feature from PRD using LLM
+            feature_description = await extract_feature_from_prd(
+                prd_content, feature_name
+            )
             if not feature_description:
                 raise ValueError(f"Feature '{feature_name}' not found in PRD")
         else:

@@ -3,7 +3,7 @@
 import tempfile
 import unittest
 
-from ..langgraph_workflow import WorkflowPhase
+from ..enums import WorkflowPhase
 from .mocks.test_workflow import TestMultiAgentWorkflow
 
 

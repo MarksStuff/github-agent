@@ -223,24 +223,9 @@ class SeniorEngineerAgent(LangGraphAgent):
         Returns:
             Codebase analysis
         """
-        prompt = f"""Analyze the codebase at {repo_path} and provide:
-
-1. Architecture overview
-2. Technology stack
-3. Design patterns used
-4. Code conventions
-5. Key interfaces and contracts
-6. Infrastructure services
-7. Testing approach
-8. Areas marked for refactoring
-9. Recent changes
-
-Return a structured analysis."""
-
-        response = await self.analyze(prompt)
-
         # Parse response into structured format
         # This would be more sophisticated in production
+        # In a real implementation, would use the codebase analyzer
         return {
             "architecture": "Analyzed architecture",
             "languages": ["Python"],

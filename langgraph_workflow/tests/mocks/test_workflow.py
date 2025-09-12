@@ -12,11 +12,9 @@ from uuid import uuid4
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
 
+from ...enums import AgentType, ModelRouter, WorkflowPhase
 from ...langgraph_workflow import (
-    AgentType,
-    ModelRouter,
     MultiAgentWorkflow,
-    WorkflowPhase,
     WorkflowState,
 )
 from .mock_agent import MockAgent
@@ -62,8 +60,8 @@ class TestLangGraphCheckpointer(BaseCheckpointSaver):
     def get_tuple(self, config):
         return self.memory_saver.get_tuple(config)
 
-    def list(self, config, *, filter=None, before=None, limit=None):
-        return self.memory_saver.list(config, filter=filter, before=before, limit=limit)
+    def list(self, config, *, filter_dict=None, before=None, limit=None):
+        return self.memory_saver.list(config, filter=filter_dict, before=before, limit=limit)
 
     def put(self, config, checkpoint, metadata, new_versions):
         return self.memory_saver.put(config, checkpoint, metadata, new_versions)
