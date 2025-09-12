@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
     # Import github_tools directly - if they don't exist, that's a configuration error
-    from github_tools import execute_tool, get_github_context  # noqa: E402
+    from github_tools import execute_tool, get_github_context
 except ImportError:
     # Provide fallback for when github_tools is not available
     execute_tool = None

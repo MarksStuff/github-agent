@@ -64,9 +64,7 @@ class WorkflowState(TypedDict):
     current_phase: WorkflowPhase
 
     # Messages and summary
-    messages_window: Annotated[
-        list[BaseMessage], lambda x, y: y[-10:]
-    ]  # Keep last 10
+    messages_window: Annotated[list[BaseMessage], lambda x, y: y[-10:]]  # Keep last 10
     summary_log: str
 
     # Artifacts and documents
