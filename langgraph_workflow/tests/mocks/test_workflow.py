@@ -233,10 +233,8 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
         state["code_context_document"] = context_doc
         state["artifacts_index"]["code_context"] = str(context_path)
         # Skip message handling in test implementation
-            type(state["messages_window"][0])(  # Same type as existing messages
-                content=f"Extracted code context document (saved to {context_path})"
-            ) if state["messages_window"] else None
-        )
+
+        # Would normally add message here, but skipping for test
 
         return state
 
@@ -285,10 +283,7 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
         state["artifacts_index"]["design_document"] = str(design_path)
 
         # Skip message handling in test implementation
-            type(state["messages_window"][0])(
-                content="Created initial design document"
-            ) if state["messages_window"] else None
-        )
+        # Would normally add message here, but skipping for test
 
         return state
 
