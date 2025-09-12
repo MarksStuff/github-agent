@@ -1,0 +1,26 @@
+# LangGraph and LangChain dependencies for multi-agent workflow
+langgraph>=0.0.20
+langgraph-checkpoint-sqlite>=1.0.0
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-ollama>=0.1.0
+langchain-anthropic>=0.1.0
+langchain-community>=0.1.0
+
+# Async support
+asyncio
+aiohttp
+
+# Database for checkpointing
+aiosqlite
+
+# For GitHub integration
+PyGithub>=2.0.0
+gitpython>=3.1.0
+
+# MCP server dependencies (if using)
+# mcp>=0.1.0  # Uncomment when available
+
+# Existing dependencies (already in project)
+python-dotenv
+pydantic>=2.0.0
