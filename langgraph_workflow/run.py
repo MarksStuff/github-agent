@@ -136,11 +136,12 @@ async def run_workflow(
 
         if feature_name:
             # Extract specific feature from PRD using LLM
-            feature_description = await extract_feature_from_prd(
+            extracted_feature = await extract_feature_from_prd(
                 prd_content, feature_name
             )
-            if not feature_description:
+            if not extracted_feature:
                 raise ValueError(f"Feature '{feature_name}' not found in PRD")
+            feature_description = extracted_feature
         else:
             # Use entire file content
             feature_description = prd_content

@@ -22,7 +22,7 @@ class MockTestRunner(TestRunnerInterface):
             "failed_tests": [],
         }
         self.lint_results = lint_results or {"errors": 0, "warnings": 0, "issues": []}
-        self.runs = []
+        self.runs: list[tuple[str, str | None]] = []
 
     async def run_tests(self, test_path: str | None = None) -> dict[str, Any]:
         """Mock run tests."""

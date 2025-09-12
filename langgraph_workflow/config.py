@@ -99,7 +99,7 @@ See: `agents/artifacts/{thread_id}/`
 }
 
 # Model configuration
-MODEL_CONFIG = {
+MODEL_CONFIG: dict[str, Any] = {
     "ollama": {
         "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         "models": {
@@ -134,7 +134,7 @@ MODEL_CONFIG = {
 }
 
 # MCP Server configuration
-MCP_CONFIG = {
+MCP_CONFIG: dict[str, Any] = {
     "enabled": os.getenv("MCP_ENABLED", "false").lower() == "true",
     "server_url": os.getenv("MCP_SERVER_URL", "http://localhost:8080"),
     "endpoints": {
@@ -145,7 +145,7 @@ MCP_CONFIG = {
 }
 
 # Logging configuration
-LOGGING_CONFIG = {
+LOGGING_CONFIG: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {

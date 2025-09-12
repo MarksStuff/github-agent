@@ -26,15 +26,17 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         # CORRECT: Use our own mock dependencies
         self.mock_deps = create_mock_dependencies(self.thread_id)
 
-        # Create workflow
+        # Create workflow with required dependencies
         self.workflow = MultiAgentWorkflow(
-            repo_path=self.repo_path, thread_id=self.thread_id
+            repo_path=self.repo_path,
+            thread_id=self.thread_id,
+            agents=self.mock_deps["agents"],
+            codebase_analyzer=self.mock_deps["codebase_analyzer"],
+            ollama_model=self.mock_deps["ollama_model"],
+            claude_model=self.mock_deps["claude_model"],
         )
 
-        # CORRECT: Inject our mock dependencies
-        self.workflow.agents = self.mock_deps["agents"]
-        self.workflow.ollama_model = self.mock_deps["ollama_model"]
-        self.workflow.claude_model = self.mock_deps["claude_model"]
+        # CORRECT: Inject additional mock dependencies
         self.workflow.checkpointer = self.mock_deps["checkpointer"]
 
         # Set up artifacts directory
@@ -324,10 +326,16 @@ class TestWorkflowPerformanceFixed(unittest.IsolatedAsyncioTestCase):
     async def test_parallel_agent_execution_performance(self):
         """Test that parallel agent execution is actually parallel."""
         temp_dir = tempfile.TemporaryDirectory()
-        workflow = MultiAgentWorkflow(repo_path=temp_dir.name, thread_id="perf-test")
+        mock_deps = create_mock_dependencies("perf-test")
+
+        workflow = MultiAgentWorkflow(
+            repo_path=temp_dir.name,
+            thread_id="perf-test",
+            agents=mock_deps["agents"],
+            codebase_analyzer=mock_deps["codebase_analyzer"],
+        )
 
         # CORRECT: Use our own mock agents with simulated delay
-        mock_deps = create_mock_dependencies("perf-test")
 
         # Inject mock agents that simulate processing time
         async def slow_analyze(context):

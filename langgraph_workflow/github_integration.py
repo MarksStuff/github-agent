@@ -20,8 +20,8 @@ try:
     from github_tools import execute_tool, get_github_context
 except ImportError:
     # Provide fallback for when github_tools is not available
-    execute_tool = None
-    get_github_context = None
+    execute_tool = None  # type: ignore
+    get_github_context = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 

@@ -29,7 +29,7 @@ class MockGit(GitInterface):
         self.commits[sha] = {
             "message": message,
             "branch": self.current_branch,
-            "timestamp": datetime.now(),
+            "timestamp": datetime.now().isoformat(),
         }
         self.branches[self.current_branch] = sha
 

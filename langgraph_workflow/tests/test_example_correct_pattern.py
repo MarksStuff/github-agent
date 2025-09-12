@@ -25,15 +25,15 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
         # Use our own mock dependencies (NOT MagicMock for internal objects)
         self.mock_deps = create_mock_dependencies(self.thread_id)
 
-        # Create workflow with dependency injection
+        # Create workflow with required dependencies
         self.workflow = MultiAgentWorkflow(
-            repo_path=self.repo_path, thread_id=self.thread_id
+            repo_path=self.repo_path,
+            thread_id=self.thread_id,
+            agents=self.mock_deps["agents"],
+            codebase_analyzer=self.mock_deps["codebase_analyzer"],
+            ollama_model=self.mock_deps["ollama_model"],
+            claude_model=self.mock_deps["claude_model"],
         )
-
-        # Inject our mock dependencies (CORRECT approach)
-        self.workflow.agents = self.mock_deps["agents"]
-        self.workflow.ollama_model = self.mock_deps["ollama_model"]
-        self.workflow.claude_model = self.mock_deps["claude_model"]
 
         # Set up artifacts directory
         self.workflow.artifacts_dir = Path(self.temp_dir.name) / "artifacts"

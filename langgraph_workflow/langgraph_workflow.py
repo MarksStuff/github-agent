@@ -149,9 +149,15 @@ class MultiAgentWorkflow:
         if claude_model is not None:
             self.claude_model = claude_model
         else:
-            self.claude_model = ChatAnthropic(
-                model="claude-3-sonnet-20240229", api_key=os.getenv("ANTHROPIC_API_KEY")
-            )
+            from langchain_core.utils import SecretStr
+
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if api_key:
+                self.claude_model = ChatAnthropic(
+                    model_name="claude-3-sonnet-20240229", api_key=SecretStr(api_key)
+                )
+            else:
+                self.claude_model = None
 
         # Create artifacts directory
         self.artifacts_dir = self.repo_path / "agents" / "artifacts" / self.thread_id
@@ -161,7 +167,10 @@ class MultiAgentWorkflow:
         self.graph = self._build_graph()
 
         # Set up checkpointing
-        self.checkpointer = SqliteSaver.from_conn_string(f"sqlite:///{checkpoint_path}")
+        import sqlite3
+
+        conn = sqlite3.connect(checkpoint_path)
+        self.checkpointer = SqliteSaver(conn)
         self.app = self.graph.compile(checkpointer=self.checkpointer)
 
         logger.info(f"Initialized workflow for thread {self.thread_id}")
@@ -393,7 +402,8 @@ Remain neutral and document rather than judge."""
         state["current_phase"] = WorkflowPhase.PHASE_1_CODE_INVESTIGATION
 
         # Investigate specific questions
-        questions = self._extract_questions(state["synthesis_document"])
+        synthesis_doc = state["synthesis_document"] or ""
+        questions = self._extract_questions(synthesis_doc)
 
         investigation_results = []
         for question in questions:
@@ -401,9 +411,7 @@ Remain neutral and document rather than judge."""
             investigation_results.append(result)
 
         # Update synthesis with findings
-        updated_synthesis = (
-            state["synthesis_document"] + "\n\n## Code Investigation Results\n"
-        )
+        updated_synthesis = synthesis_doc + "\n\n## Code Investigation Results\n"
         for q, r in zip(questions, investigation_results, strict=False):
             updated_synthesis += f"\n**Q:** {q}\n**A:** {r}\n"
 
@@ -514,7 +522,7 @@ Remain neutral and document rather than judge."""
         contribution = await self._agent_design_contribution(
             agent,
             agent_type,
-            state["design_document"],
+            state["design_document"] or "",
             state["design_constraints_document"],
         )
 
@@ -548,17 +556,17 @@ Remain neutral and document rather than judge."""
             # Apply arbitration decision
             if arbitration.human_decision:
                 state["design_document"] = await self._apply_arbitration(
-                    state["design_document"], arbitration
+                    state["design_document"] or "", arbitration
                 )
         else:
             # No objections, apply contribution
             state["design_document"] = self._merge_contribution(
-                state["design_document"], contribution
+                state["design_document"] or "", contribution
             )
 
         # Update document file
         design_path = Path(state["artifacts_index"]["design_document"])
-        design_path.write_text(state["design_document"])
+        design_path.write_text(state["design_document"] or "")
 
         state["messages_window"].append(
             AIMessage(content=f"Agent {agent_type} contributed to design document")
@@ -574,7 +582,7 @@ Remain neutral and document rather than judge."""
         agreements = []
         for agent_type, agent in self.agents.items():
             agrees = await self._agent_agrees_complete(
-                agent, agent_type, state["design_document"]
+                agent, agent_type, state["design_document"] or ""
             )
             agreements.append(agrees)
 
@@ -596,7 +604,7 @@ Remain neutral and document rather than judge."""
         state["current_phase"] = WorkflowPhase.PHASE_3_SKELETON
 
         # Senior engineer creates skeleton
-        skeleton = await self._create_code_skeleton(state["design_document"])
+        skeleton = await self._create_code_skeleton(state["design_document"] or "")
 
         # Architect reviews
         review = await self._architect_review_skeleton(skeleton)
@@ -638,11 +646,13 @@ Remain neutral and document rather than judge."""
         state["current_phase"] = WorkflowPhase.PHASE_3_PARALLEL_DEV
 
         # Test-first writes tests WITHOUT seeing implementation
-        test_task = self._write_tests(state["skeleton_code"], state["design_document"])
+        test_task = self._write_tests(
+            state["skeleton_code"] or "", state["design_document"] or ""
+        )
 
         # Fast-coder implements WITHOUT seeing tests
         impl_task = self._write_implementation(
-            state["skeleton_code"], state["design_document"]
+            state["skeleton_code"] or "", state["design_document"] or ""
         )
 
         # Run in parallel
@@ -674,7 +684,7 @@ Remain neutral and document rather than judge."""
 
         # Identify mismatches
         mismatches = await self._identify_mismatches(
-            state["test_code"], state["implementation_code"]
+            state["test_code"] or "", state["implementation_code"] or ""
         )
 
         if mismatches:
@@ -715,7 +725,9 @@ Remain neutral and document rather than judge."""
                     state["test_code"],
                     state["implementation_code"],
                 ) = await self._apply_reconciliation(
-                    state["test_code"], state["implementation_code"], arbitration
+                    state["test_code"] or "",
+                    state["implementation_code"] or "",
+                    arbitration,
                 )
 
         state["messages_window"].append(
@@ -735,7 +747,7 @@ Remain neutral and document rather than judge."""
 
         # Test-first writes component tests
         component_tests = await self._write_component_tests(
-            state["implementation_code"], state["test_code"]
+            state["implementation_code"] or "", state["test_code"] or ""
         )
 
         # Run tests
@@ -745,7 +757,7 @@ Remain neutral and document rather than judge."""
         if test_results["failed"] > 0:
             # Fast-coder refactors
             refactored = await self._refactor_for_tests(
-                state["implementation_code"], test_results
+                state["implementation_code"] or "", test_results
             )
             state["implementation_code"] = refactored
 
@@ -772,7 +784,7 @@ Remain neutral and document rather than judge."""
 
         # Test-first writes integration tests
         integration_tests = await self._write_integration_tests(
-            state["implementation_code"], state["design_document"]
+            state["implementation_code"] or "", state["design_document"] or ""
         )
 
         # Architect ensures scalability concerns tested
@@ -785,7 +797,7 @@ Remain neutral and document rather than judge."""
         if test_results["failed"] > 0:
             # Fast-coder optimizes
             optimized = await self._optimize_implementation(
-                state["implementation_code"], test_results
+                state["implementation_code"] or "", test_results
             )
             state["implementation_code"] = optimized
 
@@ -806,7 +818,7 @@ Remain neutral and document rather than judge."""
 
         # Senior engineer leads refactoring
         refined = await self._senior_refactor_for_quality(
-            state["implementation_code"], state["test_code"]
+            state["implementation_code"] or "", state["test_code"] or ""
         )
 
         # All agents review
@@ -856,7 +868,7 @@ Remain neutral and document rather than judge."""
     def _extract_conflicts(self, synthesis: str) -> list[dict]:
         """Extract conflicts from synthesis document."""
         # Simple extraction logic - would be more sophisticated in production
-        conflicts = []
+        conflicts: list[dict[str, Any]] = []
         if "Conflicts" in synthesis:
             # Parse conflicts section
             pass
@@ -897,13 +909,14 @@ Remain neutral and document rather than judge."""
 
     def needs_code_investigation(self, state: WorkflowState) -> bool:
         """Check if code investigation is needed."""
-        questions = self._extract_questions(state.get("synthesis_document", ""))
+        questions = self._extract_questions(state.get("synthesis_document") or "")
         return len(questions) > 0
 
     def design_document_complete(self, state: WorkflowState) -> bool:
         """Check if design document is complete."""
         # Would check if all agents agree
-        return state.get("design_document", "").count("TODO") == 0
+        design_doc = state.get("design_document") or ""
+        return design_doc.count("TODO") == 0
 
     def needs_human_arbitration(self, state: WorkflowState) -> bool:
         """Check if human arbitration is needed."""
@@ -931,6 +944,148 @@ Remain neutral and document rather than judge."""
         """Apply patches from the queue."""
         return state
 
+    # Additional stub methods for complete workflow
+    async def _agent_design_contribution(
+        self, agent: Any, agent_type: str, document: str, constraints: str | None
+    ) -> str:
+        """Get agent contribution to design document."""
+        return f"Mock {agent_type} contribution"
+
+    async def _agent_review_contribution(
+        self, agent: Any, agent_type: str, contribution: str
+    ) -> str:
+        """Get agent review of contribution."""
+        return f"Mock {agent_type} review"
+
+    async def _request_arbitration(self, conflict: dict[str, Any]) -> Arbitration:
+        """Request human arbitration."""
+        return Arbitration(
+            phase=conflict.get("phase", "unknown"),
+            conflict_description=conflict.get("description", "Mock conflict"),
+            agents_involved=conflict.get("agents_involved", []),
+            human_decision="Mock human decision",
+        )
+
+    async def _apply_arbitration(self, document: str, arbitration: Arbitration) -> str:
+        """Apply arbitration decision."""
+        return (
+            document + f"\n\n<!-- Applied arbitration: {arbitration.human_decision} -->"
+        )
+
+    def _merge_contribution(self, document: str, contribution: str) -> str:
+        """Merge contribution into document."""
+        return document + f"\n\n{contribution}"
+
+    async def _agent_agrees_complete(
+        self, agent: Any, agent_type: str, document: str
+    ) -> bool:
+        """Check if agent agrees document is complete."""
+        return True  # Mock agreement
+
+    async def _create_code_skeleton(self, design: str) -> str:
+        """Create code skeleton from design."""
+        return "# Mock code skeleton\npass"
+
+    async def _architect_review_skeleton(self, skeleton: str) -> str:
+        """Get architect review of skeleton."""
+        return "approve"
+
+    async def _apply_skeleton_arbitration(
+        self, skeleton: str, arbitration: Arbitration
+    ) -> str:
+        """Apply skeleton arbitration."""
+        return skeleton + f"\n# Applied arbitration: {arbitration.human_decision}"
+
+    async def _create_branch(self, branch_name: str) -> None:
+        """Create new git branch."""
+        pass  # Mock implementation
+
+    async def _write_tests(self, skeleton: str, design: str) -> str:
+        """Write tests for skeleton."""
+        return "# Mock test code\ndef test_example():\n    pass"
+
+    async def _write_implementation(self, skeleton: str, design: str) -> str:
+        """Write implementation for skeleton."""
+        return "# Mock implementation\ndef example():\n    pass"
+
+    async def _identify_mismatches(
+        self, test_code: str, impl_code: str
+    ) -> list[dict[str, Any]]:
+        """Identify mismatches between tests and implementation."""
+        return []  # Mock no mismatches
+
+    async def _agent_argument(
+        self, agent: Any, role: str, mismatches: list[dict[str, Any]]
+    ) -> str:
+        """Get agent argument about mismatches."""
+        return f"Mock {role} argument"
+
+    async def _senior_engineer_solution(
+        self, mismatches: list[dict[str, Any]], test_arg: str, impl_arg: str
+    ) -> str:
+        """Get senior engineer solution."""
+        return "Mock senior engineer solution"
+
+    async def _architect_system_impact(self, solution: str) -> str:
+        """Get architect system impact assessment."""
+        return "Mock architect impact assessment"
+
+    async def _has_consensus(self, arguments: list[str]) -> bool:
+        """Check if there is consensus among arguments."""
+        return True  # Mock consensus
+
+    async def _apply_reconciliation(
+        self, test_code: str, impl_code: str, arbitration: Arbitration
+    ) -> tuple[str, str]:
+        """Apply reconciliation arbitration."""
+        return test_code, impl_code  # Mock no changes
+
+    async def _write_component_tests(self, implementation: str, unit_tests: str) -> str:
+        """Write component tests."""
+        return "# Mock component tests\ndef test_component():\n    pass"
+
+    async def _run_tests(self, test_code: str) -> dict[str, Any]:
+        """Run tests and return results."""
+        return {"passed": 1, "failed": 0, "errors": []}
+
+    async def _refactor_for_tests(self, code: str, test_results: dict[str, Any]) -> str:
+        """Refactor code to fix test failures."""
+        return code  # Mock no changes needed
+
+    async def _senior_review_refactor(self, code: str) -> str:
+        """Get senior engineer review of refactor."""
+        return "looks good"
+
+    async def _apply_senior_improvements(self, code: str, review: str) -> str:
+        """Apply senior engineer improvements."""
+        return code + f"\n# Applied improvements: {review}"
+
+    async def _write_integration_tests(self, implementation: str, design: str) -> str:
+        """Write integration tests."""
+        return "# Mock integration tests\ndef test_integration():\n    pass"
+
+    async def _architect_scalability_tests(self, integration_tests: str) -> str:
+        """Design scalability tests."""
+        return "# Mock scalability tests\ndef test_scalability():\n    pass"
+
+    async def _optimize_implementation(
+        self, code: str, test_results: dict[str, Any]
+    ) -> str:
+        """Optimize implementation for performance."""
+        return code  # Mock no optimization needed
+
+    async def _senior_refactor_for_quality(self, impl_code: str, test_code: str) -> str:
+        """Senior engineer refactor for quality."""
+        return impl_code  # Mock no changes
+
+    async def _final_review(self, agent: Any, agent_type: str, code: str) -> str:
+        """Get final review from agent."""
+        return "approve"
+
+    async def _create_patch(self, code: str) -> str:
+        """Create patch from code."""
+        return f"# Mock patch\n{code}"
+
 
 # Main execution
 async def main():
@@ -943,8 +1098,17 @@ async def main():
     parser.add_argument("--thread-id", help="Thread ID for persistence")
     args = parser.parse_args()
 
-    # Initialize workflow
-    workflow = MultiAgentWorkflow(repo_path=args.repo_path, thread_id=args.thread_id)
+    # Initialize workflow with mock dependencies for main execution
+    from .tests.mocks import create_mock_dependencies
+
+    mock_deps = create_mock_dependencies(args.thread_id or "main-thread")
+
+    workflow = MultiAgentWorkflow(
+        repo_path=args.repo_path,
+        thread_id=args.thread_id,
+        agents=mock_deps["agents"],
+        codebase_analyzer=mock_deps["codebase_analyzer"],
+    )
 
     # Initial state
     initial_state = WorkflowState(

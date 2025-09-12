@@ -19,7 +19,7 @@ class MockModel(ModelInterface):
         """
         self.responses = responses or ["Mock response"]
         self.call_count = 0
-        self.last_messages = None
+        self.last_messages: list[BaseMessage] | None = None
 
     async def ainvoke(self, messages: Sequence[BaseMessage]) -> Any:
         """Return mock response."""

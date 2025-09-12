@@ -13,7 +13,7 @@ class MockCodebaseAnalyzer:
             repo_path: Repository path (ignored in mock)
         """
         self.repo_path = repo_path
-        self.custom_analysis = {}
+        self.custom_analysis: dict[str, Any] = {}
 
     def set_analysis_result(self, analysis: dict[str, Any]):
         """Set custom analysis result for testing specific scenarios.

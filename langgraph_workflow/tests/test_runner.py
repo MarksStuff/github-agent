@@ -13,7 +13,7 @@ def run_all_tests():
     # Discover all tests in the tests directory
     loader = unittest.TestLoader()
     start_dir = Path(__file__).parent
-    suite = loader.discover(start_dir, pattern="test_*.py")
+    suite = loader.discover(str(start_dir), pattern="test_*.py")
 
     # Run tests with detailed output
     runner = unittest.TextTestRunner(verbosity=2)
