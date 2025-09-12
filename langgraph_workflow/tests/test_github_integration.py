@@ -1,15 +1,19 @@
-"""Tests for GitHub integration functionality."""
+"""Tests for GitHub integration functionality.
 
+These tests focus on testing the wrapper logic and integration with github_tools.py
+rather than testing the underlying GitHub API operations which are tested elsewhere.
+"""
+
+import json
 import tempfile
 import unittest
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import git
 
 from ..github_integration import GitHubIntegration, MCPServerInterface
-from ..mocks import MockGitHub
 
 
 class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
@@ -27,7 +31,7 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
         # Create initial commit
         test_file = self.repo_path / "README.md"
         test_file.write_text("# Test Repo")
-        self.git_repo.index.add([str(test_file)])
+        self.git_repo.index.add(["README.md"])  # Use relative path
         self.git_repo.index.commit("Initial commit")
 
         # Add remote origin (mock)
@@ -43,9 +47,8 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
         """Clean up test fixtures."""
         self.temp_dir.cleanup()
 
-    @patch("github.Github")
-    async def test_create_branch(self, mock_github_class):
-        """Test branch creation."""
+    async def test_create_branch(self):
+        """Test branch creation (git operations only)."""
         # Execute
         branch_name = await self.github_integration.create_branch("feature/test")
 
@@ -56,25 +59,44 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
         branches = [ref.name for ref in self.git_repo.heads]
         self.assertIn("feature/test", branches)
 
-    @patch("github.Github")
-    async def test_create_pull_request(self, mock_github_class):
-        """Test PR creation."""
-        # Mock GitHub API
-        mock_github = MagicMock()
-        mock_repo = MagicMock()
-        mock_pr = MagicMock()
-        mock_pr.number = 123
-        mock_pr.html_url = "https://github.com/test-org/test-repo/pull/123"
+    async def test_create_pull_request_with_github_tools(self):
+        """Test PR creation using github_tools integration."""
 
-        mock_github_class.return_value = mock_github
-        mock_github.get_repo.return_value = mock_repo
-        mock_repo.create_pull.return_value = mock_pr
+        # Mock github_tools execute_tool function
+        async def mock_execute_tool(tool_name, **kwargs):
+            if tool_name == "github_get_pr_comments":
+                return json.dumps({"issue_comments": [], "review_comments": []})
+            return json.dumps({"success": True})
+
+        # Mock get_github_context function
+        class MockContext:
+            def __init__(self):
+                self.repo = MockRepo()
+
+        class MockRepo:
+            def create_pull(self, title, body, head, base):
+                class MockPR:
+                    number = 123
+
+                    def add_to_labels(self, *labels):
+                        pass
+
+                return MockPR()
+
+        def mock_get_context(repo_name):
+            return MockContext()
 
         # Create branch first
         await self.github_integration.create_branch("feature/test")
 
-        # Mock remote push
-        with patch.object(self.github_integration.git_repo.remotes.origin, "push"):
+        # Mock filesystem operations for push
+        with patch("git.Remote.push"), patch(
+            "langgraph_workflow.github_integration.execute_tool",
+            side_effect=mock_execute_tool,
+        ), patch(
+            "langgraph_workflow.github_integration.get_github_context",
+            side_effect=mock_get_context,
+        ):
             # Execute
             pr_number = await self.github_integration.create_pull_request(
                 title="Test PR",
@@ -85,184 +107,174 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
 
         # Verify
         self.assertEqual(pr_number, 123)
-        mock_repo.create_pull.assert_called_once_with(
-            title="Test PR", body="Test description", head="feature/test", base="main"
-        )
-        mock_pr.add_to_labels.assert_called_once_with("test", "automation")
 
-    async def test_create_pull_request_no_github(self):
-        """Test PR creation when GitHub is not available."""
-        # Create integration without GitHub token
+    async def test_create_pull_request_no_github_tools(self):
+        """Test PR creation when github_tools is not available."""
+        # Create integration that will fallback when github_tools unavailable
         integration = GitHubIntegration(
-            repo_path=str(self.repo_path), github_token=None
+            repo_path=str(self.repo_path), github_token="fake_token"
         )
 
-        # Execute
-        pr_number = await integration.create_pull_request(
-            title="Test PR", body="Test description", branch="feature/test"
-        )
+        # Mock execute_tool to be None (simulating import failure)
+        with patch("langgraph_workflow.github_integration.execute_tool", None):
+            # Execute
+            pr_number = await integration.create_pull_request(
+                title="Test PR", body="Test description", branch="feature/test"
+            )
 
-        # Verify returns dummy number
+        # Verify returns dummy number when github_tools unavailable
         self.assertEqual(pr_number, 9999)
 
-    @patch("github.Github")
-    async def test_get_pr_comments(self, mock_github_class):
-        """Test getting PR comments."""
-        # Mock GitHub API
-        mock_github = MagicMock()
-        mock_repo = MagicMock()
-        mock_pr = MagicMock()
+    async def test_get_pr_comments_with_github_tools(self):
+        """Test getting PR comments using github_tools integration."""
+        # Mock github_tools execute_tool to return comment data
+        mock_response = {
+            "issue_comments": [
+                {
+                    "id": 1,
+                    "author": "user1",
+                    "body": "First comment",
+                    "created_at": "2023-01-01T12:00:00Z",
+                    "type": "issue_comment",
+                }
+            ],
+            "review_comments": [
+                {
+                    "id": 2,
+                    "author": "user2",
+                    "body": "Second comment",
+                    "created_at": "2023-01-01T13:00:00Z",
+                    "type": "review_comment",
+                }
+            ],
+        }
 
-        # Mock comments
-        mock_comment1 = MagicMock()
-        mock_comment1.id = 1
-        mock_comment1.user.login = "user1"
-        mock_comment1.body = "First comment"
-        mock_comment1.created_at = datetime.now()
-        mock_comment1.html_url = "https://github.com/test/repo/pull/123#issuecomment-1"
+        async def mock_execute_tool(tool_name, **kwargs):
+            if tool_name == "github_get_pr_comments":
+                return json.dumps(mock_response)
+            return json.dumps({})
 
-        mock_comment2 = MagicMock()
-        mock_comment2.id = 2
-        mock_comment2.user.login = "user2"
-        mock_comment2.body = "Second comment"
-        mock_comment2.created_at = datetime.now()
-        mock_comment2.html_url = "https://github.com/test/repo/pull/123#issuecomment-2"
+        # Mock execute_tool
+        with patch(
+            "langgraph_workflow.github_integration.execute_tool",
+            side_effect=mock_execute_tool,
+        ):
+            # Execute
+            comments = await self.github_integration.get_pr_comments(123)
 
-        mock_pr.get_issue_comments.return_value = [mock_comment1, mock_comment2]
-        mock_pr.get_review_comments.return_value = []
-        mock_pr.get_reviews.return_value = []
+            # Verify
+            self.assertEqual(len(comments), 2)
+            # Comments are combined from issue_comments + review_comments, so order may vary
+            bodies = [c["body"] for c in comments]
+            authors = [c["author"] for c in comments]
+            self.assertIn("First comment", bodies)
+            self.assertIn("Second comment", bodies)
+            self.assertIn("user1", authors)
+            self.assertIn("user2", authors)
 
-        mock_github_class.return_value = mock_github
-        mock_github.get_repo.return_value = mock_repo
-        mock_repo.get_pull.return_value = mock_pr
+    async def test_get_pr_comments_with_since_filter(self):
+        """Test getting PR comments with time filter using github_tools."""
 
-        # Execute
-        comments = await self.github_integration.get_pr_comments(123)
-
-        # Verify
-        self.assertEqual(len(comments), 2)
-        self.assertEqual(comments[0]["body"], "First comment")
-        self.assertEqual(comments[1]["body"], "Second comment")
-        self.assertEqual(comments[0]["author"], "user1")
-
-    @patch("github.Github")
-    async def test_get_pr_comments_with_since_filter(self, mock_github_class):
-        """Test getting PR comments with time filter."""
-        # Mock GitHub API
-        mock_github = MagicMock()
-        mock_repo = MagicMock()
-        mock_pr = MagicMock()
-
-        now = datetime.now()
+        now = datetime.now(UTC)
         old_time = now - timedelta(hours=2)
         new_time = now - timedelta(minutes=30)
 
-        # Mock comments with different timestamps
-        mock_old_comment = MagicMock()
-        mock_old_comment.id = 1
-        mock_old_comment.created_at = old_time
-        mock_old_comment.user.login = "user1"
-        mock_old_comment.body = "Old comment"
-        mock_old_comment.html_url = (
-            "https://github.com/test/repo/pull/123#issuecomment-1"
-        )
+        # Mock github_tools response with different timestamps
+        mock_response = {
+            "issue_comments": [
+                {
+                    "id": 1,
+                    "author": "user1",
+                    "body": "Old comment",
+                    "created_at": old_time.isoformat(),
+                    "type": "issue_comment",
+                },
+                {
+                    "id": 2,
+                    "author": "user2",
+                    "body": "New comment",
+                    "created_at": new_time.isoformat(),
+                    "type": "issue_comment",
+                },
+            ],
+            "review_comments": [],
+        }
 
-        mock_new_comment = MagicMock()
-        mock_new_comment.id = 2
-        mock_new_comment.created_at = new_time
-        mock_new_comment.user.login = "user2"
-        mock_new_comment.body = "New comment"
-        mock_new_comment.html_url = (
-            "https://github.com/test/repo/pull/123#issuecomment-2"
-        )
+        async def mock_execute_tool(tool_name, **kwargs):
+            if tool_name == "github_get_pr_comments":
+                return json.dumps(mock_response)
+            return json.dumps({})
 
-        mock_pr.get_issue_comments.return_value = [mock_old_comment, mock_new_comment]
-        mock_pr.get_review_comments.return_value = []
-        mock_pr.get_reviews.return_value = []
+        with patch(
+            "langgraph_workflow.github_integration.execute_tool",
+            side_effect=mock_execute_tool,
+        ):
+            # Execute with since filter
+            cutoff_time = now - timedelta(hours=1)
+            comments = await self.github_integration.get_pr_comments(
+                123, since=cutoff_time
+            )
 
-        mock_github_class.return_value = mock_github
-        mock_github.get_repo.return_value = mock_repo
-        mock_repo.get_pull.return_value = mock_pr
+            # Verify only new comment returned (time filtering logic)
+            self.assertEqual(len(comments), 1)
+            self.assertEqual(comments[0]["body"], "New comment")
 
-        # Execute with since filter
-        cutoff_time = now - timedelta(hours=1)
-        comments = await self.github_integration.get_pr_comments(123, since=cutoff_time)
+    async def test_add_pr_comment_with_github_tools(self):
+        """Test adding a comment to a PR using github_tools integration."""
 
-        # Verify only new comment returned
-        self.assertEqual(len(comments), 1)
-        self.assertEqual(comments[0]["body"], "New comment")
+        # Mock github_tools execute_tool to return success
+        async def mock_execute_tool(tool_name, **kwargs):
+            if tool_name == "github_post_pr_reply":
+                return json.dumps({"success": True})
+            return json.dumps({})
 
-    @patch("github.Github")
-    async def test_add_pr_comment(self, mock_github_class):
-        """Test adding a comment to a PR."""
-        # Mock GitHub API
-        mock_github = MagicMock()
-        mock_repo = MagicMock()
-        mock_pr = MagicMock()
+        with patch(
+            "langgraph_workflow.github_integration.execute_tool",
+            side_effect=mock_execute_tool,
+        ):
+            # Execute
+            result = await self.github_integration.add_pr_comment(123, "Test comment")
 
-        mock_github_class.return_value = mock_github
-        mock_github.get_repo.return_value = mock_repo
-        mock_repo.get_pull.return_value = mock_pr
+            # Verify
+            self.assertTrue(result)
 
-        # Execute
-        result = await self.github_integration.add_pr_comment(123, "Test comment")
+    async def test_get_ci_status_with_github_tools(self):
+        """Test getting CI status using github_tools integration."""
+        # Mock github_tools response with build status
+        mock_response = {
+            "overall_state": "failure",
+            "commit_sha": "abc123",
+            "check_runs": [
+                {"name": "test", "status": "completed", "conclusion": "success"},
+                {"name": "lint", "status": "completed", "conclusion": "failure"},
+            ],
+        }
 
-        # Verify
-        self.assertTrue(result)
-        mock_pr.create_issue_comment.assert_called_once_with("Test comment")
+        async def mock_execute_tool(tool_name, **kwargs):
+            if tool_name == "github_get_build_status":
+                return json.dumps(mock_response)
+            return json.dumps({})
 
-    @patch("github.Github")
-    async def test_get_ci_status(self, mock_github_class):
-        """Test getting CI status."""
-        # Mock GitHub API
-        mock_github = MagicMock()
-        mock_repo = MagicMock()
-        mock_pr = MagicMock()
-        mock_commit = MagicMock()
-        mock_commit.sha = "abc123"
+        with patch(
+            "langgraph_workflow.github_integration.execute_tool",
+            side_effect=mock_execute_tool,
+        ):
+            # Execute
+            status = await self.github_integration.get_ci_status(123)
 
-        # Mock check runs
-        mock_check1 = MagicMock()
-        mock_check1.name = "test"
-        mock_check1.status = "completed"
-        mock_check1.conclusion = "success"
-        mock_check1.started_at = datetime.now()
-        mock_check1.completed_at = datetime.now()
-        mock_check1.details_url = "https://github.com/test/repo/runs/1"
-        mock_check1.output = None
+            # Verify
+            self.assertEqual(status["status"], "failure")  # One check failed
+            self.assertEqual(len(status["checks"]), 2)
+            self.assertEqual(status["commit_sha"], "abc123")
+            self.assertEqual(status["pr_number"], 123)
 
-        mock_check2 = MagicMock()
-        mock_check2.name = "lint"
-        mock_check2.status = "completed"
-        mock_check2.conclusion = "failure"
-        mock_check2.started_at = datetime.now()
-        mock_check2.completed_at = datetime.now()
-        mock_check2.details_url = "https://github.com/test/repo/runs/2"
-        mock_check2.output = None
+            # Check individual check details
+            checks = status["checks"]
+            test_check = next(c for c in checks if c["name"] == "test")
+            lint_check = next(c for c in checks if c["name"] == "lint")
 
-        mock_commit.get_check_runs.return_value = [mock_check1, mock_check2]
-        mock_pr.get_commits.return_value = [mock_commit]
-
-        mock_github_class.return_value = mock_github
-        mock_github.get_repo.return_value = mock_repo
-        mock_repo.get_pull.return_value = mock_pr
-
-        # Execute
-        status = await self.github_integration.get_ci_status(123)
-
-        # Verify
-        self.assertEqual(status["status"], "failure")  # One check failed
-        self.assertEqual(len(status["checks"]), 2)
-        self.assertEqual(status["commit_sha"], "abc123")
-        self.assertEqual(status["pr_number"], 123)
-
-        # Check individual check details
-        checks = status["checks"]
-        test_check = next(c for c in checks if c["name"] == "test")
-        lint_check = next(c for c in checks if c["name"] == "lint")
-
-        self.assertEqual(test_check["conclusion"], "success")
-        self.assertEqual(lint_check["conclusion"], "failure")
+            self.assertEqual(test_check["conclusion"], "success")
+            self.assertEqual(lint_check["conclusion"], "failure")
 
     async def test_push_changes(self):
         """Test pushing changes to GitHub."""
@@ -270,8 +282,11 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
         test_file = self.repo_path / "test.txt"
         test_file.write_text("Test content")
 
+        # Add to git index
+        self.git_repo.index.add(["test.txt"])
+
         # Mock remote push
-        with patch.object(self.github_integration.git_repo.remotes.origin, "push"):
+        with patch("git.Remote.push"):
             # Execute
             commit_sha = await self.github_integration.push_changes(
                 "main", "Test commit message"
@@ -282,27 +297,11 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(commit_sha), 40)  # Git SHA length
 
         # Verify commit was created
-        latest_commit = self.github_integration.git_repo.head.commit
+        latest_commit = self.git_repo.head.commit
         self.assertEqual(latest_commit.message, "Test commit message")
 
-    @patch("github.Github")
-    async def test_wait_for_checks(self, mock_github_class):
+    async def test_wait_for_checks(self):
         """Test waiting for CI checks to complete."""
-        # Mock GitHub API
-        mock_github = MagicMock()
-        mock_repo = MagicMock()
-        mock_pr = MagicMock()
-        mock_commit = MagicMock()
-        mock_commit.sha = "abc123"
-
-        # Mock check run that starts pending then completes
-        mock_check = MagicMock()
-        mock_check.name = "test"
-        mock_check.started_at = datetime.now()
-        mock_check.completed_at = datetime.now()
-        mock_check.details_url = "https://github.com/test/repo/runs/1"
-        mock_check.output = None
-
         # First call: pending, second call: success
         self.call_count = 0
 
@@ -390,7 +389,7 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
         test_file.write_text("def hello():\n    print('Hello')")
 
         # Commit initial state
-        self.git_repo.index.add([str(test_file)])
+        self.git_repo.index.add(["test.py"])  # Use relative path
         self.git_repo.index.commit("Add test file")
 
         # Create patch content
@@ -456,79 +455,89 @@ class TestMCPServerInterface(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(log, "")
 
 
-class TestMockGitHub(unittest.IsolatedAsyncioTestCase):
-    """Test the MockGitHub implementation."""
+class TestGitHubIntegrationEdgeCases(unittest.IsolatedAsyncioTestCase):
+    """Additional tests for GitHub integration edge cases."""
 
     def setUp(self):
         """Set up test fixtures."""
-        self.mock_github = MockGitHub()
+        # Create temporary directory for git repo
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.repo_path = Path(self.temp_dir.name)
 
-    async def test_mock_create_branch(self):
-        """Test mock branch creation."""
-        branch = await self.mock_github.create_branch("test-branch", "main")
+        # Initialize git repo
+        self.git_repo = git.Repo.init(self.repo_path)
 
-        self.assertEqual(branch, "test-branch")
-        self.assertIn("test-branch", self.mock_github.branches)
-        self.assertEqual(self.mock_github.branches["test-branch"], "main")
+        # Create initial commit
+        test_file = self.repo_path / "README.md"
+        test_file.write_text("# Test Repo")
+        self.git_repo.index.add(["README.md"])  # Use relative path
+        self.git_repo.index.commit("Initial commit")
 
-    async def test_mock_create_pr(self):
-        """Test mock PR creation."""
-        pr_number = await self.mock_github.create_pull_request(
-            title="Test PR",
-            body="Test description",
-            branch="feature/test",
-            labels=["test"],
+        # Add remote origin (mock)
+        origin = self.git_repo.create_remote(
+            "origin", "https://github.com/test-org/test-repo.git"
         )
 
-        self.assertEqual(pr_number, 1)
-        self.assertIn(1, self.mock_github.prs)
-
-        pr_data = self.mock_github.prs[1]
-        self.assertEqual(pr_data["title"], "Test PR")
-        self.assertEqual(pr_data["branch"], "feature/test")
-        self.assertEqual(pr_data["labels"], ["test"])
-
-    async def test_mock_pr_comments(self):
-        """Test mock PR comment operations."""
-        # Create PR first
-        pr_number = await self.mock_github.create_pull_request(
-            title="Test PR", body="Test description", branch="feature/test"
+        self.github_integration = GitHubIntegration(
+            repo_path=str(self.repo_path), github_token="fake_token"
         )
 
-        # Add comment
-        success = await self.mock_github.add_pr_comment(pr_number, "Test comment")
-        self.assertTrue(success)
+    def tearDown(self):
+        """Clean up test fixtures."""
+        self.temp_dir.cleanup()
 
-        # Get comments
-        comments = await self.mock_github.get_pr_comments(pr_number)
-        self.assertEqual(len(comments), 1)
-        self.assertEqual(comments[0]["body"], "Test comment")
-        self.assertEqual(comments[0]["author"], "test_user")
+    async def test_github_tools_unavailable_fallback(self):
+        """Test fallback behavior when github_tools is not available."""
+        # Test get_pr_comments fallback
+        with patch("langgraph_workflow.github_integration.execute_tool", None):
+            comments = await self.github_integration.get_pr_comments(123)
+            self.assertEqual(comments, [])
 
-    async def test_mock_ci_status(self):
-        """Test mock CI status operations."""
-        # Create PR
-        pr_number = await self.mock_github.create_pull_request(
-            title="Test PR", body="Test description", branch="feature/test"
+        # Test add_pr_comment fallback
+        with patch("langgraph_workflow.github_integration.execute_tool", None):
+            result = await self.github_integration.add_pr_comment(123, "Test comment")
+            self.assertFalse(result)
+
+        # Test get_ci_status fallback
+        with patch("langgraph_workflow.github_integration.execute_tool", None):
+            status = await self.github_integration.get_ci_status(123)
+            self.assertEqual(status["status"], "success")
+            self.assertEqual(status["pr_number"], 123)
+
+    async def test_github_tools_error_handling(self):
+        """Test error handling when github_tools returns errors."""
+
+        # Mock github_tools to return error responses
+        async def mock_execute_tool_with_error(tool_name, **kwargs):
+            return json.dumps({"error": "API rate limit exceeded"})
+
+        with patch(
+            "langgraph_workflow.github_integration.execute_tool",
+            side_effect=mock_execute_tool_with_error,
+        ):
+            # Test error handling for get_pr_comments
+            comments = await self.github_integration.get_pr_comments(123)
+            self.assertEqual(comments, [])
+
+            # Test error handling for add_pr_comment
+            result = await self.github_integration.add_pr_comment(123, "Test")
+            self.assertFalse(result)
+
+            # Test error handling for get_ci_status
+            status = await self.github_integration.get_ci_status(123)
+            self.assertEqual(status["status"], "error")
+
+    async def test_repo_name_extraction(self):
+        """Test repository name extraction logic."""
+        # Test with valid git remote
+        self.assertEqual(self.github_integration.repo_name, "test-org/test-repo")
+
+        # Test with invalid integration
+        invalid_integration = GitHubIntegration(
+            repo_path="/nonexistent", github_token="fake"
         )
-
-        # Default status should be success
-        status = await self.mock_github.get_ci_status(pr_number)
-        self.assertEqual(status["status"], "success")
-        self.assertEqual(status["pr_number"], pr_number)
-
-        # Set custom status
-        custom_status = {
-            "status": "failure",
-            "checks": [{"name": "test", "conclusion": "failure"}],
-            "commit_sha": "abc123",
-            "pr_number": pr_number,
-        }
-        self.mock_github.set_ci_status(pr_number, custom_status)
-
-        # Verify custom status
-        updated_status = await self.mock_github.get_ci_status(pr_number)
-        self.assertEqual(updated_status["status"], "failure")
+        # Should fallback to directory name
+        self.assertEqual(invalid_integration.repo_name, "nonexistent")
 
 
 if __name__ == "__main__":

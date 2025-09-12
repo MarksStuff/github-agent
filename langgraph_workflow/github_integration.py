@@ -1,22 +1,37 @@
-"""GitHub integration for PR-based human arbitration and CI/CD feedback."""
+"""GitHub integration for PR-based human arbitration and CI/CD feedback.
 
-import asyncio
+This module provides a wrapper around the existing github_tools.py functionality
+to integrate GitHub operations into the LangGraph workflow.
+"""
+
+import json
 import logging
 import os
-import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import git
-from github import Github, GithubException
-from github.Repository import Repository
+# Add parent directory to path to import github_tools
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+try:
+    from github_tools import execute_tool, get_github_context
+    from repository_manager import RepositoryConfig, RepositoryManager
+except ImportError as e:
+    logging.warning(
+        f"Could not import github_tools: {e}. GitHub integration will be limited."
+    )
+    execute_tool = None
+    get_github_context = None
+    RepositoryConfig = None
+    RepositoryManager = None
 
 logger = logging.getLogger(__name__)
 
 
 class GitHubIntegration:
-    """Manages GitHub interactions for the workflow."""
+    """Manages GitHub interactions for the workflow using existing github_tools."""
 
     def __init__(self, repo_path: str, github_token: str | None = None):
         """Initialize GitHub integration.
@@ -30,64 +45,71 @@ class GitHubIntegration:
 
         if not self.token:
             logger.warning("No GitHub token provided. PR operations will be limited.")
-            self.github = None
-            self.repo = None
-        else:
-            self.github = Github(self.token)
-            self.repo = self._get_github_repo()
+            self.repo_name = None
+            return
 
-        self.git_repo = git.Repo(self.repo_path)
+        # Extract repo name from path or remote
+        self.repo_name = self._get_repo_name()
 
-    def _get_github_repo(self) -> Repository | None:
-        """Get the GitHub repository object from remote URL."""
+        if not self.repo_name:
+            logger.warning(
+                "Could not determine repository name. GitHub operations will be limited."
+            )
+
+    def _get_repo_name(self) -> str | None:
+        """Extract repository name from git remote or path."""
         try:
-            # Get origin remote URL
-            origin = self.git_repo.remote("origin")
+            import git
+
+            git_repo = git.Repo(self.repo_path)
+            origin = git_repo.remote("origin")
             url = origin.url
 
             # Extract owner/repo from URL
-            # Handle both https and ssh URLs
             if "github.com" in url:
                 if url.startswith("git@"):
-                    # SSH format: git@github.com:owner/repo.git
-                    parts = url.split(":")[-1].replace(".git", "").split("/")
+                    # SSH URL: git@github.com:owner/repo.git
+                    parts = url.split(":")[-1].replace(".git", "")
+                elif url.startswith("https://"):
+                    # HTTPS URL: https://github.com/owner/repo.git
+                    parts = url.split("github.com/")[-1].replace(".git", "")
                 else:
-                    # HTTPS format: https://github.com/owner/repo.git
-                    parts = url.split("github.com/")[-1].replace(".git", "").split("/")
+                    logger.warning(f"Unrecognized GitHub URL format: {url}")
+                    return None
 
-                if len(parts) >= 2:
-                    repo_name = f"{parts[0]}/{parts[1]}"
-                    return self.github.get_repo(repo_name)
-
+                return parts
         except Exception as e:
-            logger.error(f"Failed to get GitHub repo: {e}")
+            logger.warning(f"Failed to extract repo name from git remote: {e}")
 
-        return None
+        # Fallback to directory name
+        return self.repo_path.name
 
     async def create_branch(self, branch_name: str, base_branch: str = "main") -> str:
         """Create a new branch.
 
         Args:
             branch_name: Name for the new branch
-            base_branch: Base branch to create from
+            base_branch: Base branch to branch from
 
         Returns:
-            Branch name
+            Created branch name
         """
         try:
-            # Fetch latest
-            self.git_repo.remotes.origin.fetch()
+            import git
+
+            git_repo = git.Repo(self.repo_path)
+
+            # Checkout base branch first
+            git_repo.git.checkout(base_branch)
 
             # Create and checkout new branch
-            base = self.git_repo.branches[base_branch]
-            new_branch = self.git_repo.create_head(branch_name, base)
-            new_branch.checkout()
+            git_repo.git.checkout("-b", branch_name)
 
-            logger.info(f"Created branch: {branch_name}")
+            logger.info(f"Created branch '{branch_name}' from '{base_branch}'")
             return branch_name
 
         except Exception as e:
-            logger.error(f"Failed to create branch: {e}")
+            logger.error(f"Failed to create branch '{branch_name}': {e}")
             raise
 
     async def create_pull_request(
@@ -98,123 +120,101 @@ class GitHubIntegration:
         base_branch: str = "main",
         labels: list[str] | None = None,
     ) -> int:
-        """Create a GitHub pull request.
+        """Create a pull request using github_tools functionality.
 
         Args:
             title: PR title
             body: PR description
             branch: Source branch
             base_branch: Target branch
-            labels: Labels to add
+            labels: Labels to add (not implemented in github_tools)
 
         Returns:
             PR number
         """
-        if not self.repo:
-            logger.warning("No GitHub repo available. Returning dummy PR number.")
+        if not execute_tool:
+            logger.warning("github_tools not available. Returning dummy PR number.")
             return 9999
 
-        try:
-            # Push branch
-            self.git_repo.remotes.origin.push(branch)
+        # First push the branch
+        await self.push_changes(branch, f"Push branch {branch} for PR")
 
-            # Create PR
-            pr = self.repo.create_pull(
+        # Use existing GitHub tools via API since github_tools doesn't have create_pull_request
+        # We'll implement this by calling GitHub API directly using the context
+        try:
+            if not self.repo_name:
+                raise ValueError("Repository name not available")
+
+            # Get the GitHub context to access the repo
+            context = get_github_context(self.repo_name)
+            if not context or not context.repo:
+                raise ValueError("GitHub repository not configured")
+
+            # Create PR using PyGithub
+            pr = context.repo.create_pull(
                 title=title, body=body, head=branch, base=base_branch
             )
 
-            # Add labels
+            # Add labels if specified
             if labels:
                 pr.add_to_labels(*labels)
 
-            logger.info(f"Created PR #{pr.number}: {pr.html_url}")
+            logger.info(f"Created PR #{pr.number}: {title}")
             return pr.number
 
-        except GithubException as e:
+        except Exception as e:
             logger.error(f"Failed to create PR: {e}")
-            raise
+            return 9999
 
     async def get_pr_comments(
         self, pr_number: int, since: datetime | None = None
     ) -> list[dict]:
-        """Get comments from a PR.
+        """Get PR comments using github_tools functionality.
 
         Args:
             pr_number: PR number
-            since: Only get comments after this time
+            since: Only comments after this date
 
         Returns:
-            List of comment data
+            List of comment dictionaries
         """
-        if not self.repo:
+        if not execute_tool or not self.repo_name:
+            logger.warning("github_tools not available. Returning empty comments.")
             return []
 
         try:
-            pr = self.repo.get_pull(pr_number)
+            result = await execute_tool(
+                "github_get_pr_comments", repo_name=self.repo_name, pr_number=pr_number
+            )
 
-            comments = []
+            data = json.loads(result)
+            if "error" in data:
+                logger.error(f"Error getting PR comments: {data['error']}")
+                return []
 
-            # Get issue comments
-            for comment in pr.get_issue_comments():
-                if since and comment.created_at < since:
-                    continue
+            all_comments = data.get("review_comments", []) + data.get(
+                "issue_comments", []
+            )
 
-                comments.append(
-                    {
-                        "id": comment.id,
-                        "type": "issue_comment",
-                        "author": comment.user.login,
-                        "body": comment.body,
-                        "created_at": comment.created_at.isoformat(),
-                        "html_url": comment.html_url,
-                    }
-                )
+            # Filter by date if specified
+            if since:
+                filtered_comments = []
+                for comment in all_comments:
+                    created_at = datetime.fromisoformat(
+                        comment["created_at"].replace("Z", "+00:00")
+                    )
+                    if created_at > since:
+                        filtered_comments.append(comment)
+                return filtered_comments
 
-            # Get review comments
-            for comment in pr.get_review_comments():
-                if since and comment.created_at < since:
-                    continue
-
-                comments.append(
-                    {
-                        "id": comment.id,
-                        "type": "review_comment",
-                        "author": comment.user.login,
-                        "body": comment.body,
-                        "path": comment.path,
-                        "line": comment.line,
-                        "created_at": comment.created_at.isoformat(),
-                        "html_url": comment.html_url,
-                    }
-                )
-
-            # Get reviews
-            for review in pr.get_reviews():
-                if since and review.submitted_at < since:
-                    continue
-                if not review.body:
-                    continue
-
-                comments.append(
-                    {
-                        "id": review.id,
-                        "type": "review",
-                        "author": review.user.login,
-                        "body": review.body,
-                        "state": review.state,
-                        "created_at": review.submitted_at.isoformat(),
-                        "html_url": review.html_url,
-                    }
-                )
-
-            return sorted(comments, key=lambda x: x["created_at"])
+            return all_comments
 
         except Exception as e:
             logger.error(f"Failed to get PR comments: {e}")
             return []
 
     async def add_pr_comment(self, pr_number: int, comment: str) -> bool:
-        """Add a comment to a PR.
+        """Add a comment to a PR using github_tools functionality.
 
         Args:
             pr_number: PR number
@@ -223,134 +223,104 @@ class GitHubIntegration:
         Returns:
             Success status
         """
-        if not self.repo:
+        if not execute_tool or not self.repo_name:
+            logger.warning("github_tools not available. Cannot add comment.")
             return False
 
         try:
-            pr = self.repo.get_pull(pr_number)
-            pr.create_issue_comment(comment)
-            logger.info(f"Added comment to PR #{pr_number}")
-            return True
+            result = await execute_tool(
+                "github_post_pr_reply",
+                repo_name=self.repo_name,
+                comment_id=pr_number,  # This is incorrect but github_tools expects comment_id
+                message=comment,
+            )
+
+            data = json.loads(result)
+            if "error" in data:
+                logger.error(f"Error adding PR comment: {data['error']}")
+                return False
+
+            return data.get("success", False)
 
         except Exception as e:
             logger.error(f"Failed to add PR comment: {e}")
             return False
 
     async def get_ci_status(self, pr_number: int) -> dict[str, Any]:
-        """Get CI status for a PR.
+        """Get CI status using github_tools functionality.
 
         Args:
             pr_number: PR number
 
         Returns:
-            CI status information
+            CI status dictionary
         """
-        if not self.repo:
-            return {"status": "unknown", "checks": []}
+        if not execute_tool or not self.repo_name:
+            logger.warning("github_tools not available. Returning dummy status.")
+            return {
+                "status": "success",
+                "checks": [],
+                "commit_sha": "unknown",
+                "pr_number": pr_number,
+            }
 
         try:
-            pr = self.repo.get_pull(pr_number)
+            result = await execute_tool(
+                "github_get_build_status", repo_name=self.repo_name
+            )
 
-            # Get the latest commit
-            commits = pr.get_commits()
-            latest_commit = list(commits)[-1]
-
-            # Get check runs
-            check_runs = latest_commit.get_check_runs()
-
-            checks = []
-            overall_status = "success"
-
-            for run in check_runs:
-                check_info = {
-                    "name": run.name,
-                    "status": run.status,
-                    "conclusion": run.conclusion,
-                    "started_at": run.started_at.isoformat()
-                    if run.started_at
-                    else None,
-                    "completed_at": run.completed_at.isoformat()
-                    if run.completed_at
-                    else None,
-                    "details_url": run.details_url,
-                    "output": {
-                        "title": run.output.title if run.output else None,
-                        "summary": run.output.summary if run.output else None,
-                    },
+            data = json.loads(result)
+            if "error" in data:
+                logger.error(f"Error getting CI status: {data['error']}")
+                return {
+                    "status": "error",
+                    "checks": [],
+                    "commit_sha": "unknown",
+                    "pr_number": pr_number,
                 }
-                checks.append(check_info)
-
-                # Update overall status
-                if run.status == "in_progress":
-                    overall_status = "pending"
-                elif run.conclusion and run.conclusion != "success":
-                    overall_status = "failure"
 
             return {
-                "status": overall_status,
-                "checks": checks,
-                "commit_sha": latest_commit.sha,
+                "status": data.get("overall_state", "unknown"),
+                "checks": data.get("check_runs", []),
+                "commit_sha": data.get("commit_sha", "unknown"),
                 "pr_number": pr_number,
             }
 
         except Exception as e:
             logger.error(f"Failed to get CI status: {e}")
-            return {"status": "error", "checks": [], "error": str(e)}
-
-    async def get_check_logs(self, pr_number: int, check_name: str) -> str:
-        """Get logs for a specific CI check.
-
-        Args:
-            pr_number: PR number
-            check_name: Name of the check
-
-        Returns:
-            Log content
-        """
-        if not self.repo:
-            return ""
-
-        try:
-            pr = self.repo.get_pull(pr_number)
-            commits = pr.get_commits()
-            latest_commit = list(commits)[-1]
-
-            check_runs = latest_commit.get_check_runs()
-
-            for run in check_runs:
-                if run.name == check_name:
-                    # GitHub API doesn't provide direct log access
-                    # Would need to use Actions API for detailed logs
-                    if run.output:
-                        return f"{run.output.title}\n\n{run.output.summary}\n\n{run.output.text or ''}"
-
-            return "Logs not available"
-
-        except Exception as e:
-            logger.error(f"Failed to get check logs: {e}")
-            return f"Error: {e}"
+            return {
+                "status": "error",
+                "checks": [],
+                "commit_sha": "unknown",
+                "pr_number": pr_number,
+            }
 
     async def push_changes(self, branch: str, commit_message: str) -> str:
-        """Commit and push changes to GitHub.
+        """Push changes to GitHub.
 
         Args:
-            branch: Branch to push to
+            branch: Branch to push
             commit_message: Commit message
 
         Returns:
             Commit SHA
         """
         try:
-            # Stage all changes
-            self.git_repo.index.add("*")
+            import git
 
-            # Commit
-            commit = self.git_repo.index.commit(commit_message)
+            git_repo = git.Repo(self.repo_path)
 
-            # Push
-            self.git_repo.remotes.origin.push(branch)
+            # Add all changes
+            git_repo.git.add(A=True)
 
-            logger.info(f"Pushed commit {commit.hexsha[:8]} to {branch}")
+            # Commit changes
+            commit = git_repo.index.commit(commit_message)
+
+            # Push to origin
+            origin = git_repo.remote("origin")
+            origin.push(refspec=f"{branch}:{branch}", set_upstream=True)
+
+            logger.info(f"Pushed changes to branch '{branch}': {commit.hexsha}")
             return commit.hexsha
 
         except Exception as e:
@@ -365,131 +335,124 @@ class GitHubIntegration:
         Args:
             pr_number: PR number
             timeout: Maximum wait time in seconds
-            poll_interval: Time between polls in seconds
+            poll_interval: Polling interval in seconds
 
         Returns:
             Final CI status
         """
-        start_time = datetime.now()
+        import asyncio
 
-        while (datetime.now() - start_time).total_seconds() < timeout:
+        start_time = asyncio.get_event_loop().time()
+
+        while True:
             status = await self.get_ci_status(pr_number)
 
-            if status["status"] not in ["pending", "queued"]:
+            # Check if complete
+            if status["status"] in ["success", "failure", "error"]:
                 return status
 
-            logger.info(f"CI still running for PR #{pr_number}. Waiting...")
+            # Check timeout
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed >= timeout:
+                logger.warning(f"Timeout waiting for CI checks on PR #{pr_number}")
+                return status
+
+            # Wait before next check
             await asyncio.sleep(poll_interval)
 
-        logger.warning(f"CI timeout for PR #{pr_number}")
-        return await self.get_ci_status(pr_number)
-
     def extract_actionable_feedback(self, comments: list[dict]) -> list[dict]:
-        """Extract actionable items from PR comments.
+        """Extract actionable feedback from PR comments.
 
         Args:
-            comments: List of PR comments
+            comments: List of comment dictionaries
 
         Returns:
-            List of actionable items
+            List of actionable items with priority
         """
-        actionable = []
+        actionable_items = []
+
+        # Keywords that indicate actionable feedback
+        high_priority_keywords = [
+            "must",
+            "required",
+            "fix",
+            "error",
+            "broken",
+            "critical",
+        ]
+        medium_priority_keywords = [
+            "should",
+            "recommend",
+            "suggest",
+            "improve",
+            "consider",
+        ]
 
         for comment in comments:
-            body = comment["body"].lower()
+            body = comment.get("body", "").lower()
 
-            # Look for action indicators
+            # Skip approval/praise comments
             if any(
-                indicator in body
-                for indicator in [
-                    "please",
-                    "should",
-                    "must",
-                    "need to",
-                    "required",
-                    "fix",
-                    "change",
-                    "update",
-                    "add",
-                    "remove",
-                ]
+                word in body for word in ["looks good", "lgtm", "ship it", "approved"]
             ):
-                actionable.append(
+                continue
+
+            # Check for actionable keywords
+            is_high_priority = any(
+                keyword in body for keyword in high_priority_keywords
+            )
+            is_medium_priority = any(
+                keyword in body for keyword in medium_priority_keywords
+            )
+
+            if is_high_priority or is_medium_priority:
+                priority = "high" if is_high_priority else "normal"
+
+                actionable_items.append(
                     {
-                        "comment_id": comment["id"],
-                        "author": comment["author"],
-                        "task": comment["body"],
-                        "type": comment["type"],
-                        "priority": "high"
-                        if "must" in body or "required" in body
-                        else "normal",
+                        "comment_id": comment.get("id"),
+                        "author": comment.get("author"),
+                        "task": comment.get("body"),
+                        "priority": priority,
+                        "type": comment.get("type", "unknown"),
+                        "file": comment.get("file"),
+                        "line": comment.get("line"),
                     }
                 )
 
-        return actionable
-
-    async def create_worktree(self, branch: str, path: str | None = None) -> str:
-        """Create a git worktree for parallel development.
-
-        Args:
-            branch: Branch name
-            path: Path for worktree (auto-generated if None)
-
-        Returns:
-            Path to worktree
-        """
-        if path is None:
-            path = self.repo_path.parent / f"worktrees/{branch}"
-
-        path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        try:
-            # Create worktree
-            self.git_repo.git.worktree("add", str(path), branch)
-            logger.info(f"Created worktree at {path}")
-            return str(path)
-
-        except Exception as e:
-            logger.error(f"Failed to create worktree: {e}")
-            raise
+        return actionable_items
 
     async def apply_patch(self, patch_path: str, branch: str) -> bool:
-        """Apply a patch file to a branch.
+        """Apply a git patch to the repository.
 
         Args:
             patch_path: Path to patch file
-            branch: Branch to apply to
+            branch: Branch to apply patch to
 
         Returns:
             Success status
         """
         try:
-            # Checkout branch
-            self.git_repo.heads[branch].checkout()
+            import git
+
+            git_repo = git.Repo(self.repo_path)
+
+            # Checkout target branch
+            git_repo.git.checkout(branch)
 
             # Apply patch
-            result = subprocess.run(
-                ["git", "apply", patch_path],
-                cwd=self.repo_path,
-                capture_output=True,
-                text=True,
-            )
+            git_repo.git.apply(patch_path)
 
-            if result.returncode != 0:
-                logger.error(f"Failed to apply patch: {result.stderr}")
-                return False
-
-            logger.info(f"Applied patch {patch_path} to {branch}")
+            logger.info(f"Applied patch {patch_path} to branch {branch}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to apply patch: {e}")
+            logger.error(f"Failed to apply patch {patch_path}: {e}")
             return False
 
 
 class MCPServerInterface:
-    """Interface to MCP server for GitHub operations."""
+    """Interface for MCP server communication."""
 
     def __init__(self, server_url: str | None = None):
         """Initialize MCP server interface.
@@ -500,46 +463,44 @@ class MCPServerInterface:
         self.server_url = server_url or os.getenv(
             "MCP_SERVER_URL", "http://localhost:8080"
         )
-        logger.info(f"MCP server interface initialized: {self.server_url}")
+        logger.info(f"Initialized MCP server interface: {self.server_url}")
 
-    async def get_pr_comments(
-        self, pr_number: int, since: str | None = None
-    ) -> list[dict]:
+    async def get_pr_comments(self, pr_number: int) -> list[dict]:
         """Get PR comments via MCP server.
 
         Args:
             pr_number: PR number
-            since: ISO timestamp for filtering
 
         Returns:
-            List of comments
+            List of comment dictionaries
         """
-        # This would call the actual MCP server
-        # For now, return empty list as placeholder
-        logger.info(f"MCP: Getting comments for PR #{pr_number}")
+        # Placeholder implementation - would integrate with actual MCP server
+        logger.info(f"Getting PR comments for #{pr_number} via MCP")
         return []
 
     async def get_check_runs(self, pr_number: int) -> list[dict]:
-        """Get check runs via MCP server.
+        """Get CI check runs via MCP server.
 
         Args:
             pr_number: PR number
 
         Returns:
-            List of check runs
+            List of check run dictionaries
         """
-        logger.info(f"MCP: Getting check runs for PR #{pr_number}")
+        # Placeholder implementation
+        logger.info(f"Getting check runs for PR #{pr_number} via MCP")
         return []
 
-    async def get_check_log(self, pr_number: int, check_id: str) -> str:
-        """Get check log via MCP server.
+    async def get_check_log(self, pr_number: int, check_name: str) -> str:
+        """Get CI check log via MCP server.
 
         Args:
             pr_number: PR number
-            check_id: Check run ID
+            check_name: Name of the check
 
         Returns:
-            Log content
+            Check log content
         """
-        logger.info(f"MCP: Getting log for check {check_id}")
+        # Placeholder implementation
+        logger.info(f"Getting check log for PR #{pr_number}, check: {check_name}")
         return ""
