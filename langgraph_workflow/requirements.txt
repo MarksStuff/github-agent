@@ -24,3 +24,14 @@ gitpython>=3.1.0
 # Existing dependencies (already in project)
 python-dotenv
 pydantic>=2.0.0
+
+# Testing dependencies
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.10.0
+coverage>=7.0.0
+pytest-cov>=4.0.0
+
+# Additional testing utilities
+factory-boy>=3.2.0  # For test data generation
+freezegun>=1.2.0    # For time mocking in tests
