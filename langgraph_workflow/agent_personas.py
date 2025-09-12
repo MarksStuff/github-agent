@@ -10,22 +10,26 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from multi_agent_workflow.agent_interface import (
     ArchitectAgent as BaseArchitectAgent,
+)
+from multi_agent_workflow.agent_interface import (
     DeveloperAgent as BaseDeveloperAgent,
+)
+from multi_agent_workflow.agent_interface import (
     SeniorEngineerAgent as BaseSeniorEngineerAgent,
+)
+from multi_agent_workflow.agent_interface import (
     TesterAgent as BaseTesterAgent,
 )
-from multi_agent_workflow.amp_cli_wrapper import AmpCLI
-from multi_agent_workflow.coding_personas import CodingPersonas
 
 logger = logging.getLogger(__name__)
 
 
 class LangGraphAgent:
     """Base class for LangGraph-compatible agents."""
-    
+
     def __init__(self, base_agent: Any, agent_type: str):
         """Initialize with a base agent.
-        
+
         Args:
             base_agent: Base agent implementation
             agent_type: Type identifier
@@ -33,13 +37,13 @@ class LangGraphAgent:
         self.base_agent = base_agent
         self.agent_type = agent_type
         self.persona = base_agent.persona
-    
+
     async def analyze(self, prompt: str) -> str:
         """Analyze using the agent's persona.
-        
+
         Args:
             prompt: Analysis prompt
-            
+
         Returns:
             Analysis result
         """
@@ -50,27 +54,27 @@ class LangGraphAgent:
         except Exception as e:
             logger.error(f"{self.agent_type} analysis error: {e}")
             return f"Error: {e}"
-    
+
     async def review(self, content: str, context: dict[str, Any]) -> str:
         """Review content and provide feedback.
-        
+
         Args:
             content: Content to review
             context: Additional context
-            
+
         Returns:
             Review feedback
         """
         prompt = self._build_review_prompt(content, context)
         return await self.analyze(prompt)
-    
+
     def _build_review_prompt(self, content: str, context: dict[str, Any]) -> str:
         """Build review prompt for the agent.
-        
+
         Args:
             content: Content to review
             context: Additional context
-            
+
         Returns:
             Formatted prompt
         """
@@ -86,19 +90,19 @@ Provide your feedback focusing on your area of expertise."""
 
 class TestFirstAgent(LangGraphAgent):
     """Test-first agent for LangGraph workflow."""
-    
+
     def __init__(self):
         """Initialize test-first agent."""
         base = BaseTesterAgent()
         super().__init__(base, "test-first")
-    
+
     async def write_tests(self, skeleton: str, design: str) -> str:
         """Write tests based on skeleton and design.
-        
+
         Args:
             skeleton: Code skeleton
             design: Design document
-            
+
         Returns:
             Test code
         """
@@ -117,16 +121,16 @@ Write tests that:
 4. Ensure the design requirements are met
 
 Return only the test code, no explanations."""
-        
+
         return await self.analyze(prompt)
-    
+
     async def write_component_tests(self, implementation: str, unit_tests: str) -> str:
         """Write component-level tests.
-        
+
         Args:
             implementation: Implementation code
             unit_tests: Existing unit tests
-            
+
         Returns:
             Component test code
         """
@@ -145,25 +149,25 @@ Focus on:
 4. State management
 
 Return only the test code."""
-        
+
         return await self.analyze(prompt)
 
 
 class FastCoderAgent(LangGraphAgent):
     """Fast-coder agent for rapid implementation."""
-    
+
     def __init__(self):
         """Initialize fast-coder agent."""
         base = BaseDeveloperAgent()
         super().__init__(base, "fast-coder")
-    
+
     async def implement(self, skeleton: str, design: str) -> str:
         """Implement based on skeleton and design.
-        
+
         Args:
             skeleton: Code skeleton
             design: Design document
-            
+
         Returns:
             Implementation code
         """
@@ -181,16 +185,16 @@ Focus on:
 3. Practical, straightforward solutions
 
 Return only the implementation code."""
-        
+
         return await self.analyze(prompt)
-    
+
     async def refactor_for_tests(self, code: str, test_failures: dict) -> str:
         """Refactor code to fix test failures.
-        
+
         Args:
             code: Current implementation
             test_failures: Test failure information
-            
+
         Returns:
             Refactored code
         """
@@ -205,24 +209,24 @@ Test Failures:
 Make minimal changes to fix the tests while maintaining functionality.
 
 Return only the fixed code."""
-        
+
         return await self.analyze(prompt)
 
 
 class SeniorEngineerAgent(LangGraphAgent):
     """Senior engineer agent for code quality and patterns."""
-    
+
     def __init__(self):
         """Initialize senior engineer agent."""
         base = BaseSeniorEngineerAgent()
         super().__init__(base, "senior-engineer")
-    
+
     async def analyze_codebase(self, repo_path: str) -> dict[str, Any]:
         """Analyze codebase to create context document.
-        
+
         Args:
             repo_path: Repository path
-            
+
         Returns:
             Codebase analysis
         """
@@ -239,9 +243,9 @@ class SeniorEngineerAgent(LangGraphAgent):
 9. Recent changes
 
 Return a structured analysis."""
-        
+
         response = await self.analyze(prompt)
-        
+
         # Parse response into structured format
         # This would be more sophisticated in production
         return {
@@ -253,15 +257,15 @@ Return a structured analysis."""
             "interfaces": "Key interfaces",
             "services": "Infrastructure services",
             "testing": "Testing approach",
-            "recent_changes": "Recent changes"
+            "recent_changes": "Recent changes",
         }
-    
+
     async def create_skeleton(self, design: str) -> str:
         """Create code skeleton from design.
-        
+
         Args:
             design: Design document
-            
+
         Returns:
             Code skeleton
         """
@@ -276,16 +280,16 @@ Include:
 4. Clear structure and organization
 
 Return only the skeleton code with empty implementations (pass statements)."""
-        
+
         return await self.analyze(prompt)
-    
+
     async def refactor_for_quality(self, code: str, tests: str) -> str:
         """Refactor code for quality and patterns.
-        
+
         Args:
             code: Current implementation
             tests: Test suite
-            
+
         Returns:
             Refactored code
         """
@@ -305,24 +309,24 @@ Focus on:
 5. Ensuring SOLID principles
 
 Return only the refactored code."""
-        
+
         return await self.analyze(prompt)
 
 
 class ArchitectAgent(LangGraphAgent):
     """Architect agent for system design and scalability."""
-    
+
     def __init__(self):
         """Initialize architect agent."""
         base = BaseArchitectAgent()
         super().__init__(base, "architect")
-    
+
     async def synthesize_analyses(self, analyses: dict[str, str]) -> str:
         """Synthesize multiple agent analyses.
-        
+
         Args:
             analyses: Dict of agent_type -> analysis
-            
+
         Returns:
             Synthesis document
         """
@@ -337,15 +341,15 @@ Create a synthesis with:
 4. Questions requiring code investigation
 
 Remain neutral - document rather than judge."""
-        
+
         return await self.analyze(prompt)
-    
+
     async def review_skeleton(self, skeleton: str) -> str:
         """Review skeleton for system consistency.
-        
+
         Args:
             skeleton: Code skeleton
-            
+
         Returns:
             Review feedback
         """
@@ -361,15 +365,15 @@ Check for:
 5. Potential architectural issues
 
 Provide specific feedback. Say 'approve' if acceptable, or explain concerns."""
-        
+
         return await self.analyze(prompt)
-    
+
     async def design_scalability_tests(self, integration_tests: str) -> str:
         """Design scalability tests.
-        
+
         Args:
             integration_tests: Existing integration tests
-            
+
         Returns:
             Scalability test code
         """
@@ -385,15 +389,15 @@ Focus on:
 5. System limits
 
 Return test code that ensures scalability requirements."""
-        
+
         return await self.analyze(prompt)
-    
+
     async def assess_system_impact(self, solution: str) -> str:
         """Assess system-wide impact of a solution.
-        
+
         Args:
             solution: Proposed solution
-            
+
         Returns:
             Impact assessment
         """
@@ -409,14 +413,14 @@ Consider:
 5. Future extensibility
 
 Provide a clear assessment of impacts and risks."""
-        
+
         return await self.analyze(prompt)
 
 
 # Factory function to create agents
 def create_agents() -> dict[str, LangGraphAgent]:
     """Create all agents for the workflow.
-    
+
     Returns:
         Dict of agent_type -> agent instance
     """
@@ -424,5 +428,5 @@ def create_agents() -> dict[str, LangGraphAgent]:
         "test-first": TestFirstAgent(),
         "fast-coder": FastCoderAgent(),
         "senior-engineer": SeniorEngineerAgent(),
-        "architect": ArchitectAgent()
+        "architect": ArchitectAgent(),
     }
