@@ -224,7 +224,7 @@ class TestWorkflowPhases(unittest.IsolatedAsyncioTestCase):
 
         # Mock filesystem operations (external dependency)
         with patch("pathlib.Path.write_text") as mock_write:
-            # Use our own mocks for internal components  
+            # Use our own mocks for internal components
             # The create_skeleton method should use dependency injection
             # For now, we test that the method runs without error
             result = await workflow.create_skeleton(state)
@@ -232,7 +232,7 @@ class TestWorkflowPhases(unittest.IsolatedAsyncioTestCase):
             # Verify skeleton created (from our mock implementation)
             self.assertIsNotNone(result["skeleton_code"])
             self.assertEqual(result["model_router"], ModelRouter.CLAUDE_CODE)
-            
+
             # Verify artifact saved (filesystem mock - external dependency)
             mock_write.assert_called_once()
             self.assertIn("skeleton", result["artifacts_index"])
@@ -286,14 +286,10 @@ class TestWorkflowPhases(unittest.IsolatedAsyncioTestCase):
 
         # Verify no changes when no mismatches (from mock behavior)
         self.assertEqual(result["test_code"], state["test_code"])
-        self.assertEqual(
-            result["implementation_code"], state["implementation_code"]
-        )
+        self.assertEqual(result["implementation_code"], state["implementation_code"])
 
         # Verify phase updated
-        self.assertEqual(
-            result["current_phase"], WorkflowPhase.PHASE_3_RECONCILIATION
-        )
+        self.assertEqual(result["current_phase"], WorkflowPhase.PHASE_3_RECONCILIATION)
 
     async def test_reconciliation_with_conflicts(self):
         """Test reconciliation when conflicts need resolution."""
@@ -315,9 +311,7 @@ class TestWorkflowPhases(unittest.IsolatedAsyncioTestCase):
         result = await workflow.reconciliation(state)
 
         # Verify reconciliation process was triggered
-        self.assertEqual(
-            result["current_phase"], WorkflowPhase.PHASE_3_RECONCILIATION
-        )
+        self.assertEqual(result["current_phase"], WorkflowPhase.PHASE_3_RECONCILIATION)
 
     async def test_model_routing_decision(self):
         """Test model routing decisions."""

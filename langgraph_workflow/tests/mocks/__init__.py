@@ -13,7 +13,7 @@ from .mock_test_runner import MockTestRunner
 
 __all__ = [
     "MockAgent",
-    "MockArtifactManager", 
+    "MockArtifactManager",
     "MockCheckpointer",
     "MockCodebaseAnalyzer",
     "MockConflictResolver",

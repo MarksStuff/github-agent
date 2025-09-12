@@ -22,7 +22,7 @@ __all__ = [
     "MockCheckpointer",
     "MockCodebaseAnalyzer",
     "MockConflictResolver",
-    "MockFileSystem", 
+    "MockFileSystem",
     "MockGit",
     "MockGitHub",
     "MockModel",

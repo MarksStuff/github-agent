@@ -29,16 +29,15 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
 
         # Create workflow
         self.workflow = MultiAgentWorkflow(
-            repo_path=self.repo_path,
-            thread_id=self.thread_id
+            repo_path=self.repo_path, thread_id=self.thread_id
         )
-        
+
         # CORRECT: Inject our mock dependencies
         self.workflow.agents = self.mock_deps["agents"]
         self.workflow.ollama_model = self.mock_deps["ollama_model"]
         self.workflow.claude_model = self.mock_deps["claude_model"]
         self.workflow.checkpointer = self.mock_deps["checkpointer"]
-        
+
         # Set up artifacts directory
         self.workflow.artifacts_dir = Path(self.temp_dir.name) / "artifacts"
         self.workflow.artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -82,25 +81,27 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
     async def test_workflow_phases_integration(self):
         """Test workflow phases work together with dependency injection."""
         state = self.initial_state.copy()
-        
+
         # Test Phase 0: Code Context - uses actual method with mocks
         result = await self.workflow.extract_code_context(state)
         self.assertEqual(result["current_phase"], WorkflowPhase.PHASE_0_CODE_CONTEXT)
         self.assertIsNotNone(result["code_context_document"])
-        
+
         # Test Phase 1: Design Exploration - uses actual method with mocks
         state = result
         state["current_phase"] = WorkflowPhase.PHASE_1_DESIGN_EXPLORATION
         result = await self.workflow.parallel_design_exploration(state)
-        self.assertEqual(result["current_phase"], WorkflowPhase.PHASE_1_DESIGN_EXPLORATION)
+        self.assertEqual(
+            result["current_phase"], WorkflowPhase.PHASE_1_DESIGN_EXPLORATION
+        )
         self.assertEqual(len(result["agent_analyses"]), 4)
-        
+
         # Test Phase 1: Synthesis - uses actual method with mocks
         state = result
         state["current_phase"] = WorkflowPhase.PHASE_1_SYNTHESIS
         result = await self.workflow.architect_synthesis(state)
         self.assertIsNotNone(result["synthesis_document"])
-        
+
         # Test Phase 2: Design Document - uses actual method with mocks
         state = result
         state["current_phase"] = WorkflowPhase.PHASE_2_DESIGN_DOCUMENT
@@ -285,10 +286,10 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         # CORRECT: Test using our injected mock agents
         state = self.initial_state.copy()
         state["code_context_document"] = "Mock code context"
-        
+
         # Test parallel analysis
         result = await self.workflow.parallel_design_exploration(state)
-        
+
         # Verify all agents participated (via our mocks)
         self.assertEqual(len(result["agent_analyses"]), 4)
         for agent_type in ["test-first", "fast-coder", "senior-engineer", "architect"]:
@@ -299,7 +300,7 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         """Test conflict resolution using dependency injection."""
         # CORRECT: Use our own mock conflict resolver
         conflict_resolver = self.mock_deps["conflict_resolver"]
-        
+
         # Create conflicting analyses
         conflict_analyses = {
             "test-first": "We must have 100% test coverage",
@@ -307,11 +308,11 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
             "senior-engineer": "Focus on clean patterns",
             "architect": "This approach won't scale properly",
         }
-        
+
         # Test conflict identification using our mock
         conflicts = await conflict_resolver.identify_conflicts(conflict_analyses)
         self.assertIsInstance(conflicts, list)
-        
+
         # Test conflict resolution
         if conflicts:
             resolution = await conflict_resolver.resolve_conflict(conflicts[0])
@@ -325,19 +326,19 @@ class TestWorkflowPerformanceFixed(unittest.IsolatedAsyncioTestCase):
         """Test that parallel agent execution is actually parallel."""
         temp_dir = tempfile.TemporaryDirectory()
         workflow = MultiAgentWorkflow(repo_path=temp_dir.name, thread_id="perf-test")
-        
+
         # CORRECT: Use our own mock agents with simulated delay
         mock_deps = create_mock_dependencies("perf-test")
-        
+
         # Inject mock agents that simulate processing time
         async def slow_analyze(context):
             await asyncio.sleep(0.1)  # 100ms delay
             return f"Analysis completed for {context.get('feature', 'unknown')}"
-        
+
         # Override the analyze method for each mock agent
         for agent_type, agent in mock_deps["agents"].items():
             agent.analyze = slow_analyze
-            
+
         workflow.agents = mock_deps["agents"]
 
         # Measure time for parallel execution
@@ -359,7 +360,7 @@ class TestWorkflowPerformanceFixed(unittest.IsolatedAsyncioTestCase):
             execution_time, 0.2, "Parallel execution should be faster than sequential"
         )
         self.assertEqual(len(results), 4, "All agents should complete")
-        
+
         temp_dir.cleanup()
 
     async def test_memory_usage_with_large_artifacts(self):

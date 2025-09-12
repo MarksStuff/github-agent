@@ -221,6 +221,7 @@ class MultiAgentWorkflow:
         except Exception:
             # For testing without API keys, use mock models
             from .mocks import MockModel
+
             self.ollama_model = MockModel(["Mock Ollama response"])
             self.claude_model = MockModel(["Mock Claude response"])
 
@@ -939,9 +940,9 @@ Remain neutral and document rather than judge."""
         questions = []
         if "Questions" in synthesis or "questions" in synthesis:
             # Simple parsing - look for question marks
-            lines = synthesis.split('\n')
+            lines = synthesis.split("\n")
             for line in lines:
-                if '?' in line:
+                if "?" in line:
                     questions.append(line.strip())
         return questions
 

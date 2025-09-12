@@ -18,14 +18,14 @@ class MockAgent(AgentInterface):
         self.agent_type = agent_type
         self.responses = responses or {}
         self.call_history = []
-        
+
         # Add persona attribute for compatibility with existing code
         self.persona = self
 
     def ask(self, prompt: str) -> str:
         """Mock persona ask method (synchronous)."""
         self.call_history.append(("ask", prompt))
-        
+
         # Return specific response if keyword matches
         for keyword, response in self.responses.items():
             if keyword.lower() in prompt.lower():

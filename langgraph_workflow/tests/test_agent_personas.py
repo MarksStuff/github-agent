@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from ..agent_personas import (
     ArchitectAgent,
-    FastCoderAgent,  
+    FastCoderAgent,
     LangGraphAgent,
     SeniorEngineerAgent,
     TestFirstAgent,
@@ -32,9 +32,9 @@ class TestLangGraphAgent(unittest.IsolatedAsyncioTestCase):
     async def test_analyze(self):
         """Test analysis functionality."""
         prompt = "Test analysis prompt"
-        
+
         result = await self.agent.analyze(prompt)
-        
+
         self.assertEqual(result, "Mock agent response")
         # Verify call was tracked
         self.assertIn(("ask", prompt), self.mock_base_agent.call_history)
@@ -43,8 +43,10 @@ class TestLangGraphAgent(unittest.IsolatedAsyncioTestCase):
         """Test analysis with error handling."""
         # CORRECT: Configure our mock to simulate error
         error_agent = MockAgent("error-agent")
-        error_agent.persona.ask = lambda p: (_ for _ in ()).throw(Exception("Mock error"))
-        
+        error_agent.persona.ask = lambda p: (_ for _ in ()).throw(
+            Exception("Mock error")
+        )
+
         agent = LangGraphAgent(error_agent, "error-test")
         result = await agent.analyze("Test prompt")
 
@@ -92,7 +94,9 @@ class TestTestFirstAgent(unittest.IsolatedAsyncioTestCase):
 
     async def test_write_tests(self):
         """Test writing tests from skeleton."""
-        skeleton = "class AuthService:\n    def login(self, user, password):\n        pass"
+        skeleton = (
+            "class AuthService:\n    def login(self, user, password):\n        pass"
+        )
         design = "Authentication service with JWT tokens"
 
         result = await self.agent.write_tests(skeleton, design)
@@ -119,7 +123,9 @@ class TestFastCoderAgent(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         """Set up test fixtures."""
         # CORRECT: Use our mock instead of patching
-        with patch("langgraph_workflow.agent_personas.DeveloperAgent") as mock_developer:
+        with patch(
+            "langgraph_workflow.agent_personas.DeveloperAgent"
+        ) as mock_developer:
             mock_base = MockAgent("fast-coder", {"implement": "Mock implementation"})
             mock_developer.return_value = mock_base
             self.agent = FastCoderAgent()
@@ -130,7 +136,9 @@ class TestFastCoderAgent(unittest.IsolatedAsyncioTestCase):
 
     async def test_implement(self):
         """Test implementing from skeleton."""
-        skeleton = "class AuthService:\n    def login(self, user, password):\n        pass"
+        skeleton = (
+            "class AuthService:\n    def login(self, user, password):\n        pass"
+        )
         design = "JWT-based authentication"
 
         result = await self.agent.implement(skeleton, design)
@@ -160,13 +168,17 @@ class TestSeniorEngineerAgent(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         """Set up test fixtures."""
         # CORRECT: Use our mock instead of patching
-        with patch("langgraph_workflow.agent_personas.SeniorEngineerAgent") as mock_senior:
-            mock_base = MockAgent("senior-engineer", {"analyze": "Mock senior response"})
+        with patch(
+            "langgraph_workflow.agent_personas.SeniorEngineerAgent"
+        ) as mock_senior:
+            mock_base = MockAgent(
+                "senior-engineer", {"analyze": "Mock senior response"}
+            )
             mock_senior.return_value = mock_base
             self.agent = SeniorEngineerAgent()
 
     async def test_initialization(self):
-        """Test senior engineer agent initialization.""" 
+        """Test senior engineer agent initialization."""
         self.assertEqual(self.agent.agent_type, "senior-engineer")
 
     async def test_analyze_codebase(self):
@@ -209,8 +221,12 @@ class TestArchitectAgent(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         """Set up test fixtures."""
         # CORRECT: Use our mock instead of patching
-        with patch("langgraph_workflow.agent_personas.ArchitectAgent") as mock_architect:
-            mock_base = MockAgent("architect", {"synthesize": "Mock architect response"})
+        with patch(
+            "langgraph_workflow.agent_personas.ArchitectAgent"
+        ) as mock_architect:
+            mock_base = MockAgent(
+                "architect", {"synthesize": "Mock architect response"}
+            )
             mock_architect.return_value = mock_base
             self.agent = ArchitectAgent()
 
@@ -221,7 +237,7 @@ class TestArchitectAgent(unittest.IsolatedAsyncioTestCase):
     async def test_synthesize_analyses(self):
         """Test synthesizing multiple agent analyses."""
         analyses = {
-            "test-first": "Focus on comprehensive test coverage", 
+            "test-first": "Focus on comprehensive test coverage",
             "fast-coder": "Quick implementation with basic functionality",
             "senior-engineer": "Clean patterns and maintainable code",
             "architect": "Scalable system design",
@@ -281,10 +297,11 @@ class TestAgentFactory(unittest.TestCase):
     def test_create_agents(self):
         """Test creating all agent types."""
         # CORRECT: Patch at module level, not individual imports
-        with patch("langgraph_workflow.agent_personas.TesterAgent"), \
-             patch("langgraph_workflow.agent_personas.DeveloperAgent"), \
-             patch("langgraph_workflow.agent_personas.SeniorEngineerAgent"), \
-             patch("langgraph_workflow.agent_personas.ArchitectAgent"):
+        with patch("langgraph_workflow.agent_personas.TesterAgent"), patch(
+            "langgraph_workflow.agent_personas.DeveloperAgent"
+        ), patch("langgraph_workflow.agent_personas.SeniorEngineerAgent"), patch(
+            "langgraph_workflow.agent_personas.ArchitectAgent"
+        ):
             agents = create_agents()
 
         # Verify all agent types are created
@@ -306,7 +323,9 @@ class TestAgentCallHistory(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         """Set up test fixtures."""
         # CORRECT: Use our mock that tracks call history
-        with patch("langgraph_workflow.agent_personas.ArchitectAgent") as mock_architect:
+        with patch(
+            "langgraph_workflow.agent_personas.ArchitectAgent"
+        ) as mock_architect:
             mock_base = MockAgent("architect", {"default": "Mock response"})
             mock_architect.return_value = mock_base
             self.agent = ArchitectAgent()
@@ -328,17 +347,20 @@ class TestErrorHandling(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         """Set up test fixtures."""
         # CORRECT: Use our mock for error simulation
-        with patch("langgraph_workflow.agent_personas.DeveloperAgent") as mock_developer:
+        with patch(
+            "langgraph_workflow.agent_personas.DeveloperAgent"
+        ) as mock_developer:
             mock_base = MockAgent("fast-coder")
             mock_developer.return_value = mock_base
             self.agent = FastCoderAgent()
 
     async def test_persona_exception_handling(self):
         """Test handling of exceptions from persona calls."""
+
         # CORRECT: Configure our mock to raise exception
         def error_ask(prompt):
             raise Exception("Persona error")
-        
+
         self.agent.persona.ask = error_ask
 
         result = await self.agent.analyze("Test prompt")
