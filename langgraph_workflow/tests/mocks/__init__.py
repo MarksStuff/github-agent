@@ -4,6 +4,7 @@ from .mock_agent import MockAgent
 from .mock_artifact_manager import MockArtifactManager
 from .mock_checkpointer import MockCheckpointer
 from .mock_codebase_analyzer import MockCodebaseAnalyzer
+# from .test_workflow import TestMultiAgentWorkflow  # Avoid circular import
 from .mock_conflict_resolver import MockConflictResolver
 from .mock_filesystem import MockFileSystem
 from .mock_git import MockGit
@@ -22,6 +23,7 @@ __all__ = [
     "MockGitHub",
     "MockModel",
     "MockTestRunner",
+    # "TestMultiAgentWorkflow",  # Avoid circular import
 ]
 
 

@@ -2,9 +2,10 @@
 
 from .langgraph_workflow import (
     AgentType,
+    ModelRouter,
     MultiAgentWorkflow,
     WorkflowPhase,
     WorkflowState,
 )
 
-__all__ = ["MultiAgentWorkflow", "WorkflowState", "WorkflowPhase", "AgentType"]
+__all__ = ["MultiAgentWorkflow", "WorkflowState", "WorkflowPhase", "AgentType", "ModelRouter"]

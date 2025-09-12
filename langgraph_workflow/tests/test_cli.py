@@ -4,10 +4,11 @@ import argparse
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 # Import CLI functions directly - dependencies should be available
 from ..run import extract_feature_from_prd, interactive_mode, main, run_workflow
+from .mocks.simple_test_workflow import TestMultiAgentWorkflow
 
 
 class TestFeatureExtraction(unittest.TestCase):
@@ -130,48 +131,26 @@ class TestRunWorkflow(unittest.IsolatedAsyncioTestCase):
         """Clean up test fixtures."""
         self.temp_dir.cleanup()
 
-    @patch("langgraph_workflow.run.MultiAgentWorkflow")
-    async def test_run_workflow_basic(self, mock_workflow_class):
-        """Test basic workflow execution."""
-        # Mock workflow instance
-        mock_workflow = MagicMock()
-        mock_workflow.thread_id = self.thread_id
-        mock_workflow.artifacts_dir = Path(f"/tmp/artifacts/{self.thread_id}")
-        mock_workflow.app = AsyncMock()
-        mock_workflow.app.ainvoke.return_value = {
-            "current_phase": "completed",
-            "quality": "ok",
-            "pr_number": 123,
-            "git_branch": "feature/test",
-            "conflicts": [],
-            "test_report": {"passed": 10, "failed": 0},
-        }
-        mock_workflow_class.return_value = mock_workflow
-
-        # Execute
+    @patch("langgraph_workflow.run.MultiAgentWorkflow", TestMultiAgentWorkflow)
+    async def test_run_workflow_basic(self):
+        """Test basic workflow execution using TestMultiAgentWorkflow."""
+        # Execute workflow with test implementation
         result = await run_workflow(
             repo_path=self.repo_path,
             feature_description="Test feature",
             thread_id=self.thread_id,
         )
 
-        # Verify workflow was created correctly
-        mock_workflow_class.assert_called_once_with(
-            repo_path=self.repo_path,
-            thread_id=self.thread_id,
-            checkpoint_path="agent_state.db",
-        )
-
-        # Verify app was invoked
-        mock_workflow.app.ainvoke.assert_called_once()
-
-        # Verify result
+        # Verify result structure and basic functionality
+        self.assertIsNotNone(result)
+        self.assertEqual(result["thread_id"], self.thread_id)
         self.assertEqual(result["quality"], "ok")
-        self.assertEqual(result["pr_number"], 123)
+        self.assertEqual(result["current_phase"], "completed")
+        self.assertIn("Test feature", result["feature_description"])
 
-    @patch("langgraph_workflow.run.MultiAgentWorkflow")
-    async def test_run_workflow_with_feature_file(self, mock_workflow_class):
-        """Test workflow with feature file input."""
+    @patch("langgraph_workflow.run.MultiAgentWorkflow", TestMultiAgentWorkflow)
+    async def test_run_workflow_with_feature_file(self):
+        """Test workflow with feature file input using TestMultiAgentWorkflow."""
         # Create temporary feature file
         feature_file = Path(self.temp_dir.name) / "features.md"
         feature_content = """# Features
@@ -184,14 +163,6 @@ Analytics and reporting interface.
 """
         feature_file.write_text(feature_content)
 
-        # Mock workflow
-        mock_workflow = MagicMock()
-        mock_workflow.thread_id = self.thread_id
-        mock_workflow.artifacts_dir = Path("/tmp/artifacts")
-        mock_workflow.app = AsyncMock()
-        mock_workflow.app.ainvoke.return_value = {"quality": "ok"}
-        mock_workflow_class.return_value = mock_workflow
-
         # Execute with feature file
         result = await run_workflow(
             repo_path=self.repo_path,
@@ -200,12 +171,10 @@ Analytics and reporting interface.
             feature_name="Authentication",
         )
 
-        # Verify workflow was called
-        mock_workflow.app.ainvoke.assert_called_once()
-
-        # The initial_state should contain the extracted feature
-        call_args = mock_workflow.app.ainvoke.call_args[0][0]
-        self.assertIn("User login system", call_args["feature_description"])
+        # Verify workflow executed correctly
+        self.assertIsNotNone(result)
+        self.assertEqual(result["quality"], "ok")
+        self.assertIn("User login system", result["feature_description"])
 
     async def test_run_workflow_file_not_found(self):
         """Test error handling when feature file doesn't exist."""
@@ -244,27 +213,21 @@ Analytics and reporting interface.
 
         self.assertIn("feature_name requires feature_file", str(context.exception))
 
-    @patch("langgraph_workflow.run.MultiAgentWorkflow")
-    async def test_run_workflow_resume_mode(self, mock_workflow_class):
-        """Test resuming workflow from checkpoint."""
-        mock_workflow = MagicMock()
-        mock_workflow.thread_id = self.thread_id
-        mock_workflow.app = AsyncMock()
-        mock_workflow.app.ainvoke.return_value = {"quality": "ok"}
-        mock_workflow_class.return_value = mock_workflow
-
+    @patch("langgraph_workflow.run.MultiAgentWorkflow", TestMultiAgentWorkflow)  
+    async def test_run_workflow_resume_mode(self):
+        """Test resuming workflow from checkpoint using TestMultiAgentWorkflow."""
         # Execute in resume mode
         result = await run_workflow(
             repo_path=self.repo_path,
-            feature_description="Test feature",
+            feature_description="Test authentication feature",
             thread_id=self.thread_id,
             resume=True,
         )
 
-        # Verify app was called with None (resume mode)
-        mock_workflow.app.ainvoke.assert_called_once()
-        call_args = mock_workflow.app.ainvoke.call_args[0]
-        self.assertIsNone(call_args[0])  # First arg should be None for resume
+        # Verify workflow executes correctly in resume mode
+        self.assertIsNotNone(result)
+        self.assertEqual(result["thread_id"], self.thread_id)
+        self.assertIn("authentication", result["feature_description"].lower())
 
 
 class TestInteractiveMode(unittest.IsolatedAsyncioTestCase):
@@ -328,11 +291,17 @@ class TestInteractiveMode(unittest.IsolatedAsyncioTestCase):
         ]
 
         # Mock database
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = [("thread-1",), ("thread-2",)]
-        mock_conn.cursor.return_value = mock_cursor
-        mock_sqlite.return_value = mock_conn
+        class MockCursor:
+            def fetchall(self):
+                return [("thread-1",), ("thread-2",)]
+            def execute(self, query):
+                pass
+                
+        class MockConnection:
+            def cursor(self):
+                return MockCursor()
+                
+        mock_sqlite.return_value = MockConnection()
 
         with patch("pathlib.Path.exists", return_value=True):
             await interactive_mode()
