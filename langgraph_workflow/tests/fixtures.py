@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from ..mocks import create_mock_dependencies
+from .mocks import create_mock_dependencies
 
 
 @pytest.fixture

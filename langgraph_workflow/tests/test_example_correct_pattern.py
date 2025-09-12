@@ -11,7 +11,7 @@ from ..langgraph_workflow import (
     WorkflowPhase,
     WorkflowState,
 )
-from ..mocks import create_mock_dependencies
+from .mocks import create_mock_dependencies
 
 
 class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):

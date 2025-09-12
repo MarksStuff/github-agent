@@ -147,6 +147,8 @@ class MultiAgentWorkflow:
         repo_path: str,
         agents: dict[AgentType, Any],
         codebase_analyzer: CodebaseAnalyzerInterface,
+        ollama_model: Any | None = None,
+        claude_model: Any | None = None,
         thread_id: str | None = None,
         checkpoint_path: str = "agent_state.db",
     ):
@@ -156,6 +158,8 @@ class MultiAgentWorkflow:
             repo_path: Path to the repository
             agents: Dict of agents to use (required for dependency injection)
             codebase_analyzer: Codebase analyzer implementation (required)
+            ollama_model: Ollama model instance (optional, creates default if None)
+            claude_model: Claude model instance (optional, creates default if None)
             thread_id: Thread ID for persistence (e.g., "pr-1234")
             checkpoint_path: Path to SQLite checkpoint database
         """
@@ -169,21 +173,21 @@ class MultiAgentWorkflow:
         self.agents = agents
         self.codebase_analyzer = codebase_analyzer
 
-        # Initialize models
-        try:
+        # Initialize models - use injected models or create defaults
+        if ollama_model is not None:
+            self.ollama_model = ollama_model
+        else:
             self.ollama_model = ChatOllama(
                 model="qwen2.5-coder:7b",
                 base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
             )
+            
+        if claude_model is not None:
+            self.claude_model = claude_model
+        else:
             self.claude_model = ChatAnthropic(
                 model="claude-3-sonnet-20240229", api_key=os.getenv("ANTHROPIC_API_KEY")
             )
-        except Exception:
-            # For testing without API keys, use mock models
-            from .mocks import MockModel
-
-            self.ollama_model = MockModel(["Mock Ollama response"])
-            self.claude_model = MockModel(["Mock Claude response"])
 
         # Create artifacts directory
         self.artifacts_dir = self.repo_path / "agents" / "artifacts" / self.thread_id

@@ -11,7 +11,7 @@ from ..langgraph_workflow import (
     WorkflowPhase,
     WorkflowState,
 )
-from ..mocks import create_mock_dependencies
+from .mocks import create_mock_dependencies
 
 
 class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
@@ -31,12 +31,10 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
             repo_path=self.repo_path,
             agents=self.mock_deps["agents"],
             codebase_analyzer=self.mock_deps["codebase_analyzer"],
+            ollama_model=self.mock_deps["ollama_model"],
+            claude_model=self.mock_deps["claude_model"],
             thread_id=self.thread_id,
         )
-
-        # CORRECT: Inject other mock dependencies
-        self.workflow.ollama_model = self.mock_deps["ollama_model"]
-        self.workflow.claude_model = self.mock_deps["claude_model"]
 
         # Set up artifacts directory
         self.workflow.artifacts_dir = Path(self.temp_dir.name) / "artifacts"
