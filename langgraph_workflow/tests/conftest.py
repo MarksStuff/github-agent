@@ -1,11 +1,12 @@
 """Pytest configuration and fixtures for LangGraph workflow tests."""
 
-import pytest
 import asyncio
-import tempfile
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -182,34 +183,31 @@ def mock_langchain_models():
     """Create mock LangChain model objects."""
     ollama_mock = MagicMock()
     ollama_mock.ainvoke = MagicMock()
-    
-    claude_mock = MagicMock()  
+
+    claude_mock = MagicMock()
     claude_mock.ainvoke = MagicMock()
-    
-    return {
-        "ollama": ollama_mock,
-        "claude": claude_mock
-    }
+
+    return {"ollama": ollama_mock, "claude": claude_mock}
 
 
 @pytest.fixture
 def sample_git_repo(temp_directory):
     """Create a sample git repository for testing."""
     import git
-    
+
     repo_path = Path(temp_directory)
     repo = git.Repo.init(repo_path)
-    
+
     # Create initial file and commit
     readme = repo_path / "README.md"
     readme.write_text("# Test Repository")
-    
+
     repo.index.add([str(readme)])
     repo.index.commit("Initial commit")
-    
+
     # Add remote
     repo.create_remote("origin", "https://github.com/test/repo.git")
-    
+
     return repo_path
 
 
@@ -218,53 +216,53 @@ def sample_git_repo(temp_directory):
 def mock_external_imports():
     """Automatically mock external imports that might not be available."""
     # Mock multi_agent_workflow imports
-    sys.modules['multi_agent_workflow'] = MagicMock()
-    sys.modules['multi_agent_workflow.agent_interface'] = MagicMock()
-    sys.modules['multi_agent_workflow.amp_cli_wrapper'] = MagicMock() 
-    sys.modules['multi_agent_workflow.coding_personas'] = MagicMock()
-    
+    sys.modules["multi_agent_workflow"] = MagicMock()
+    sys.modules["multi_agent_workflow.agent_interface"] = MagicMock()
+    sys.modules["multi_agent_workflow.amp_cli_wrapper"] = MagicMock()
+    sys.modules["multi_agent_workflow.coding_personas"] = MagicMock()
+
     # Mock LangGraph/LangChain imports if not available
     try:
         import langgraph
     except ImportError:
-        sys.modules['langgraph'] = MagicMock()
-        sys.modules['langgraph.graph'] = MagicMock()
-        sys.modules['langgraph.checkpoint.sqlite'] = MagicMock()
-    
+        sys.modules["langgraph"] = MagicMock()
+        sys.modules["langgraph.graph"] = MagicMock()
+        sys.modules["langgraph.checkpoint.sqlite"] = MagicMock()
+
     try:
         import langchain_core
     except ImportError:
-        sys.modules['langchain_core'] = MagicMock()
-        sys.modules['langchain_core.messages'] = MagicMock()
-    
+        sys.modules["langchain_core"] = MagicMock()
+        sys.modules["langchain_core.messages"] = MagicMock()
+
     try:
         import langchain_ollama
     except ImportError:
-        sys.modules['langchain_ollama'] = MagicMock()
-    
+        sys.modules["langchain_ollama"] = MagicMock()
+
     try:
         import langchain_anthropic
     except ImportError:
-        sys.modules['langchain_anthropic'] = MagicMock()
+        sys.modules["langchain_anthropic"] = MagicMock()
 
 
 class MockLangGraphApp:
     """Mock LangGraph application for testing."""
-    
+
     def __init__(self):
         self.state_history = []
-    
+
     async def ainvoke(self, initial_state, config):
         """Mock ainvoke that returns a processed state."""
         self.state_history.append((initial_state, config))
-        
+
         # Return a mock result state
         if initial_state is None:
             # Resume mode
             return {
                 "thread_id": config["configurable"]["thread_id"],
                 "current_phase": "resumed",
-                "quality": "ok"
+                "quality": "ok",
             }
         else:
             # New workflow
@@ -272,7 +270,7 @@ class MockLangGraphApp:
                 **initial_state,
                 "current_phase": "completed",
                 "quality": "ok",
-                "pr_number": 123
+                "pr_number": 123,
             }
 
 
@@ -287,39 +285,33 @@ def mock_langgraph_app():
 def performance_timer():
     """Timer fixture for performance testing."""
     import time
-    
+
     class Timer:
         def __init__(self):
             self.start_time = None
             self.end_time = None
-        
+
         def start(self):
             self.start_time = time.time()
-        
+
         def stop(self):
             self.end_time = time.time()
-        
+
         @property
         def elapsed(self):
             if self.start_time and self.end_time:
                 return self.end_time - self.start_time
             return None
-    
+
     return Timer()
 
 
 # Pytest configuration
 def pytest_configure(config):
     """Configure pytest with custom markers."""
-    config.addinivalue_line(
-        "markers", "integration: mark test as integration test"
-    )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
-    config.addinivalue_line(
-        "markers", "github: mark test as requiring GitHub API"
-    )
+    config.addinivalue_line("markers", "integration: mark test as integration test")
+    config.addinivalue_line("markers", "slow: mark test as slow running")
+    config.addinivalue_line("markers", "github: mark test as requiring GitHub API")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -328,11 +320,11 @@ def pytest_collection_modifyitems(config, items):
         # Mark integration tests
         if "integration" in item.nodeid:
             item.add_marker(pytest.mark.integration)
-        
+
         # Mark slow tests
         if "performance" in item.nodeid or "slow" in item.name:
             item.add_marker(pytest.mark.slow)
-        
+
         # Mark GitHub tests
         if "github" in item.nodeid:
             item.add_marker(pytest.mark.github)
