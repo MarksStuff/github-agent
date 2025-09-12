@@ -112,9 +112,7 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
         """Test PR creation when github_tools is not available."""
         # Use dependency injection with None to simulate unavailable github_tools
         integration = GitHubIntegration(
-            repo_path=str(self.repo_path), 
-            github_token="fake_token",
-            tool_function=None
+            repo_path=str(self.repo_path), github_token="fake_token", tool_function=None
         )
 
         # Execute
@@ -158,7 +156,7 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
         integration = GitHubIntegration(
             repo_path=str(self.repo_path),
             github_token="fake_token",
-            tool_function=mock_execute_tool
+            tool_function=mock_execute_tool,
         )
 
         # Execute

@@ -8,7 +8,12 @@ from ...interfaces import AgentInterface
 class MockAgent(AgentInterface):
     """Mock agent for testing with intelligent pattern-based responses."""
 
-    def __init__(self, agent_type: Any, responses: dict[str, str] | None = None, response_patterns: dict[str, str] | None = None):
+    def __init__(
+        self,
+        agent_type: Any,
+        responses: dict[str, str] | None = None,
+        response_patterns: dict[str, str] | None = None,
+    ):
         """Initialize mock agent.
 
         Args:

@@ -108,7 +108,7 @@ async def run_workflow(
     # Initialize workflow
     if workflow_class is None:
         workflow_class = MultiAgentWorkflow
-        
+
     workflow = workflow_class(
         repo_path=repo_path, thread_id=thread_id, checkpoint_path=checkpoint_path
     )

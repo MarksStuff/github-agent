@@ -33,7 +33,9 @@ logger = logging.getLogger(__name__)
 class GitHubIntegration:
     """Manages GitHub interactions for the workflow using existing github_tools."""
 
-    def __init__(self, repo_path: str, github_token: str | None = None, tool_function=None):
+    def __init__(
+        self, repo_path: str, github_token: str | None = None, tool_function=None
+    ):
         """Initialize GitHub integration.
 
         Args:
@@ -43,7 +45,7 @@ class GitHubIntegration:
         """
         self.repo_path = Path(repo_path)
         self.token = github_token or os.getenv("GITHUB_TOKEN")
-        
+
         # Use injected tool function or fallback to imported execute_tool
         self.execute_tool = tool_function or execute_tool
 
