@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 # Workflow configuration
-WORKFLOW_CONFIG = {
+WORKFLOW_CONFIG: dict[str, Any] = {
     # Model routing thresholds
     "escalation_thresholds": {
         "diff_size_lines": 300,  # Lines changed before escalating to Claude

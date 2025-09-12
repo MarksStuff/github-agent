@@ -24,7 +24,7 @@ class MockAgent(AgentInterface, BaseAgentInterface):
         self.agent_type = agent_type
         self.responses = responses or {}
         self.response_patterns = response_patterns or {}
-        self.call_history = []
+        self.call_history: list[tuple] = []
 
         # Add persona attribute for compatibility with existing code
         self._persona = self

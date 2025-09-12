@@ -9,8 +9,8 @@ class MockArtifactManager(ArtifactManagerInterface):
     def __init__(self, thread_id: str):
         """Initialize mock artifact manager."""
         self.thread_id = thread_id
-        self.artifacts = {}  # key -> content
-        self.artifact_paths = {}  # key -> path
+        self.artifacts: dict[str, str] = {}  # key -> content
+        self.artifact_paths: dict[str, str] = {}  # key -> path
 
     async def save_artifact(self, key: str, content: str, artifact_type: str) -> str:
         """Mock save artifact."""

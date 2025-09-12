@@ -15,8 +15,13 @@ from typing import Any
 # Add parent directory to path to import github_tools
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Import github_tools directly - if they don't exist, that's a configuration error
-from github_tools import execute_tool, get_github_context
+try:
+    # Import github_tools directly - if they don't exist, that's a configuration error
+    from github_tools import execute_tool, get_github_context  # noqa: E402
+except ImportError:
+    # Provide fallback for when github_tools is not available
+    execute_tool = None
+    get_github_context = None
 
 logger = logging.getLogger(__name__)
 

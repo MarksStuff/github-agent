@@ -1,5 +1,7 @@
 """Mock implementations for testing the LangGraph workflow."""
 
+from typing import Any
+
 from .mock_agent import MockAgent
 from .mock_artifact_manager import MockArtifactManager
 from .mock_checkpointer import MockCheckpointer
@@ -64,7 +66,7 @@ def create_mock_agents() -> dict[str, MockAgent]:
     }
 
 
-def create_mock_dependencies(thread_id: str = "test-thread") -> dict[str, any]:
+def create_mock_dependencies(thread_id: str = "test-thread") -> dict[str, Any]:
     """Create all mock dependencies for testing."""
     return {
         "ollama_model": MockModel(["Ollama response 1", "Ollama response 2"]),

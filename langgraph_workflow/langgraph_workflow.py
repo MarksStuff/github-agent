@@ -5,24 +5,12 @@ import logging
 import os
 import random
 import sys
-from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, TypedDict
 from uuid import uuid4
 
 from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
-
-# Import agent personas and interfaces
-from .interfaces import CodebaseAnalyzerInterface
-
-# Import codebase analyzer - this should be available or it's a configuration error
-sys.path.append(str(Path(__file__).parent.parent / "multi_agent_workflow"))
-
-
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_ollama import ChatOllama
@@ -30,11 +18,19 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
-
-
 # Import enums from separate module to avoid circular imports
 from .enums import AgentType, ModelRouter, WorkflowPhase
+
+# Import agent personas and interfaces
+from .interfaces import CodebaseAnalyzerInterface
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Import codebase analyzer - this should be available or it's a configuration error
+sys.path.append(str(Path(__file__).parent.parent / "multi_agent_workflow"))
+
+logger = logging.getLogger(__name__)
 
 
 class Artifact(BaseModel):
@@ -69,7 +65,7 @@ class WorkflowState(TypedDict):
 
     # Messages and summary
     messages_window: Annotated[
-        Sequence[BaseMessage], lambda x, y: y[-10:]
+        list[BaseMessage], lambda x, y: y[-10:]
     ]  # Keep last 10
     summary_log: str
 

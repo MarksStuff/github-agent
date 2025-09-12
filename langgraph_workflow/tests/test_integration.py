@@ -335,7 +335,7 @@ class TestWorkflowPerformanceFixed(unittest.IsolatedAsyncioTestCase):
             return f"Analysis completed for {context.get('feature', 'unknown')}"
 
         # Override the analyze method for each mock agent
-        for agent_type, agent in mock_deps["agents"].items():
+        for _, agent in mock_deps["agents"].items():
             agent.analyze = slow_analyze
 
         workflow.agents = mock_deps["agents"]

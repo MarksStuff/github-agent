@@ -35,7 +35,7 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
         self.git_repo.index.commit("Initial commit")
 
         # Add remote origin (mock)
-        origin = self.git_repo.create_remote(
+        self.git_repo.create_remote(
             "origin", "https://github.com/test-org/test-repo.git"
         )
 
@@ -474,7 +474,7 @@ class TestGitHubIntegrationEdgeCases(unittest.IsolatedAsyncioTestCase):
         self.git_repo.index.commit("Initial commit")
 
         # Add remote origin (mock)
-        origin = self.git_repo.create_remote(
+        self.git_repo.create_remote(
             "origin", "https://github.com/test-org/test-repo.git"
         )
 

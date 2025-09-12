@@ -10,7 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import all fixtures to make them available
-from .fixtures import *  # noqa: F403
+from .fixtures import *  # noqa: F403, E402
 
 
 @pytest.fixture(scope="session")
