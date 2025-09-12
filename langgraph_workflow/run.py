@@ -69,6 +69,7 @@ async def run_workflow(
     resume: bool = False,
     feature_file: str | None = None,
     feature_name: str | None = None,
+    workflow_class=None,
 ):
     """Run the multi-agent workflow.
 
@@ -80,6 +81,7 @@ async def run_workflow(
         resume: Whether to resume from existing checkpoint
         feature_file: Path to file containing feature description
         feature_name: Name of specific feature within a larger PRD
+        workflow_class: Workflow class to use (defaults to MultiAgentWorkflow)
     """
 
     # Handle feature input variations
@@ -104,7 +106,10 @@ async def run_workflow(
     logger.info(f"Starting workflow for: {feature_description}")
 
     # Initialize workflow
-    workflow = MultiAgentWorkflow(
+    if workflow_class is None:
+        workflow_class = MultiAgentWorkflow
+        
+    workflow = workflow_class(
         repo_path=repo_path, thread_id=thread_id, checkpoint_path=checkpoint_path
     )
 

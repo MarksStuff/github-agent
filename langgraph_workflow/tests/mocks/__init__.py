@@ -30,6 +30,7 @@ __all__ = [
 
 def create_mock_agents() -> dict[str, MockAgent]:
     """Create mock agents for all types."""
+    # Use strings to avoid circular import issues
     return {
         "test-first": MockAgent(
             "test-first",

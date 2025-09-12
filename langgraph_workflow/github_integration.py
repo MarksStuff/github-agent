@@ -33,15 +33,19 @@ logger = logging.getLogger(__name__)
 class GitHubIntegration:
     """Manages GitHub interactions for the workflow using existing github_tools."""
 
-    def __init__(self, repo_path: str, github_token: str | None = None):
+    def __init__(self, repo_path: str, github_token: str | None = None, tool_function=None):
         """Initialize GitHub integration.
 
         Args:
             repo_path: Local path to the repository
             github_token: GitHub API token (or from GITHUB_TOKEN env var)
+            tool_function: Function to execute GitHub tools (for testing)
         """
         self.repo_path = Path(repo_path)
         self.token = github_token or os.getenv("GITHUB_TOKEN")
+        
+        # Use injected tool function or fallback to imported execute_tool
+        self.execute_tool = tool_function or execute_tool
 
         if not self.token:
             logger.warning("No GitHub token provided. PR operations will be limited.")
@@ -132,7 +136,7 @@ class GitHubIntegration:
         Returns:
             PR number
         """
-        if not execute_tool:
+        if not self.execute_tool:
             logger.warning("github_tools not available. Returning dummy PR number.")
             return 9999
 
@@ -178,12 +182,12 @@ class GitHubIntegration:
         Returns:
             List of comment dictionaries
         """
-        if not execute_tool or not self.repo_name:
+        if not self.execute_tool or not self.repo_name:
             logger.warning("github_tools not available. Returning empty comments.")
             return []
 
         try:
-            result = await execute_tool(
+            result = await self.execute_tool(
                 "github_get_pr_comments", repo_name=self.repo_name, pr_number=pr_number
             )
 
@@ -223,12 +227,12 @@ class GitHubIntegration:
         Returns:
             Success status
         """
-        if not execute_tool or not self.repo_name:
+        if not self.execute_tool or not self.repo_name:
             logger.warning("github_tools not available. Cannot add comment.")
             return False
 
         try:
-            result = await execute_tool(
+            result = await self.execute_tool(
                 "github_post_pr_reply",
                 repo_name=self.repo_name,
                 comment_id=pr_number,  # This is incorrect but github_tools expects comment_id
@@ -255,7 +259,7 @@ class GitHubIntegration:
         Returns:
             CI status dictionary
         """
-        if not execute_tool or not self.repo_name:
+        if not self.execute_tool or not self.repo_name:
             logger.warning("github_tools not available. Returning dummy status.")
             return {
                 "status": "success",
@@ -265,7 +269,7 @@ class GitHubIntegration:
             }
 
         try:
-            result = await execute_tool(
+            result = await self.execute_tool(
                 "github_get_build_status", repo_name=self.repo_name
             )
 

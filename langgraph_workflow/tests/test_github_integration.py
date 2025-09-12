@@ -110,17 +110,17 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def test_create_pull_request_no_github_tools(self):
         """Test PR creation when github_tools is not available."""
-        # Create integration that will fallback when github_tools unavailable
+        # Use dependency injection with None to simulate unavailable github_tools
         integration = GitHubIntegration(
-            repo_path=str(self.repo_path), github_token="fake_token"
+            repo_path=str(self.repo_path), 
+            github_token="fake_token",
+            tool_function=None
         )
 
-        # Mock execute_tool to be None (simulating import failure)
-        with patch("langgraph_workflow.github_integration.execute_tool", None):
-            # Execute
-            pr_number = await integration.create_pull_request(
-                title="Test PR", body="Test description", branch="feature/test"
-            )
+        # Execute
+        pr_number = await integration.create_pull_request(
+            title="Test PR", body="Test description", branch="feature/test"
+        )
 
         # Verify returns dummy number when github_tools unavailable
         self.assertEqual(pr_number, 9999)
@@ -154,23 +154,25 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
                 return json.dumps(mock_response)
             return json.dumps({})
 
-        # Mock execute_tool
-        with patch(
-            "langgraph_workflow.github_integration.execute_tool",
-            side_effect=mock_execute_tool,
-        ):
-            # Execute
-            comments = await self.github_integration.get_pr_comments(123)
+        # Use dependency injection to provide mock tool function
+        integration = GitHubIntegration(
+            repo_path=str(self.repo_path),
+            github_token="fake_token",
+            tool_function=mock_execute_tool
+        )
 
-            # Verify
-            self.assertEqual(len(comments), 2)
-            # Comments are combined from issue_comments + review_comments, so order may vary
-            bodies = [c["body"] for c in comments]
-            authors = [c["author"] for c in comments]
-            self.assertIn("First comment", bodies)
-            self.assertIn("Second comment", bodies)
-            self.assertIn("user1", authors)
-            self.assertIn("user2", authors)
+        # Execute
+        comments = await integration.get_pr_comments(123)
+
+        # Verify
+        self.assertEqual(len(comments), 2)
+        # Comments are combined from issue_comments + review_comments, so order may vary
+        bodies = [c["body"] for c in comments]
+        authors = [c["author"] for c in comments]
+        self.assertIn("First comment", bodies)
+        self.assertIn("Second comment", bodies)
+        self.assertIn("user1", authors)
+        self.assertIn("user2", authors)
 
     async def test_get_pr_comments_with_since_filter(self):
         """Test getting PR comments with time filter using github_tools."""

@@ -131,14 +131,14 @@ class TestRunWorkflow(unittest.IsolatedAsyncioTestCase):
         """Clean up test fixtures."""
         self.temp_dir.cleanup()
 
-    @patch("langgraph_workflow.run.MultiAgentWorkflow", TestMultiAgentWorkflow)
     async def test_run_workflow_basic(self):
         """Test basic workflow execution using TestMultiAgentWorkflow."""
-        # Execute workflow with test implementation
+        # Execute workflow with test implementation injected
         result = await run_workflow(
             repo_path=self.repo_path,
             feature_description="Test feature",
             thread_id=self.thread_id,
+            workflow_class=TestMultiAgentWorkflow,
         )
 
         # Verify result structure and basic functionality
@@ -148,7 +148,6 @@ class TestRunWorkflow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["current_phase"], "completed")
         self.assertIn("Test feature", result["feature_description"])
 
-    @patch("langgraph_workflow.run.MultiAgentWorkflow", TestMultiAgentWorkflow)
     async def test_run_workflow_with_feature_file(self):
         """Test workflow with feature file input using TestMultiAgentWorkflow."""
         # Create temporary feature file
@@ -169,6 +168,7 @@ Analytics and reporting interface.
             feature_description="",  # Empty since using file
             feature_file=str(feature_file),
             feature_name="Authentication",
+            workflow_class=TestMultiAgentWorkflow,
         )
 
         # Verify workflow executed correctly
@@ -213,7 +213,6 @@ Analytics and reporting interface.
 
         self.assertIn("feature_name requires feature_file", str(context.exception))
 
-    @patch("langgraph_workflow.run.MultiAgentWorkflow", TestMultiAgentWorkflow)
     async def test_run_workflow_resume_mode(self):
         """Test resuming workflow from checkpoint using TestMultiAgentWorkflow."""
         # Execute in resume mode
@@ -222,6 +221,7 @@ Analytics and reporting interface.
             feature_description="Test authentication feature",
             thread_id=self.thread_id,
             resume=True,
+            workflow_class=TestMultiAgentWorkflow,
         )
 
         # Verify workflow executes correctly in resume mode
