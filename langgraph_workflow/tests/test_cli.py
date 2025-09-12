@@ -213,7 +213,7 @@ Analytics and reporting interface.
 
         self.assertIn("feature_name requires feature_file", str(context.exception))
 
-    @patch("langgraph_workflow.run.MultiAgentWorkflow", TestMultiAgentWorkflow)  
+    @patch("langgraph_workflow.run.MultiAgentWorkflow", TestMultiAgentWorkflow)
     async def test_run_workflow_resume_mode(self):
         """Test resuming workflow from checkpoint using TestMultiAgentWorkflow."""
         # Execute in resume mode
@@ -294,13 +294,14 @@ class TestInteractiveMode(unittest.IsolatedAsyncioTestCase):
         class MockCursor:
             def fetchall(self):
                 return [("thread-1",), ("thread-2",)]
+
             def execute(self, query):
                 pass
-                
+
         class MockConnection:
             def cursor(self):
                 return MockCursor()
-                
+
         mock_sqlite.return_value = MockConnection()
 
         with patch("pathlib.Path.exists", return_value=True):

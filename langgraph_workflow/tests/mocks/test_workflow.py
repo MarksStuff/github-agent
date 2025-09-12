@@ -76,7 +76,7 @@ class TestLangGraphCheckpointer(BaseCheckpointSaver):
 
 class TestMultiAgentWorkflow(MultiAgentWorkflow):
     """Test implementation that executes real workflow logic with controlled dependencies.
-    
+
     This class inherits from MultiAgentWorkflow and overrides dependency creation
     to use test implementations, while maintaining all the real workflow logic.
     """
@@ -108,10 +108,10 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
         self.agents = self._create_test_agents()
         self.ollama_model = MockModel(["Test Ollama response"])
         self.claude_model = MockModel(["Test Claude response"])
-        
+
         # Create test codebase analyzer
         self.codebase_analyzer = MockCodebaseAnalyzer()
-        
+
         # Create test GitHub integration
         self.github = MockGitHub()
 
