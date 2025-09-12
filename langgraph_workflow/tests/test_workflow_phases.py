@@ -26,13 +26,15 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
         # CORRECT: Use our own mock dependencies
         self.mock_deps = create_mock_dependencies(self.thread_id)
 
-        # Create workflow
+        # Create workflow with dependency injection
         self.workflow = MultiAgentWorkflow(
-            repo_path=self.repo_path, thread_id=self.thread_id
+            repo_path=self.repo_path, 
+            agents=self.mock_deps["agents"],
+            codebase_analyzer=self.mock_deps["codebase_analyzer"],
+            thread_id=self.thread_id
         )
 
-        # CORRECT: Inject our mock dependencies
-        self.workflow.agents = self.mock_deps["agents"]
+        # CORRECT: Inject other mock dependencies  
         self.workflow.ollama_model = self.mock_deps["ollama_model"]
         self.workflow.claude_model = self.mock_deps["claude_model"]
 

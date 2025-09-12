@@ -2,10 +2,10 @@
 
 from typing import Any
 
-from ...interfaces import AgentInterface
+from ...interfaces import AgentInterface, BaseAgentInterface
 
 
-class MockAgent(AgentInterface):
+class MockAgent(AgentInterface, BaseAgentInterface):
     """Mock agent for testing with intelligent pattern-based responses."""
 
     def __init__(
@@ -27,7 +27,12 @@ class MockAgent(AgentInterface):
         self.call_history = []
 
         # Add persona attribute for compatibility with existing code
-        self.persona = self
+        self._persona = self
+    
+    @property
+    def persona(self):
+        """Get the persona (self for mock agents)."""
+        return self._persona
 
     def ask(self, prompt: str) -> str:
         """Mock persona ask method (synchronous) with intelligent pattern matching."""

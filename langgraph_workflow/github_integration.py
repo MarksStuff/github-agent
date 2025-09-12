@@ -15,17 +15,9 @@ from typing import Any
 # Add parent directory to path to import github_tools
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-try:
-    from github_tools import execute_tool, get_github_context
-    from repository_manager import RepositoryConfig, RepositoryManager
-except ImportError as e:
-    logging.warning(
-        f"Could not import github_tools: {e}. GitHub integration will be limited."
-    )
-    execute_tool = None
-    get_github_context = None
-    RepositoryConfig = None
-    RepositoryManager = None
+# Import github_tools directly - if they don't exist, that's a configuration error
+from github_tools import execute_tool, get_github_context
+from repository_manager import RepositoryConfig, RepositoryManager
 
 logger = logging.getLogger(__name__)
 
@@ -41,13 +33,13 @@ class GitHubIntegration:
         Args:
             repo_path: Local path to the repository
             github_token: GitHub API token (or from GITHUB_TOKEN env var)
-            tool_function: Function to execute GitHub tools (for testing)
+            tool_function: Function to execute GitHub tools (for dependency injection)
         """
         self.repo_path = Path(repo_path)
         self.token = github_token or os.getenv("GITHUB_TOKEN")
 
-        # Use injected tool function or fallback to imported execute_tool
-        self.execute_tool = tool_function or execute_tool
+        # Use injected tool function for dependency injection in tests
+        self.execute_tool = tool_function if tool_function is not None else execute_tool
 
         if not self.token:
             logger.warning("No GitHub token provided. PR operations will be limited.")
@@ -138,9 +130,7 @@ class GitHubIntegration:
         Returns:
             PR number
         """
-        if not self.execute_tool:
-            logger.warning("github_tools not available. Returning dummy PR number.")
-            return 9999
+        # execute_tool should always be available through dependency injection
 
         # First push the branch
         await self.push_changes(branch, f"Push branch {branch} for PR")
@@ -184,8 +174,8 @@ class GitHubIntegration:
         Returns:
             List of comment dictionaries
         """
-        if not self.execute_tool or not self.repo_name:
-            logger.warning("github_tools not available. Returning empty comments.")
+        if not self.repo_name:
+            logger.warning("Repository name not available. Returning empty comments.")
             return []
 
         try:
@@ -229,8 +219,8 @@ class GitHubIntegration:
         Returns:
             Success status
         """
-        if not self.execute_tool or not self.repo_name:
-            logger.warning("github_tools not available. Cannot add comment.")
+        if not self.repo_name:
+            logger.warning("Repository name not available. Cannot add comment.")
             return False
 
         try:
@@ -261,8 +251,8 @@ class GitHubIntegration:
         Returns:
             CI status dictionary
         """
-        if not self.execute_tool or not self.repo_name:
-            logger.warning("github_tools not available. Returning dummy status.")
+        if not self.repo_name:
+            logger.warning("Repository name not available. Returning dummy status.")
             return {
                 "status": "success",
                 "checks": [],

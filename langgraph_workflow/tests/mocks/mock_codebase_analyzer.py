@@ -23,7 +23,7 @@ class MockCodebaseAnalyzer:
         """
         self.custom_analysis = analysis
 
-    async def analyze(self) -> dict[str, Any]:
+    def analyze(self) -> dict[str, Any]:
         """Analyze the codebase and return structured information.
 
         Returns:

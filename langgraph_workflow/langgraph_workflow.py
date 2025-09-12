@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import random
+import sys
 from collections.abc import Sequence
 from datetime import datetime
 from enum import Enum
@@ -16,41 +17,19 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Import agent personas
-try:
-    from .agent_personas import (
-        ArchitectAgent,
-        FastCoderAgent,
-        SeniorEngineerAgent,
-        TestFirstAgent,
-    )
-except ImportError:
-    # For testing, use mock agents if imports fail
-    from .mocks import MockAgent as ArchitectAgent
-    from .mocks import MockAgent as FastCoderAgent
-    from .mocks import MockAgent as SeniorEngineerAgent
-    from .mocks import MockAgent as TestFirstAgent
-try:
-    from codebase_analyzer import CodebaseAnalyzer
-except ImportError:
-    # For testing, use a mock analyzer
-    class CodebaseAnalyzer:
-        def __init__(self, repo_path):
-            self.repo_path = repo_path
+# Import agent personas and interfaces
+from .agent_personas import (
+    ArchitectAgent,
+    FastCoderAgent,
+    SeniorEngineerAgent,
+    TestFirstAgent,
+    create_agents,
+)
+from .interfaces import BaseAgentInterface, CodebaseAnalyzerInterface
 
-        async def analyze(self):
-            return {
-                "architecture": "Mock architecture analysis",
-                "languages": ["Python"],
-                "frameworks": ["FastAPI", "LangGraph"],
-                "databases": ["SQLite"],
-                "patterns": "Repository pattern, dependency injection",
-                "conventions": "PEP 8, type hints",
-                "interfaces": "Abstract base classes",
-                "services": "HTTP API services",
-                "testing": "pytest with unittest.mock",
-                "recent_changes": "Mock recent changes",
-            }
+# Import codebase analyzer - this should be available or it's a configuration error
+sys.path.append(str(Path(__file__).parent.parent / "multi_agent_workflow"))
+from codebase_analyzer import CodebaseAnalyzer
 
 
 from langchain_anthropic import ChatAnthropic
@@ -174,47 +153,29 @@ class MultiAgentWorkflow:
     def __init__(
         self,
         repo_path: str,
+        agents: dict[AgentType, Any],
+        codebase_analyzer: CodebaseAnalyzerInterface,
         thread_id: str | None = None,
         checkpoint_path: str = "agent_state.db",
-        agents: dict[AgentType, Any] | None = None,
     ):
         """Initialize the workflow.
 
         Args:
             repo_path: Path to the repository
+            agents: Dict of agents to use (required for dependency injection)
+            codebase_analyzer: Codebase analyzer implementation (required)
             thread_id: Thread ID for persistence (e.g., "pr-1234")
             checkpoint_path: Path to SQLite checkpoint database
-            agents: Optional dict of agents to use (for dependency injection)
         """
         self.repo_path = Path(repo_path)
         self.thread_id = (
             thread_id or f"session-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         )
         self.checkpoint_path = checkpoint_path
-
-        # Initialize agents - use injected agents or create defaults
-        if agents is not None:
-            # Use dependency-injected agents
-            self.agents = agents
-        else:
-            # Create default production agents
-            try:
-                self.agents = {
-                    AgentType.TEST_FIRST: TestFirstAgent(),
-                    AgentType.FAST_CODER: FastCoderAgent(),
-                    AgentType.SENIOR_ENGINEER: SeniorEngineerAgent(),
-                    AgentType.ARCHITECT: ArchitectAgent(),
-                }
-            except TypeError:
-                # Fallback for testing when agent imports fail
-                from .mocks import MockAgent
-
-                self.agents = {
-                    AgentType.TEST_FIRST: MockAgent(AgentType.TEST_FIRST),
-                    AgentType.FAST_CODER: MockAgent(AgentType.FAST_CODER),
-                    AgentType.SENIOR_ENGINEER: MockAgent(AgentType.SENIOR_ENGINEER),
-                    AgentType.ARCHITECT: MockAgent(AgentType.ARCHITECT),
-                }
+        
+        # Use dependency-injected agents and analyzer
+        self.agents = agents
+        self.codebase_analyzer = codebase_analyzer
 
         # Initialize models
         try:
@@ -331,9 +292,8 @@ class MultiAgentWorkflow:
         state["model_router"] = ModelRouter.CLAUDE_CODE
         state["current_phase"] = WorkflowPhase.PHASE_0_CODE_CONTEXT
 
-        # Senior engineer analyzes codebase
-        analyzer = CodebaseAnalyzer(str(self.repo_path))
-        analysis = await analyzer.analyze()
+        # Senior engineer analyzes codebase using injected analyzer
+        analysis = self.codebase_analyzer.analyze()
 
         # Create Code Context Document
         context_doc = f"""# Code Context Document

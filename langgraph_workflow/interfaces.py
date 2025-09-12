@@ -89,11 +89,26 @@ class AgentInterface(ABC):
         pass
 
 
+class BaseAgentInterface(ABC):
+    """Abstract interface for base agents that provide personas."""
+
+    @abstractmethod
+    def ask(self, prompt: str) -> str:
+        """Ask the agent for a response (synchronous)."""
+        pass
+    
+    @property
+    @abstractmethod
+    def persona(self):
+        """Get the agent's persona (should have an ask method)."""
+        pass
+
+
 class CodebaseAnalyzerInterface(ABC):
     """Abstract interface for codebase analysis."""
 
     @abstractmethod
-    async def analyze(self) -> dict[str, Any]:
+    def analyze(self) -> dict[str, Any]:
         """Analyze the codebase."""
         pass
 
