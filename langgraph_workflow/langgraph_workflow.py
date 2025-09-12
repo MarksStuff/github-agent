@@ -32,20 +32,22 @@ except ImportError:
     class CodebaseAnalyzer:
         def __init__(self, repo_path):
             self.repo_path = repo_path
-        
+
         async def analyze(self):
             return {
-                'architecture': 'Mock architecture analysis',
-                'languages': ['Python'],
-                'frameworks': ['FastAPI', 'LangGraph'],
-                'databases': ['SQLite'],
-                'patterns': 'Repository pattern, dependency injection',
-                'conventions': 'PEP 8, type hints',
-                'interfaces': 'Abstract base classes',
-                'services': 'HTTP API services',
-                'testing': 'pytest with unittest.mock',
-                'recent_changes': 'Mock recent changes'
+                "architecture": "Mock architecture analysis",
+                "languages": ["Python"],
+                "frameworks": ["FastAPI", "LangGraph"],
+                "databases": ["SQLite"],
+                "patterns": "Repository pattern, dependency injection",
+                "conventions": "PEP 8, type hints",
+                "interfaces": "Abstract base classes",
+                "services": "HTTP API services",
+                "testing": "pytest with unittest.mock",
+                "recent_changes": "Mock recent changes",
             }
+
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_ollama import ChatOllama
@@ -194,6 +196,7 @@ class MultiAgentWorkflow:
         except TypeError:
             # For testing with MockAgents
             from .mocks import MockAgent
+
             self.agents = {
                 AgentType.TEST_FIRST: MockAgent(AgentType.TEST_FIRST),
                 AgentType.FAST_CODER: MockAgent(AgentType.FAST_CODER),
