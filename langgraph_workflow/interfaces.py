@@ -96,7 +96,7 @@ class BaseAgentInterface(ABC):
     def ask(self, prompt: str) -> str:
         """Ask the agent for a response (synchronous)."""
         pass
-    
+
     @property
     @abstractmethod
     def persona(self):

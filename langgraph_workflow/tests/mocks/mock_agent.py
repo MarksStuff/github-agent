@@ -28,7 +28,7 @@ class MockAgent(AgentInterface, BaseAgentInterface):
 
         # Add persona attribute for compatibility with existing code
         self._persona = self
-    
+
     @property
     def persona(self):
         """Get the persona (self for mock agents)."""

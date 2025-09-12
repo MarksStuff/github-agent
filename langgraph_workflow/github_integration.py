@@ -17,7 +17,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import github_tools directly - if they don't exist, that's a configuration error
 from github_tools import execute_tool, get_github_context
-from repository_manager import RepositoryConfig, RepositoryManager
 
 logger = logging.getLogger(__name__)
 

@@ -414,7 +414,9 @@ Provide a clear assessment of impacts and risks."""
 
 
 # Factory function to create agents
-def create_agents(base_agents: dict[str, BaseAgentInterface]) -> dict[str, LangGraphAgent]:
+def create_agents(
+    base_agents: dict[str, BaseAgentInterface],
+) -> dict[str, LangGraphAgent]:
     """Create all agents for the workflow.
 
     Args:

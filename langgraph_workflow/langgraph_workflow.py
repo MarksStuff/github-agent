@@ -18,18 +18,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import agent personas and interfaces
-from .agent_personas import (
-    ArchitectAgent,
-    FastCoderAgent,
-    SeniorEngineerAgent,
-    TestFirstAgent,
-    create_agents,
-)
-from .interfaces import BaseAgentInterface, CodebaseAnalyzerInterface
+from .interfaces import CodebaseAnalyzerInterface
 
 # Import codebase analyzer - this should be available or it's a configuration error
 sys.path.append(str(Path(__file__).parent.parent / "multi_agent_workflow"))
-from codebase_analyzer import CodebaseAnalyzer
 
 
 from langchain_anthropic import ChatAnthropic
@@ -172,7 +164,7 @@ class MultiAgentWorkflow:
             thread_id or f"session-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         )
         self.checkpoint_path = checkpoint_path
-        
+
         # Use dependency-injected agents and analyzer
         self.agents = agents
         self.codebase_analyzer = codebase_analyzer
