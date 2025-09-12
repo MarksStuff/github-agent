@@ -61,7 +61,9 @@ class TestLangGraphCheckpointer(BaseCheckpointSaver):
         return self.memory_saver.get_tuple(config)
 
     def list(self, config, *, filter_dict=None, before=None, limit=None):
-        return self.memory_saver.list(config, filter=filter_dict, before=before, limit=limit)
+        return self.memory_saver.list(
+            config, filter=filter_dict, before=before, limit=limit
+        )
 
     def put(self, config, checkpoint, metadata, new_versions):
         return self.memory_saver.put(config, checkpoint, metadata, new_versions)
