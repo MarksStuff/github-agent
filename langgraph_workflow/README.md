@@ -26,10 +26,12 @@ The workflow orchestrates four specialized AI agents to collaboratively develop 
 # Install LangGraph dependencies
 pip install -r langgraph_workflow/requirements.txt
 
-# Set up environment variables
-export GITHUB_TOKEN=your_github_token
-export ANTHROPIC_API_KEY=your_anthropic_key
-export OLLAMA_BASE_URL=http://localhost:11434  # If not default
+# Create a .env file with your configuration
+cat > .env << EOF
+GITHUB_TOKEN=your_github_token
+ANTHROPIC_API_KEY=your_anthropic_key
+OLLAMA_BASE_URL=http://localhost:11434
+EOF
 
 # Start Ollama (for local models)
 ollama serve

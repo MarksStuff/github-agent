@@ -6,9 +6,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-# Mock the langgraph_workflow import since it has complex dependencies
-with patch.dict("sys.modules", {"langgraph_workflow": MagicMock()}):
-    from ..run import extract_feature_from_prd, interactive_mode, main, run_workflow
+# Import CLI functions directly - dependencies should be available
+from ..run import extract_feature_from_prd, interactive_mode, main, run_workflow
 
 
 class TestFeatureExtraction(unittest.TestCase):

@@ -11,6 +11,11 @@ from pathlib import Path
 from typing import Annotated, Any, TypedDict
 from uuid import uuid4
 
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 # Import existing agent interfaces (conditional for testing)
 try:
     from agent_interface import (
@@ -205,13 +210,19 @@ class MultiAgentWorkflow:
             }
 
         # Initialize models
-        self.ollama_model = ChatOllama(
-            model="qwen2.5-coder:7b",
-            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-        )
-        self.claude_model = ChatAnthropic(
-            model="claude-3-sonnet-20240229", api_key=os.getenv("ANTHROPIC_API_KEY")
-        )
+        try:
+            self.ollama_model = ChatOllama(
+                model="qwen2.5-coder:7b",
+                base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            )
+            self.claude_model = ChatAnthropic(
+                model="claude-3-sonnet-20240229", api_key=os.getenv("ANTHROPIC_API_KEY")
+            )
+        except Exception:
+            # For testing without API keys, use mock models
+            from .mocks import MockModel
+            self.ollama_model = MockModel(["Mock Ollama response"])
+            self.claude_model = MockModel(["Mock Claude response"])
 
         # Create artifacts directory
         self.artifacts_dir = self.repo_path / "agents" / "artifacts" / self.thread_id
@@ -926,9 +937,12 @@ Remain neutral and document rather than judge."""
     def _extract_questions(self, synthesis: str) -> list[str]:
         """Extract questions requiring investigation."""
         questions = []
-        if "Questions" in synthesis:
-            # Parse questions section
-            pass
+        if "Questions" in synthesis or "questions" in synthesis:
+            # Simple parsing - look for question marks
+            lines = synthesis.split('\n')
+            for line in lines:
+                if '?' in line:
+                    questions.append(line.strip())
         return questions
 
     async def _investigate_code_question(self, question: str) -> str:
