@@ -261,10 +261,10 @@ def should_escalate_to_claude(
     """
     thresholds = WORKFLOW_CONFIG["escalation_thresholds"]
 
-    if diff_size and diff_size > thresholds["diff_size_lines"]:
+    if diff_size and diff_size >= thresholds["diff_size_lines"]:
         return True
 
-    if files_touched and files_touched > thresholds["files_touched"]:
+    if files_touched and files_touched >= thresholds["files_touched"]:
         return True
 
     if (
