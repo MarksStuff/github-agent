@@ -4,9 +4,7 @@ This is not a simple mock but a real test implementation that executes
 actual workflow logic with predictable, controlled dependencies.
 """
 
-import asyncio
 import tempfile
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -133,8 +131,8 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
                     "dashboard": "Tests needed: data display, chart rendering, filter functionality, performance",
                     "api": "Tests needed: endpoint validation, error handling, rate limiting, authentication",
                     "database": "Tests needed: CRUD operations, migration scripts, data integrity, connection pooling",
-                    "default": "Comprehensive test suite needed with unit, integration, and end-to-end tests"
-                }
+                    "default": "Comprehensive test suite needed with unit, integration, and end-to-end tests",
+                },
             ),
             AgentType.FAST_CODER: MockAgent(
                 AgentType.FAST_CODER,
@@ -144,8 +142,8 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
                     "dashboard": "Quick implementation: React components, API integration, basic styling",
                     "api": "Quick implementation: Express routes, middleware, error handling, documentation",
                     "database": "Quick implementation: ORM models, migrations, seeders, connection setup",
-                    "default": "Rapid prototyping approach with core functionality and basic error handling"
-                }
+                    "default": "Rapid prototyping approach with core functionality and basic error handling",
+                },
             ),
             AgentType.SENIOR_ENGINEER: MockAgent(
                 AgentType.SENIOR_ENGINEER,
@@ -155,8 +153,8 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
                     "dashboard": "Robust implementation: Performance optimization, accessibility, responsive design, state management",
                     "api": "Robust implementation: RESTful design, comprehensive documentation, monitoring, caching",
                     "database": "Robust implementation: Indexing strategy, query optimization, backup procedures, scaling",
-                    "default": "Production-ready implementation with security, performance, and maintainability focus"
-                }
+                    "default": "Production-ready implementation with security, performance, and maintainability focus",
+                },
             ),
             AgentType.ARCHITECT: MockAgent(
                 AgentType.ARCHITECT,
@@ -166,8 +164,8 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
                     "dashboard": "System design: Frontend architecture, state management, component library, CDN",
                     "api": "System design: API gateway, service mesh, load balancing, circuit breakers",
                     "database": "System design: Database sharding, replication, caching layers, data modeling",
-                    "default": "High-level architecture with scalability, maintainability, and system integration focus"
-                }
+                    "default": "High-level architecture with scalability, maintainability, and system integration focus",
+                },
             ),
         }
 
@@ -324,10 +322,12 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
     def get_test_results(self) -> dict[str, Any]:
         """Get test results for assertion in tests."""
         return {
-            "artifacts_created": list(self.artifacts_dir.iterdir()) if self.artifacts_dir.exists() else [],
+            "artifacts_created": list(self.artifacts_dir.iterdir())
+            if self.artifacts_dir.exists()
+            else [],
             "agent_responses": {
                 agent_type: agent.get_response_history()
                 for agent_type, agent in self.agents.items()
             },
-            "filesystem_operations": getattr(self.test_fs, 'operations', []),
+            "filesystem_operations": getattr(self.test_fs, "operations", []),
         }
