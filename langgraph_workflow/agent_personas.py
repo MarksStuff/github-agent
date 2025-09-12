@@ -5,23 +5,56 @@ import sys
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 # Add parent directory to import existing agents
 sys.path.append(str(Path(__file__).parent.parent))
 
-from multi_agent_workflow.agent_interface import (
-    ArchitectAgent as BaseArchitectAgent,
-)
-from multi_agent_workflow.agent_interface import (
-    DeveloperAgent as BaseDeveloperAgent,
-)
-from multi_agent_workflow.agent_interface import (
-    SeniorEngineerAgent as BaseSeniorEngineerAgent,
-)
-from multi_agent_workflow.agent_interface import (
-    TesterAgent as BaseTesterAgent,
-)
+# Try to import base agents, fall back to mock implementations if not available
+try:
+    from multi_agent_workflow.agent_interface import (
+        ArchitectAgent as BaseArchitectAgent,
+    )
+    from multi_agent_workflow.agent_interface import (
+        DeveloperAgent as BaseDeveloperAgent,
+    )
+    from multi_agent_workflow.agent_interface import (
+        SeniorEngineerAgent as BaseSeniorEngineerAgent,
+    )
+    from multi_agent_workflow.agent_interface import (
+        TesterAgent as BaseTesterAgent,
+    )
+except ImportError:
+    # For testing or when dependencies aren't available, create mock base agents
+    logger.warning(
+        "Could not import base agents from multi_agent_workflow. Using mock implementations."
+    )
 
-logger = logging.getLogger(__name__)
+    class MockBaseAgent:
+        """Mock base agent for when real ones aren't available."""
+
+        def __init__(self, agent_type: str):
+            self.persona = self
+            self.agent_type = agent_type
+
+        def ask(self, prompt: str) -> str:
+            return f"Mock {self.agent_type} response to: {prompt[:50]}..."
+
+    class BaseTesterAgent(MockBaseAgent):
+        def __init__(self):
+            super().__init__("tester")
+
+    class BaseDeveloperAgent(MockBaseAgent):
+        def __init__(self):
+            super().__init__("developer")
+
+    class BaseSeniorEngineerAgent(MockBaseAgent):
+        def __init__(self):
+            super().__init__("senior-engineer")
+
+    class BaseArchitectAgent(MockBaseAgent):
+        def __init__(self):
+            super().__init__("architect")
 
 
 class LangGraphAgent:
@@ -91,10 +124,15 @@ Provide your feedback focusing on your area of expertise."""
 class TestFirstAgent(LangGraphAgent):
     """Test-first agent for LangGraph workflow."""
 
-    def __init__(self):
-        """Initialize test-first agent."""
-        base = BaseTesterAgent()
-        super().__init__(base, "test-first")
+    def __init__(self, base_agent=None):
+        """Initialize test-first agent.
+
+        Args:
+            base_agent: Optional base agent to use (for dependency injection)
+        """
+        if base_agent is None:
+            base_agent = BaseTesterAgent()
+        super().__init__(base_agent, "test-first")
 
     async def write_tests(self, skeleton: str, design: str) -> str:
         """Write tests based on skeleton and design.
@@ -156,10 +194,15 @@ Return only the test code."""
 class FastCoderAgent(LangGraphAgent):
     """Fast-coder agent for rapid implementation."""
 
-    def __init__(self):
-        """Initialize fast-coder agent."""
-        base = BaseDeveloperAgent()
-        super().__init__(base, "fast-coder")
+    def __init__(self, base_agent=None):
+        """Initialize fast-coder agent.
+
+        Args:
+            base_agent: Optional base agent to use (for dependency injection)
+        """
+        if base_agent is None:
+            base_agent = BaseDeveloperAgent()
+        super().__init__(base_agent, "fast-coder")
 
     async def implement(self, skeleton: str, design: str) -> str:
         """Implement based on skeleton and design.
@@ -216,10 +259,15 @@ Return only the fixed code."""
 class SeniorEngineerAgent(LangGraphAgent):
     """Senior engineer agent for code quality and patterns."""
 
-    def __init__(self):
-        """Initialize senior engineer agent."""
-        base = BaseSeniorEngineerAgent()
-        super().__init__(base, "senior-engineer")
+    def __init__(self, base_agent=None):
+        """Initialize senior engineer agent.
+
+        Args:
+            base_agent: Optional base agent to use (for dependency injection)
+        """
+        if base_agent is None:
+            base_agent = BaseSeniorEngineerAgent()
+        super().__init__(base_agent, "senior-engineer")
 
     async def analyze_codebase(self, repo_path: str) -> dict[str, Any]:
         """Analyze codebase to create context document.
@@ -316,10 +364,15 @@ Return only the refactored code."""
 class ArchitectAgent(LangGraphAgent):
     """Architect agent for system design and scalability."""
 
-    def __init__(self):
-        """Initialize architect agent."""
-        base = BaseArchitectAgent()
-        super().__init__(base, "architect")
+    def __init__(self, base_agent=None):
+        """Initialize architect agent.
+
+        Args:
+            base_agent: Optional base agent to use (for dependency injection)
+        """
+        if base_agent is None:
+            base_agent = BaseArchitectAgent()
+        super().__init__(base_agent, "architect")
 
     async def synthesize_analyses(self, analyses: dict[str, str]) -> str:
         """Synthesize multiple agent analyses.
@@ -418,15 +471,30 @@ Provide a clear assessment of impacts and risks."""
 
 
 # Factory function to create agents
-def create_agents() -> dict[str, LangGraphAgent]:
+def create_agents(
+    base_agents: dict[str, Any] | None = None,
+) -> dict[str, LangGraphAgent]:
     """Create all agents for the workflow.
+
+    Args:
+        base_agents: Optional dict of base agents for dependency injection
 
     Returns:
         Dict of agent_type -> agent instance
     """
-    return {
-        "test-first": TestFirstAgent(),
-        "fast-coder": FastCoderAgent(),
-        "senior-engineer": SeniorEngineerAgent(),
-        "architect": ArchitectAgent(),
-    }
+    if base_agents is None:
+        # Use default base agents
+        return {
+            "test-first": TestFirstAgent(),
+            "fast-coder": FastCoderAgent(),
+            "senior-engineer": SeniorEngineerAgent(),
+            "architect": ArchitectAgent(),
+        }
+    else:
+        # Use injected base agents
+        return {
+            "test-first": TestFirstAgent(base_agents.get("test-first")),
+            "fast-coder": FastCoderAgent(base_agents.get("fast-coder")),
+            "senior-engineer": SeniorEngineerAgent(base_agents.get("senior-engineer")),
+            "architect": ArchitectAgent(base_agents.get("architect")),
+        }

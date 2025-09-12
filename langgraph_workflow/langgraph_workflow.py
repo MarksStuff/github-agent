@@ -16,20 +16,20 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Import existing agent interfaces (conditional for testing)
+# Import agent personas
 try:
-    from agent_interface import (
+    from .agent_personas import (
         ArchitectAgent,
-        DeveloperAgent,
+        FastCoderAgent,
         SeniorEngineerAgent,
-        TesterAgent,
+        TestFirstAgent,
     )
 except ImportError:
-    # For testing, use mock agents
+    # For testing, use mock agents if imports fail
     from .mocks import MockAgent as ArchitectAgent
-    from .mocks import MockAgent as DeveloperAgent
+    from .mocks import MockAgent as FastCoderAgent
     from .mocks import MockAgent as SeniorEngineerAgent
-    from .mocks import MockAgent as TesterAgent
+    from .mocks import MockAgent as TestFirstAgent
 try:
     from codebase_analyzer import CodebaseAnalyzer
 except ImportError:
@@ -176,6 +176,7 @@ class MultiAgentWorkflow:
         repo_path: str,
         thread_id: str | None = None,
         checkpoint_path: str = "agent_state.db",
+        agents: dict[AgentType, Any] | None = None,
     ):
         """Initialize the workflow.
 
@@ -183,6 +184,7 @@ class MultiAgentWorkflow:
             repo_path: Path to the repository
             thread_id: Thread ID for persistence (e.g., "pr-1234")
             checkpoint_path: Path to SQLite checkpoint database
+            agents: Optional dict of agents to use (for dependency injection)
         """
         self.repo_path = Path(repo_path)
         self.thread_id = (
@@ -190,24 +192,29 @@ class MultiAgentWorkflow:
         )
         self.checkpoint_path = checkpoint_path
 
-        # Initialize agents
-        try:
-            self.agents = {
-                AgentType.TEST_FIRST: TesterAgent(),
-                AgentType.FAST_CODER: DeveloperAgent(),
-                AgentType.SENIOR_ENGINEER: SeniorEngineerAgent(),
-                AgentType.ARCHITECT: ArchitectAgent(),
-            }
-        except TypeError:
-            # For testing with MockAgents
-            from .mocks import MockAgent
+        # Initialize agents - use injected agents or create defaults
+        if agents is not None:
+            # Use dependency-injected agents
+            self.agents = agents
+        else:
+            # Create default production agents
+            try:
+                self.agents = {
+                    AgentType.TEST_FIRST: TestFirstAgent(),
+                    AgentType.FAST_CODER: FastCoderAgent(),
+                    AgentType.SENIOR_ENGINEER: SeniorEngineerAgent(),
+                    AgentType.ARCHITECT: ArchitectAgent(),
+                }
+            except TypeError:
+                # Fallback for testing when agent imports fail
+                from .mocks import MockAgent
 
-            self.agents = {
-                AgentType.TEST_FIRST: MockAgent(AgentType.TEST_FIRST),
-                AgentType.FAST_CODER: MockAgent(AgentType.FAST_CODER),
-                AgentType.SENIOR_ENGINEER: MockAgent(AgentType.SENIOR_ENGINEER),
-                AgentType.ARCHITECT: MockAgent(AgentType.ARCHITECT),
-            }
+                self.agents = {
+                    AgentType.TEST_FIRST: MockAgent(AgentType.TEST_FIRST),
+                    AgentType.FAST_CODER: MockAgent(AgentType.FAST_CODER),
+                    AgentType.SENIOR_ENGINEER: MockAgent(AgentType.SENIOR_ENGINEER),
+                    AgentType.ARCHITECT: MockAgent(AgentType.ARCHITECT),
+                }
 
         # Initialize models
         try:
