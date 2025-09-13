@@ -6,7 +6,6 @@ Run with: pytest -m integration -v
 Skip with: pytest -m "not integration" -v
 """
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -302,7 +301,7 @@ async def get_profile():
         from pathlib import Path
 
         from langchain_core.messages import HumanMessage
-        
+
         # Integration tests should FAIL in CI if Ollama not configured (not skip)
         ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         print(f"🚀 Testing Ollama code context generation at: {ollama_url}")
