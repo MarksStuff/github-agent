@@ -57,3 +57,14 @@ nvidia-smi
 ```
 
 Unit tests use mocks and will show no GPU activity.
+
+## CI/CD Behavior
+
+Integration tests are designed to **FAIL** (not skip) in CI/CD environments when Ollama is not available. This ensures:
+- Configuration issues are caught early
+- CI accurately reflects production readiness
+- No silent test skipping that could mask problems
+
+If CI is failing due to missing Ollama, either:
+1. Configure Ollama in your CI environment, or
+2. Run unit tests only in CI: `pytest -m "not integration"`

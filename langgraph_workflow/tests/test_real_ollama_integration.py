@@ -302,12 +302,8 @@ async def get_profile():
         from pathlib import Path
 
         from langchain_core.messages import HumanMessage
-        from langchain_ollama import ChatOllama
-
-        # Skip if CI or no Ollama
-        if os.getenv("CI") or os.getenv("GITHUB_ACTIONS"):
-            pytest.skip("Skipping real Ollama test in CI")
-
+        
+        # Integration tests should FAIL in CI if Ollama not configured (not skip)
         ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         print(f"🚀 Testing Ollama code context generation at: {ollama_url}")
         print("🔥 This should show GPU activity!")
@@ -393,10 +389,7 @@ Keep the response concise and focused on what would be useful for implementing n
 
         🚨 This test will actually hit your RTX 5070!
         """
-        # Skip if CI or no Ollama
-        if os.getenv("CI") or os.getenv("GITHUB_ACTIONS"):
-            pytest.skip("Skipping real Ollama test in CI")
-
+        # Integration tests should FAIL in CI if Ollama not configured (not skip)
         state = WorkflowState(
             thread_id="real-ollama-test",
             feature_description="Add user authentication with JWT tokens and role-based access control",
@@ -459,10 +452,7 @@ Keep the response concise and focused on what would be useful for implementing n
 
         🚨 This will make multiple calls to your RTX 5070!
         """
-        # Skip if CI or no Ollama
-        if os.getenv("CI") or os.getenv("GITHUB_ACTIONS"):
-            pytest.skip("Skipping real Ollama agent test in CI")
-
+        # Integration tests should FAIL in CI if Ollama not configured (not skip)
         # Set up state with code context
         state = WorkflowState(
             thread_id="agent-test",
