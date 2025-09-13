@@ -306,24 +306,42 @@ Create a detailed Code Context Document based on this repository analysis and th
 ## Upcoming Feature:
 {feature_description}
 
+## CRITICAL ANALYSIS INSTRUCTIONS:
+You must analyze the raw data intelligently and understand what this codebase actually does:
+
+1. **Primary Languages**: Focus on the MAIN programming languages used for application code (typically Python here). Languages like YAML/JSON are configuration files, not primary development languages.
+
+2. **Architecture Understanding**: Based on the frameworks (LangGraph, LangChain) and patterns, understand this is likely:
+   - An AI/ML workflow automation system using LangGraph
+   - MCP (Model Context Protocol) server implementation
+   - Uses dependency injection with abstract base classes and real/mock/test implementations
+   - Multi-agent workflow orchestration system
+
+3. **Key Architectural Patterns to Highlight**:
+   - Dependency injection pattern throughout
+   - Abstract base classes with production/mock/test implementations
+   - Multi-agent workflow orchestration
+   - MCP server architecture
+   - Plugin-based extensibility
+
+4. **Avoid Generic Descriptions**: Don't just restate the raw data. Interpret it intelligently and provide specific insights about what this system does and how it's architected.
+
 ## Instructions:
 Create a comprehensive, professional Code Context Document that includes:
 
-1. **Executive Summary** - Brief overview of the codebase's purpose and architecture
-2. **Architecture Overview** - Detailed architectural analysis with insights
-3. **Technology Stack** - Technologies used with rationale and implications
-4. **Design Patterns & Principles** - Patterns in use and architectural decisions
-5. **Code Organization** - How code is structured and organized
-6. **Integration Points** - APIs, databases, external services, and interfaces
-7. **Testing Strategy** - Current testing approach and coverage
-8. **Development Workflow** - Conventions, standards, and best practices
-9. **Security Considerations** - Security patterns and practices observed
-10. **Performance Characteristics** - Architecture's performance implications
-11. **Feature Implementation Context** - How the upcoming feature fits into this architecture
+1. **Executive Summary** - What this system actually does (AI workflow automation, MCP server, etc.)
+2. **Architecture Overview** - Multi-agent architecture, dependency injection, plugin patterns
+3. **Technology Stack** - Focus on PRIMARY languages and frameworks, explain their role
+4. **Design Patterns & Principles** - Dependency injection, abstract interfaces, multi-agent patterns
+5. **Code Organization** - How the workflow, agents, and services are structured
+6. **Integration Points** - MCP protocol, external AI services, workflow orchestration
+7. **Testing Strategy** - Mock/real implementations, dependency injection for testing
+8. **Development Workflow** - How the patterns support development and testing
+9. **Security Considerations** - AI service integrations, credential management
+10. **Performance Characteristics** - Multi-agent workflow performance
+11. **Feature Implementation Context** - How to extend the workflow/agent system
 
-Format as a professional markdown document with clear sections, bullet points, and actionable insights.
-Focus on providing context that will help engineers understand how to implement the new feature effectively.
-Be specific and detailed rather than generic. Highlight architectural constraints, opportunities, and recommendations.
+Be intelligent about the analysis. Don't just repeat raw data - interpret it and explain what this system actually does.
 """
 
         try:
