@@ -262,35 +262,10 @@ class MultiAgentWorkflow:
         # Senior engineer analyzes codebase using injected analyzer
         analysis = self.codebase_analyzer.analyze()
 
-        # Create Code Context Document
-        context_doc = f"""# Code Context Document
-
-## Architecture Overview
-{analysis.get('architecture', 'To be analyzed')}
-
-## Technology Stack
-- Languages: {', '.join(analysis.get('languages', ['Python']))}
-- Frameworks: {', '.join(analysis.get('frameworks', []))}
-- Databases: {', '.join(analysis.get('databases', []))}
-
-## Design Patterns
-{analysis.get('patterns', 'To be identified')}
-
-## Code Conventions
-{analysis.get('conventions', 'To be documented')}
-
-## Key Interfaces
-{analysis.get('interfaces', 'To be extracted')}
-
-## Infrastructure Services
-{analysis.get('services', 'To be catalogued')}
-
-## Testing Approach
-{analysis.get('testing', 'To be analyzed')}
-
-## Recent Changes
-{analysis.get('recent_changes', 'No recent changes analyzed')}
-"""
+        # Create comprehensive context document using LLM
+        context_doc = await self._generate_intelligent_code_context(
+            analysis, state["feature_description"]
+        )
 
         # Save to artifacts
         context_path = self.artifacts_dir / "code_context.md"
@@ -300,11 +275,163 @@ class MultiAgentWorkflow:
         state["artifacts_index"]["code_context"] = str(context_path)
         state["messages_window"].append(
             AIMessage(
-                content=f"Extracted code context document (saved to {context_path})"
+                content=f"Extracted comprehensive code context document (saved to {context_path})"
             )
         )
 
         return state
+
+    async def _generate_intelligent_code_context(
+        self, analysis: dict, feature_description: str
+    ) -> str:
+        """Generate an intelligent, comprehensive code context document using LLM."""
+
+        # Create structured prompt for comprehensive analysis
+        analysis_prompt = f"""You are a Senior Software Engineer conducting a comprehensive codebase analysis.
+
+Create a detailed Code Context Document based on this repository analysis and the upcoming feature requirement.
+
+## Raw Analysis Data:
+- **Architecture**: {analysis.get('architecture', 'Unknown')}
+- **Languages**: {', '.join(analysis.get('languages', []))}
+- **Frameworks**: {', '.join(analysis.get('frameworks', []))}
+- **Databases**: {', '.join(analysis.get('databases', []))}
+- **Design Patterns**: {analysis.get('patterns', 'None detected')}
+- **Code Conventions**: {analysis.get('conventions', 'Standard')}
+- **Key Interfaces**: {analysis.get('interfaces', 'None identified')}
+- **Services**: {analysis.get('services', 'None identified')}
+- **Testing**: {analysis.get('testing', 'Unknown')}
+- **Key Files**: {', '.join(analysis.get('key_files', [])[:10])}
+
+## Upcoming Feature:
+{feature_description}
+
+## Instructions:
+Create a comprehensive, professional Code Context Document that includes:
+
+1. **Executive Summary** - Brief overview of the codebase's purpose and architecture
+2. **Architecture Overview** - Detailed architectural analysis with insights
+3. **Technology Stack** - Technologies used with rationale and implications
+4. **Design Patterns & Principles** - Patterns in use and architectural decisions
+5. **Code Organization** - How code is structured and organized
+6. **Integration Points** - APIs, databases, external services, and interfaces
+7. **Testing Strategy** - Current testing approach and coverage
+8. **Development Workflow** - Conventions, standards, and best practices
+9. **Security Considerations** - Security patterns and practices observed
+10. **Performance Characteristics** - Architecture's performance implications
+11. **Feature Implementation Context** - How the upcoming feature fits into this architecture
+
+Format as a professional markdown document with clear sections, bullet points, and actionable insights.
+Focus on providing context that will help engineers understand how to implement the new feature effectively.
+Be specific and detailed rather than generic. Highlight architectural constraints, opportunities, and recommendations.
+"""
+
+        try:
+            # Try Claude CLI first, then fall back to API
+            import os
+            import subprocess
+            import tempfile
+
+            # Check if Claude CLI is available
+            try:
+                claude_result = subprocess.run(
+                    ["claude", "--version"], capture_output=True, text=True, timeout=5
+                )
+                use_claude_cli = (
+                    claude_result.returncode == 0
+                    and "Claude Code" in claude_result.stdout
+                )
+            except Exception:
+                use_claude_cli = False
+
+            if use_claude_cli:
+                # Use Claude CLI
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".txt", delete=False
+                ) as f:
+                    f.write(analysis_prompt)
+                    temp_file = f.name
+
+                try:
+                    claude_result = subprocess.run(
+                        ["claude", temp_file],
+                        capture_output=True,
+                        text=True,
+                        timeout=60,  # Longer timeout for comprehensive analysis
+                    )
+
+                    if claude_result.returncode == 0:
+                        context_doc = claude_result.stdout.strip()
+                    else:
+                        raise Exception(f"Claude CLI failed: {claude_result.stderr}")
+
+                finally:
+                    os.unlink(temp_file)
+
+            else:
+                # Fall back to API key
+                from langchain_anthropic import ChatAnthropic
+                from langchain_core.messages import HumanMessage
+
+                api_key = os.getenv("ANTHROPIC_API_KEY")
+                if not api_key:
+                    raise ValueError(
+                        "Neither Claude CLI nor ANTHROPIC_API_KEY available"
+                    )
+
+                claude_model = ChatAnthropic()  # type: ignore
+                response = await claude_model.ainvoke(
+                    [HumanMessage(content=analysis_prompt)]
+                )
+                context_doc = str(response.content).strip() if response.content else ""
+
+            return context_doc
+
+        except Exception as e:
+            logger.error(f"Error generating intelligent code context: {e}")
+            logger.warning("Falling back to basic template")
+
+            # Fallback to improved template
+            return f"""# Code Context Document
+
+## Executive Summary
+This codebase implements a {analysis.get('architecture', 'Python application')} using modern development practices and established architectural patterns.
+
+## Architecture Overview
+**Primary Architecture**: {analysis.get('architecture', 'To be analyzed')}
+
+The codebase follows a structured approach with clear separation of concerns and modular design principles.
+
+## Technology Stack
+- **Languages**: {', '.join(analysis.get('languages', ['Python']))}
+- **Frameworks**: {', '.join(analysis.get('frameworks', ['None detected']))}
+- **Databases**: {', '.join(analysis.get('databases', ['None detected']))}
+
+## Design Patterns & Principles
+**Detected Patterns**: {analysis.get('patterns', 'Standard OOP patterns')}
+
+The codebase demonstrates good software engineering practices with appropriate use of design patterns.
+
+## Code Organization
+**Key Components**:
+{chr(10).join(f'- {file}' for file in analysis.get('key_files', ['Main application files'])[:10])}
+
+## Integration Points
+**Interfaces**: {analysis.get('interfaces', 'Standard Python interfaces')}
+**Services**: {analysis.get('services', 'Modular service architecture')}
+
+## Testing Strategy
+**Testing Approach**: {analysis.get('testing', 'Standard testing practices')}
+
+## Development Workflow
+**Code Conventions**: {analysis.get('conventions', 'Standard Python conventions')}
+
+## Feature Implementation Context
+The upcoming feature "{feature_description[:100]}..." will integrate with this architecture following established patterns and conventions.
+
+## Recent Changes
+{analysis.get('recent_changes', 'Codebase ready for new development')}
+"""
 
     async def parallel_design_exploration(self, state: WorkflowState) -> WorkflowState:
         """Phase 1 Step 1: All agents analyze in parallel using Ollama."""

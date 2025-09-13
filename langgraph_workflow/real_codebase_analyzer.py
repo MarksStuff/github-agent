@@ -306,7 +306,7 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
 
     def _detect_patterns(self) -> str:
         """Detect design patterns used."""
-        patterns = []
+        patterns = set()  # Use set to avoid duplicates
 
         # Look for common pattern indicators
         py_files = list(self.repo_path.rglob("*.py"))
@@ -316,19 +316,25 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
                 content = file_path.read_text(encoding="utf-8")
 
                 if "Factory" in content and "class" in content:
-                    patterns.append("Factory pattern")
+                    patterns.add("Factory pattern")
                 if "from abc import" in content:
-                    patterns.append("Abstract base classes")
+                    patterns.add("Abstract base classes")
                 if "def __enter__" in content and "def __exit__" in content:
-                    patterns.append("Context manager pattern")
+                    patterns.add("Context manager pattern")
                 if "@property" in content:
-                    patterns.append("Property pattern")
+                    patterns.add("Property pattern")
                 if "Observer" in content or "observer" in content:
-                    patterns.append("Observer pattern")
+                    patterns.add("Observer pattern")
+                if "Singleton" in content:
+                    patterns.add("Singleton pattern")
+                if "Strategy" in content:
+                    patterns.add("Strategy pattern")
+                if "Builder" in content:
+                    patterns.add("Builder pattern")
             except Exception:
                 continue
 
-        return ", ".join(patterns) if patterns else "Standard OOP patterns"
+        return ", ".join(sorted(patterns)) if patterns else "Standard OOP patterns"
 
     def _detect_conventions(self) -> str:
         """Detect coding conventions used."""

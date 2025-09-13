@@ -1,0 +1,244 @@
+"""Tests for intelligent code context generation."""
+
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from langgraph_workflow.langgraph_workflow import MultiAgentWorkflow
+from langgraph_workflow.real_codebase_analyzer import RealCodebaseAnalyzer
+from langgraph_workflow.tests.mocks import create_mock_agents
+from langgraph_workflow.tests.test_utils import LLMTestingMixin, MockLLMResponse
+
+
+class TestCodeContextGeneration(LLMTestingMixin):
+    """Test intelligent code context document generation."""
+
+    @pytest.fixture
+    def mock_analysis(self):
+        """Mock analysis data for testing."""
+        return {
+            "architecture": "Layered architecture with API, service, and data layers",
+            "languages": ["Python", "JavaScript", "YAML"],
+            "frameworks": ["FastAPI", "LangChain"],
+            "databases": ["SQLite"],
+            "patterns": "Abstract base classes, Factory pattern, Property pattern",
+            "conventions": "PEP 8, EditorConfig",
+            "interfaces": "Python abstract interfaces",
+            "services": "API endpoints, Python services",
+            "testing": "pytest, pytest configuration",
+            "recent_changes": "Git repository - recent changes available",
+            "key_files": [
+                "README.md - Project documentation",
+                "requirements.txt - Python dependencies",
+                "main.py - Application entry point",
+                "src/ - Source code",
+                "tests/ - Test suite",
+            ],
+        }
+
+    @pytest.fixture
+    def temp_workflow(self):
+        """Create workflow instance for testing."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create a test repository structure
+            repo_path = Path(temp_dir)
+            (repo_path / "main.py").write_text("# Main application")
+            (repo_path / "README.md").write_text("# Test Project")
+
+            analyzer = RealCodebaseAnalyzer(str(repo_path))
+            agents = create_mock_agents()
+
+            workflow = MultiAgentWorkflow(
+                repo_path=str(repo_path),
+                thread_id="test-context",
+                agents=agents,  # type: ignore  # Mock agents for testing
+                codebase_analyzer=analyzer,
+            )
+            yield workflow
+
+    @pytest.mark.asyncio
+    async def test_intelligent_context_generation_with_claude_cli_mock(
+        self, temp_workflow, mock_analysis
+    ):
+        """Test intelligent context generation using mocked Claude CLI."""
+
+        expected_context = """# Code Context Document
+
+## Executive Summary
+This is a comprehensive analysis of a Python-based application with FastAPI and LangChain frameworks.
+
+## Architecture Overview
+**Primary Architecture**: Layered architecture with API, service, and data layers
+
+This architecture provides clear separation of concerns with distinct layers for presentation, business logic, and data access.
+
+## Technology Stack
+- **Languages**: Python (primary), JavaScript (frontend/tooling), YAML (configuration)
+- **Frameworks**: FastAPI (web API), LangChain (AI/ML integration)
+- **Databases**: SQLite (lightweight data storage)
+
+The stack represents a modern Python web application with AI/ML capabilities.
+
+## Design Patterns & Principles
+**Detected Patterns**: Abstract base classes, Factory pattern, Property pattern
+
+The codebase demonstrates solid software engineering principles with appropriate abstraction and encapsulation.
+
+## Testing Strategy
+**Testing Approach**: pytest with comprehensive configuration
+
+The project follows testing best practices with automated testing infrastructure.
+
+## Feature Implementation Context
+This architecture is well-suited for implementing new features through the established layered approach and dependency injection patterns.
+"""
+
+        # Mock the codebase analyzer to return our test data
+        with patch.object(
+            temp_workflow.codebase_analyzer, "analyze", return_value=mock_analysis
+        ):
+            # Mock Claude CLI response
+            mock_response = MockLLMResponse(expected_context)
+            mock_calls = mock_response.create_claude_cli_mock()
+
+            with patch("subprocess.run", side_effect=mock_calls):
+                result = await temp_workflow._generate_intelligent_code_context(
+                    mock_analysis, "Add user authentication system"
+                )
+
+                # Test structural quality
+                self.assert_structural_quality(
+                    result,
+                    min_length=200,
+                    max_length=5000,
+                    required_sections=[
+                        "Executive Summary",
+                        "Architecture",
+                        "Technology Stack",
+                    ],
+                )
+
+                # Test semantic quality
+                self.assert_semantic_quality(
+                    result,
+                    expected_concepts=[
+                        "architecture",
+                        "python",
+                        "fastapi",
+                        "testing",
+                        "patterns",
+                    ],
+                    min_concept_matches=3,
+                    unexpected_concepts=["lorem ipsum", "placeholder", "todo"],
+                )
+
+    @pytest.mark.asyncio
+    async def test_context_generation_fallback_template(
+        self, temp_workflow, mock_analysis
+    ):
+        """Test fallback to template when LLM fails."""
+
+        # Mock the codebase analyzer
+        with patch.object(
+            temp_workflow.codebase_analyzer, "analyze", return_value=mock_analysis
+        ):
+            # Mock CLI failure to trigger fallback
+            with patch(
+                "subprocess.run", side_effect=FileNotFoundError("CLI not found")
+            ):
+                with patch.dict("os.environ", {}, clear=True):  # No API key
+                    result = await temp_workflow._generate_intelligent_code_context(
+                        mock_analysis, "Add user authentication system"
+                    )
+
+                    # Should still produce a structured document
+                    assert result is not None
+                    assert "# Code Context Document" in result
+                    assert "Executive Summary" in result
+                    assert "Architecture Overview" in result
+                    assert "Technology Stack" in result
+
+                    # Should include analysis data
+                    assert "Python" in result
+                    assert "FastAPI" in result
+                    assert "Layered architecture" in result
+
+    @pytest.mark.asyncio
+    async def test_context_generation_with_feature_context(
+        self, temp_workflow, mock_analysis
+    ):
+        """Test that feature context is properly included."""
+
+        feature_description = "Implement OAuth2 authentication with JWT tokens and user profile management"
+
+        with patch.object(
+            temp_workflow.codebase_analyzer, "analyze", return_value=mock_analysis
+        ):
+            # Mock successful response that includes feature context
+            mock_context = """# Code Context Document
+
+## Executive Summary
+Python web application ready for authentication feature implementation.
+
+## Feature Implementation Context
+The upcoming OAuth2 authentication feature will integrate seamlessly with the existing FastAPI architecture.
+The current layered design provides clear extension points for authentication middleware and user services.
+
+Key integration considerations:
+- FastAPI dependency injection for auth services
+- SQLite schema extensions for user data
+- JWT token handling in API layer
+- User profile endpoints following RESTful patterns
+"""
+
+            mock_response = MockLLMResponse(mock_context)
+            mock_calls = mock_response.create_claude_cli_mock()
+
+            with patch("subprocess.run", side_effect=mock_calls):
+                result = await temp_workflow._generate_intelligent_code_context(
+                    mock_analysis, feature_description
+                )
+
+                # Should mention the specific feature
+                result_lower = result.lower()
+                assert "oauth" in result_lower or "authentication" in result_lower
+                assert "jwt" in result_lower or "token" in result_lower
+
+                # Should provide implementation guidance
+                assert "implementation" in result_lower or "integrate" in result_lower
+
+    @pytest.mark.asyncio
+    async def test_empty_analysis_handling(self, temp_workflow):
+        """Test handling of empty or minimal analysis data."""
+
+        empty_analysis = {
+            "architecture": "",
+            "languages": [],
+            "frameworks": [],
+            "databases": [],
+            "patterns": "",
+            "key_files": [],
+        }
+
+        with patch.object(
+            temp_workflow.codebase_analyzer, "analyze", return_value=empty_analysis
+        ):
+            # Force fallback template
+            with patch("subprocess.run", side_effect=Exception("LLM unavailable")):
+                result = await temp_workflow._generate_intelligent_code_context(
+                    empty_analysis, "Test feature"
+                )
+
+                # Should handle empty data gracefully
+                assert result is not None
+                assert "# Code Context Document" in result
+                assert "Executive Summary" in result
+
+                # Should not crash or have empty sections
+                assert (
+                    "None detected" in result
+                    or "Standard" in result
+                    or "Python application" in result
+                )
