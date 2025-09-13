@@ -284,65 +284,190 @@ class MultiAgentWorkflow:
     async def _generate_intelligent_code_context(
         self, analysis: dict, feature_description: str
     ) -> str:
-        """Generate an intelligent, comprehensive code context document using LLM."""
+        """Generate an intelligent, comprehensive code context document using LLM.
+
+        Note: feature_description is included for compatibility but not used
+        to keep analysis unbiased.
+        """
+
+        # Get the repository path from the analyzer
+        repo_path = self.codebase_analyzer.repo_path
 
         # Create structured prompt for comprehensive analysis
         analysis_prompt = f"""You are a Senior Software Engineer conducting a comprehensive codebase analysis.
+You have FULL ACCESS to the repository code. Analyze it thoroughly to create a Code Context Document.
 
-Create a detailed Code Context Document based on this repository analysis and the upcoming feature requirement.
+## Repository to Analyze:
+{repo_path}
 
-## Raw Analysis Data:
-- **Architecture**: {analysis.get('architecture', 'Unknown')}
-- **Languages**: {', '.join(analysis.get('languages', []))}
-- **Frameworks**: {', '.join(analysis.get('frameworks', []))}
-- **Databases**: {', '.join(analysis.get('databases', []))}
-- **Design Patterns**: {analysis.get('patterns', 'None detected')}
-- **Code Conventions**: {analysis.get('conventions', 'Standard')}
-- **Key Interfaces**: {analysis.get('interfaces', 'None identified')}
-- **Services**: {analysis.get('services', 'None identified')}
-- **Testing**: {analysis.get('testing', 'Unknown')}
-- **Key Files**: {', '.join(analysis.get('key_files', [])[:10])}
+## ANALYSIS METHODOLOGY:
 
-## Upcoming Feature:
-{feature_description}
+### Phase 1: Code Examination (DO THIS FIRST)
+Before making any claims, examine:
 
-## CRITICAL ANALYSIS INSTRUCTIONS:
-You must analyze the raw data intelligently to understand what this codebase actually does and how it's architected:
+1. **Entry Points & Main Files**
+   - Locate main.py, index.js, app.py, main.go, or equivalent
+   - Identify how the application starts and initializes
+   - Trace the execution flow from entry point
 
-1. **Language Analysis**: Distinguish between primary development languages (used for core application logic) and configuration/data languages (YAML, JSON, XML typically used for config, not core development). Focus your technology stack analysis on the languages that drive the application.
+2. **Core Business Logic**
+   - Find the primary domain models/entities
+   - Identify key business operations and workflows
+   - Look for service/controller/handler layers
 
-2. **Framework Interpretation**: Analyze the frameworks listed to understand the system's purpose:
-   - Web frameworks suggest web applications or APIs
-   - AI/ML frameworks indicate data science or AI applications
-   - Game engines suggest gaming applications
-   - Mobile frameworks indicate mobile apps
-   - Look for clues about the domain and purpose
+3. **Actual Dependencies Used**
+   - Check import statements in source files (not just package.json/requirements.txt)
+   - Identify which frameworks are actually instantiated and used
+   - Distinguish between installed vs. actually utilized dependencies
 
-3. **Architecture Pattern Recognition**: Based on the detected patterns and project structure, infer the actual architectural approach:
-   - Look for dependency injection, layered architecture, microservices, plugins, etc.
-   - Consider how the patterns work together to form a coherent architecture
-   - Identify if this is a library, application, service, framework, or tool
+4. **Architecture Verification**
+   - Examine actual class hierarchies and module dependencies
+   - Look at how components communicate (direct calls, events, queues, etc.)
+   - Identify real design patterns in the code (not just file naming)
 
-4. **System Purpose Analysis**: Combine all evidence (frameworks, patterns, file structure) to understand what problem this system solves and what domain it operates in.
+5. **Data Layer Analysis**
+   - Find actual database connections and queries
+   - Identify ORM usage or raw SQL
+   - Look for data models and schemas
 
-5. **Avoid Generic Descriptions**: Don't just restate the raw data. Synthesize it into meaningful insights about the system's actual purpose, architecture, and design philosophy.
+### Phase 2: Document Creation
 
-## Instructions:
-Create a comprehensive, professional Code Context Document that includes:
+Based on your ACTUAL CODE EXAMINATION, create a Code Context Document with:
 
-1. **Executive Summary** - What this system actually does and its primary purpose
-2. **Architecture Overview** - The architectural approach, patterns, and design philosophy
-3. **Technology Stack** - Primary languages and frameworks with their roles and rationale
-4. **Design Patterns & Principles** - Key patterns in use and architectural decisions made
-5. **Code Organization** - How code is structured and the organizational philosophy
-6. **Integration Points** - External interfaces, APIs, protocols, and service integrations
-7. **Testing Strategy** - Testing approach and how the architecture supports testability
-8. **Development Workflow** - How the architecture supports development and maintenance
-9. **Security Considerations** - Security patterns and practices relevant to this system
-10. **Performance Characteristics** - How the architecture affects performance and scalability
-11. **Feature Implementation Context** - How new features should integrate with this architecture
+## 1. SYSTEM IDENTITY
+**What This System Actually Does:**
+- Primary purpose (based on core business logic found)
+- Problem domain (based on domain models and operations)
+- System type (web app/API/CLI tool/library based on entry points)
 
-Be intelligent about the analysis. Don't just repeat raw data - interpret it to explain what this system actually does and how it's designed.
+*Evidence: Quote specific files/classes that prove this*
+
+## 2. ARCHITECTURE REALITY CHECK
+
+**Actual Architecture Pattern:**
+Look at the code structure and answer:
+- Is this actually MVC? (Show me the Models, Views, Controllers)
+- Is this actually microservices? (Show me service boundaries and communication)
+- Is this actually event-driven? (Show me event publishers/subscribers)
+- Is this actually layered? (Show me the layer boundaries and dependencies)
+
+*Evidence: Reference specific code structures*
+
+**Real Design Patterns Found:**
+For each pattern claimed:
+- Pattern name
+- Where it's implemented (specific files/classes)
+- Code example showing the pattern
+
+## 3. TECHNOLOGY STACK - VERIFIED USAGE
+
+**Primary Language(s):**
+- Language: [language]
+- Actual usage: List 3-5 core files written in this language
+- Purpose: What aspects of the system use this language
+
+**Frameworks ACTUALLY IN USE:**
+For each framework:
+- Framework name
+- Initialization/configuration location (specific file:line)
+- How it's used (with code example)
+- Why it's essential (what breaks if removed)
+
+**Database/Storage:**
+- Type (found in connection strings/configs)
+- Access method (ORM/driver found in code)
+- Schema location or model definitions
+
+## 4. CODE ORGANIZATION ANALYSIS
+
+**Directory Structure Meaning:**
+```
+src/
+├── [directory]/ - {{what you found this contains after examining files}}
+├── [directory]/ - {{actual purpose based on code inspection}}
+```
+
+**Module Communication Patterns:**
+- How do modules actually reference each other?
+- What are the dependency directions?
+- Are there circular dependencies?
+
+## 5. KEY COMPONENTS AND THEIR ROLES
+
+For each major component found:
+- **Component**: [Name]
+- **Location**: [Path]
+- **Responsibility**: [What it actually does based on its code]
+- **Dependencies**: [What it imports/uses]
+- **Dependents**: [What uses it]
+
+## 6. INTEGRATION POINTS - VERIFIED
+
+**External Systems:**
+- API clients found (with initialization code locations)
+- External services called (with example calls)
+- Message queues/event buses (with connection code)
+
+**Exposed Interfaces:**
+- REST endpoints (with route definitions)
+- GraphQL schemas (with resolver locations)
+- CLI commands (with command definitions)
+- Library exports (with public API surface)
+
+## 7. DATA FLOW ANALYSIS
+
+Trace a typical operation through the system:
+1. Entry point: [file:function]
+2. Validation: [file:function]
+3. Business logic: [file:function]
+4. Data access: [file:function]
+5. Response: [file:function]
+
+## 8. TESTING REALITY
+
+**Test Coverage:**
+- Test files location
+- Testing framework (based on imports in test files)
+- Types of tests found (unit/integration/e2e)
+- Key test examples
+
+## 9. DEVELOPMENT PRACTICES - OBSERVED
+
+Based on code examination:
+- **Code Style**: Observed conventions (not just linter configs)
+- **Error Handling**: Patterns actually used in code
+- **Logging**: Framework and patterns found
+- **Configuration**: How config is actually loaded and used
+
+## 10. CRITICAL FINDINGS
+
+**Code Smells/Issues Found:**
+- [Issue] in [location]
+- [Technical debt] in [component]
+
+**Inconsistencies:**
+- Different patterns in [location] vs [location]
+- Mixed conventions between [module] and [module]
+
+## VALIDATION CHECKLIST
+
+Before finalizing, verify:
+- [ ] Every framework listed is actually imported and used in source code
+- [ ] Every pattern claimed has a concrete code example
+- [ ] Every component described exists in the repository
+- [ ] Architecture description matches actual code structure
+- [ ] No languages listed that only appear in config/data files
+- [ ] Integration points have actual code implementing them
+
+## IMPORTANT RULES:
+
+1. **NO HALLUCINATION**: Only describe what you can point to in the code
+2. **SHOW EVIDENCE**: Every claim must reference specific files/code
+3. **ACKNOWLEDGE UNKNOWNS**: If something isn't clear from the code, say so
+4. **VERIFY CLAIMS**: Cross-check findings across multiple files
+5. **ACTUAL vs INTENDED**: Describe what the code DOES, not what comments say it should do
+
+Remember: You have the actual code. Read it. Don't guess based on file names or metadata.
 """
 
         try:
