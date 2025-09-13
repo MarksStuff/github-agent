@@ -43,6 +43,8 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
         self.initial_state = WorkflowState(
             thread_id=self.thread_id,
             feature_description="Test feature: Add user authentication",
+            raw_feature_input=None,
+            extracted_feature=None,
             current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
             messages_window=[],
             summary_log="",

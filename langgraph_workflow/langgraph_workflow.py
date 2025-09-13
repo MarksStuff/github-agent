@@ -61,6 +61,8 @@ class WorkflowState(TypedDict):
     # Core workflow info
     thread_id: str
     feature_description: str
+    raw_feature_input: str | None  # Original PRD or feature file content
+    extracted_feature: str | None  # Extracted feature from PRD
     current_phase: WorkflowPhase
 
     # Messages and summary
@@ -177,7 +179,8 @@ class MultiAgentWorkflow:
         """Build the LangGraph state graph."""
         workflow = StateGraph(WorkflowState)
 
-        # Phase 0: Code Context Extraction
+        # Phase 0: Feature and Code Context Extraction
+        workflow.add_node("extract_feature", self.extract_feature)
         workflow.add_node("extract_code_context", self.extract_code_context)
 
         # Phase 1: Design Exploration
@@ -208,9 +211,10 @@ class MultiAgentWorkflow:
         workflow.add_node("apply_patches", self.apply_patches)
 
         # Set entry point
-        workflow.set_entry_point("extract_code_context")
+        workflow.set_entry_point("extract_feature")
 
-        # Add edges for Phase 0 -> Phase 1
+        # Add edges for Phase 0
+        workflow.add_edge("extract_feature", "extract_code_context")
         workflow.add_edge("extract_code_context", "parallel_design_exploration")
 
         # Phase 1 flow
@@ -250,6 +254,51 @@ class MultiAgentWorkflow:
         workflow.add_edge("apply_patches", "push_to_github")
 
         return workflow
+
+    async def extract_feature(self, state: WorkflowState) -> WorkflowState:
+        """Extract specific feature from PRD if needed and store as artifact."""
+        logger.info("Extracting feature from input")
+
+        # If raw_feature_input is provided (PRD file), we may need to extract
+        if state.get("raw_feature_input") and state.get("extracted_feature"):
+            # Feature was already extracted from PRD
+            feature_to_use = state["extracted_feature"]
+            logger.info("Using pre-extracted feature from PRD")
+        elif state.get("raw_feature_input"):
+            # We have a PRD but no extraction - use the whole thing
+            feature_to_use = state["raw_feature_input"]
+            logger.info("Using entire PRD as feature description")
+        else:
+            # Simple feature description provided directly
+            feature_to_use = state["feature_description"]
+            logger.info("Using direct feature description")
+
+        # Store the feature as an artifact
+        from pathlib import Path
+
+        # Use thread_id from state for proper artifact organization
+        thread_id = state.get("thread_id", self.thread_id)
+        artifacts_dir = Path(self.checkpoint_path).parent / "artifacts" / thread_id
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+        feature_artifact_path = artifacts_dir / "feature_description.md"
+        if feature_to_use:
+            feature_artifact_path.write_text(feature_to_use)
+        else:
+            # Should not happen, but handle gracefully
+            feature_artifact_path.write_text("")
+
+        # Update artifacts index
+        if "artifacts_index" not in state:
+            state["artifacts_index"] = {}
+        state["artifacts_index"]["feature_description"] = str(feature_artifact_path)
+
+        # Store the final feature description
+        state["feature_description"] = feature_to_use or ""
+
+        logger.info(f"Feature description stored as artifact: {feature_artifact_path}")
+
+        return state
 
     async def extract_code_context(self, state: WorkflowState) -> WorkflowState:
         """Phase 0: Extract code context using Senior Engineer (Claude Code)."""
@@ -1433,6 +1482,8 @@ async def main():
     initial_state = WorkflowState(
         thread_id=workflow.thread_id,
         feature_description=args.feature,
+        raw_feature_input=None,
+        extracted_feature=None,
         current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
         messages_window=[],
         summary_log="",

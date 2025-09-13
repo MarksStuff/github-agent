@@ -89,6 +89,8 @@ def create_initial_state(feature_description: str, repo_path: str) -> WorkflowSt
     return WorkflowState(
         thread_id=thread_id,
         feature_description=feature_description,
+        raw_feature_input=None,
+        extracted_feature=None,
         current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
         messages_window=[],
         summary_log="",

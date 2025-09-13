@@ -245,6 +245,9 @@ async def run_workflow(
     """
 
     # Handle feature input variations
+    raw_feature_input = None
+    extracted_feature = None
+
     if feature_file:
         # Load feature from file
         feature_path = Path(feature_file)
@@ -252,6 +255,7 @@ async def run_workflow(
             raise FileNotFoundError(f"Feature file not found: {feature_file}")
 
         prd_content = feature_path.read_text()
+        raw_feature_input = prd_content  # Store the raw PRD
 
         if feature_name:
             # Extract specific feature from PRD using LLM
@@ -306,6 +310,8 @@ async def run_workflow(
         initial_state = WorkflowState(
             thread_id=workflow.thread_id,
             feature_description=feature_description,
+            raw_feature_input=raw_feature_input,
+            extracted_feature=extracted_feature,
             current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
             messages_window=[],
             summary_log="",
@@ -521,6 +527,8 @@ async def execute_single_step(
         initial_state = {
             "thread_id": workflow.thread_id,
             "feature_description": feature_description,
+            "raw_feature_input": None,
+            "extracted_feature": None,
             "current_phase": WorkflowPhase.PHASE_0_CODE_CONTEXT,
             "messages_window": [],
             "summary_log": "",

@@ -289,6 +289,8 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
         return WorkflowState(
             thread_id=self.thread_id,
             feature_description=feature_description,
+            raw_feature_input=None,
+            extracted_feature=None,
             current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
             messages_window=[],
             summary_log="",

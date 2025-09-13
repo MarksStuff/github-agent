@@ -47,6 +47,8 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         self.initial_state = WorkflowState(
             thread_id=self.thread_id,
             feature_description="Add comprehensive user authentication with JWT tokens, role-based access control, and session management",
+            raw_feature_input=None,
+            extracted_feature=None,
             current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
             messages_window=[],
             summary_log="",
