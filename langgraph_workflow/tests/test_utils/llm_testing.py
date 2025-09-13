@@ -148,7 +148,7 @@ class MockLLMResponse:
         self.response_text = response_text
 
     def create_claude_cli_mock(self) -> list[Mock]:
-        """Create mocks for Claude CLI calls."""
+        """Create mocks for Claude CLI calls using stdin."""
         version_mock = Mock(returncode=0, stdout="1.0.113 (Claude Code)")
         response_mock = Mock(returncode=0, stdout=self.response_text)
         return [version_mock, response_mock]
