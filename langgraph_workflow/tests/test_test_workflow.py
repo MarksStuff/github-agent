@@ -3,7 +3,7 @@
 import tempfile
 import unittest
 
-from ..enums import WorkflowPhase
+from ..enums import AgentType, WorkflowPhase
 from .mocks.test_workflow import TestMultiAgentWorkflow
 
 
@@ -56,7 +56,7 @@ class TestTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
         self.assertIn("code_context", result["artifacts_index"])
 
         # Verify content is realistic
-        context_doc = result["code_context_document"]
+        context_doc = result["code_context_document"] or ""
         self.assertIn("Code Context Document", context_doc)
         self.assertIn("Architecture Overview", context_doc)
         self.assertIn("Technology Stack", context_doc)
@@ -83,7 +83,7 @@ class TestTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(result["design_document"])
         self.assertIn("design_document", result["artifacts_index"])
 
-        design_doc = result["design_document"]
+        design_doc = result["design_document"] or ""
         self.assertIn("Design Document:", design_doc)
         self.assertIn("## Overview", design_doc)
         self.assertIn("## Acceptance Criteria", design_doc)
@@ -92,21 +92,21 @@ class TestTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
     async def test_agent_pattern_responses(self):
         """Test that agents respond intelligently based on feature patterns."""
         # Test authentication feature
-        auth_response = self.test_workflow.agents["test-first"].ask(
+        auth_response = self.test_workflow.agents[AgentType.TEST_FIRST].ask(
             "Analyze authentication feature requirements"
         )
         self.assertIn("login validation", auth_response)
         self.assertIn("JWT token", auth_response)
 
         # Test dashboard feature
-        dashboard_response = self.test_workflow.agents["architect"].ask(
+        dashboard_response = self.test_workflow.agents[AgentType.ARCHITECT].ask(
             "Design dashboard architecture"
         )
         self.assertIn("Frontend architecture", dashboard_response)
         self.assertIn("state management", dashboard_response)
 
         # Test default response
-        default_response = self.test_workflow.agents["senior-engineer"].ask(
+        default_response = self.test_workflow.agents[AgentType.SENIOR_ENGINEER].ask(
             "Unknown feature request"
         )
         self.assertIn("Production-ready", default_response)
@@ -163,7 +163,7 @@ class TestTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
     async def test_test_results_collection(self):
         """Test collecting test results for assertions."""
         # Run a simple operation
-        await self.test_workflow.agents["test-first"].analyze(
+        await self.test_workflow.agents[AgentType.TEST_FIRST].analyze(
             "Create tests for feature"
         )
 

@@ -60,16 +60,14 @@ class TestLangGraphCheckpointer(BaseCheckpointSaver):
     def get_tuple(self, config):
         return self.memory_saver.get_tuple(config)
 
-    def list(self, config, *, filter_dict=None, before=None, limit=None):
-        return self.memory_saver.list(
-            config, filter=filter_dict, before=before, limit=limit
-        )
+    def list(self, config, *, filter=None, before=None, limit=None):
+        return self.memory_saver.list(config, filter=filter, before=before, limit=limit)
 
     def put(self, config, checkpoint, metadata, new_versions):
         return self.memory_saver.put(config, checkpoint, metadata, new_versions)
 
-    def put_writes(self, config, writes, task_id):
-        return self.memory_saver.put_writes(config, writes, task_id)
+    def put_writes(self, config, writes, task_id, task_path=""):
+        return self.memory_saver.put_writes(config, writes, task_id, task_path)
 
 
 class TestMultiAgentWorkflow(MultiAgentWorkflow):

@@ -91,7 +91,7 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
             self.assertIn("code_context", result["artifacts_index"])
 
             # Verify code context document contains expected sections
-            context_doc = result["code_context_document"]
+            context_doc = result["code_context_document"] or ""
             self.assertIn("Architecture Overview", context_doc)
             self.assertIn("Technology Stack", context_doc)
             self.assertIn("Design Patterns", context_doc)
@@ -161,17 +161,26 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
 
     async def test_code_investigation_decision_logic(self):
         """Test code investigation decision logic."""
-        # Test case where investigation is needed
+        # Test case where investigation is needed - pass as dict using get() method
         state_needs_investigation = {
             "synthesis_document": "Questions requiring investigation:\n- How does auth work?\n- What database schema exists?"
         }
+
+        # Convert dict to WorkflowState-like object with get method
+        class StateDict(dict):
+            def get(self, key, default=None):
+                return super().get(key, default)
+
+        state_with_get = StateDict(state_needs_investigation)
         self.assertTrue(
-            self.workflow.needs_code_investigation(state_needs_investigation)
+            self.workflow.needs_code_investigation(state_with_get)  # type: ignore
         )
 
         # Test case where investigation is not needed
-        state_no_investigation = {"synthesis_document": "No questions, all clear"}
-        self.assertFalse(self.workflow.needs_code_investigation(state_no_investigation))
+        state_no_investigation = StateDict(
+            {"synthesis_document": "No questions, all clear"}
+        )
+        self.assertFalse(self.workflow.needs_code_investigation(state_no_investigation))  # type: ignore
 
     async def test_design_document_creation(self):
         """Test Phase 2: Design Document Creation."""
@@ -185,7 +194,7 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
 
             # Verify design document created
             self.assertIsNotNone(result["design_document"])
-            design_doc = result["design_document"]
+            design_doc = result["design_document"] or ""
 
             # Verify document contains required sections
             self.assertIn("Design Document:", design_doc)

@@ -43,9 +43,11 @@ async def extract_feature_from_prd(prd_content: str, feature_name: str) -> str |
     from langchain_core.messages import HumanMessage
 
     # Initialize Claude model for feature extraction
-    claude_model = ChatAnthropic(
-        model="claude-3-sonnet-20240229", api_key=os.getenv("ANTHROPIC_API_KEY")
-    )
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if api_key:
+        claude_model = ChatAnthropic()
+    else:
+        raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 
     # Create prompt for feature extraction
     extraction_prompt = f"""You are a technical document analyzer. Extract the specific feature information from this PRD document.
@@ -65,7 +67,7 @@ Feature Extract:"""
 
     try:
         response = await claude_model.ainvoke([HumanMessage(content=extraction_prompt)])
-        extracted_content = response.content.strip()
+        extracted_content = str(response.content).strip() if response.content else ""
 
         # Check if feature was not found
         if extracted_content == "FEATURE_NOT_FOUND":

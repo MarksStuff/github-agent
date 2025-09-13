@@ -11,10 +11,10 @@ from ..run import extract_feature_from_prd, interactive_mode, main, run_workflow
 from .mocks.simple_test_workflow import TestMultiAgentWorkflow
 
 
-class TestFeatureExtraction(unittest.TestCase):
+class TestFeatureExtraction(unittest.IsolatedAsyncioTestCase):
     """Test PRD feature extraction functionality."""
 
-    def test_extract_feature_simple(self):
+    async def test_extract_feature_simple(self):
         """Test extracting a feature with simple markdown headers."""
         prd_content = """# Product Requirements Document
 
@@ -31,15 +31,15 @@ This feature manages user profile information.
 - Privacy settings
 """
 
-        result = extract_feature_from_prd(prd_content, "User Authentication")
+        result = await extract_feature_from_prd(prd_content, "User Authentication")
 
         self.assertIsNotNone(result)
-        self.assertIn("User Authentication", result)
-        self.assertIn("user login and registration", result)
-        self.assertIn("Login with email/password", result)
-        self.assertNotIn("User Profile Management", result)
+        self.assertIn("User Authentication", result or "")
+        self.assertIn("user login and registration", result or "")
+        self.assertIn("Login with email/password", result or "")
+        self.assertNotIn("User Profile Management", result or "")
 
-    def test_extract_feature_numbered_list(self):
+    async def test_extract_feature_numbered_list(self):
         """Test extracting feature from numbered list."""
         prd_content = """# Features
 
@@ -58,39 +58,39 @@ This feature manages user profile information.
    - Export functionality
 """
 
-        result = extract_feature_from_prd(prd_content, "Authentication System")
+        result = await extract_feature_from_prd(prd_content, "Authentication System")
 
         self.assertIsNotNone(result)
-        self.assertIn("Authentication System", result)
-        self.assertIn("JWT tokens", result)
-        self.assertNotIn("Data Processing Pipeline", result)
+        self.assertIn("Authentication System", result or "")
+        self.assertIn("JWT tokens", result or "")
+        self.assertNotIn("Data Processing Pipeline", result or "")
 
-    def test_extract_feature_case_insensitive(self):
+    async def test_extract_feature_case_insensitive(self):
         """Test case-insensitive feature extraction."""
         prd_content = """## User AUTHENTICATION
 Login system with security features."""
 
-        result = extract_feature_from_prd(prd_content, "user authentication")
+        result = await extract_feature_from_prd(prd_content, "user authentication")
 
         self.assertIsNotNone(result)
-        self.assertIn("User AUTHENTICATION", result)
+        self.assertIn("User AUTHENTICATION", result or "")
 
-    def test_extract_feature_not_found(self):
+    async def test_extract_feature_not_found(self):
         """Test when feature is not found in PRD."""
         prd_content = """## Payment System
 Handle payments and billing."""
 
-        result = extract_feature_from_prd(prd_content, "Authentication")
+        result = await extract_feature_from_prd(prd_content, "Authentication")
 
         self.assertIsNone(result)
 
-    def test_extract_feature_empty_content(self):
+    async def test_extract_feature_empty_content(self):
         """Test with empty PRD content."""
-        result = extract_feature_from_prd("", "Authentication")
+        result = await extract_feature_from_prd("", "Authentication")
 
         self.assertIsNone(result)
 
-    def test_extract_feature_multiline_section(self):
+    async def test_extract_feature_multiline_section(self):
         """Test extracting multiline feature section."""
         prd_content = """# Requirements
 
@@ -109,13 +109,13 @@ The system should be secure and scalable.
 Something else here.
 """
 
-        result = extract_feature_from_prd(prd_content, "Authentication Feature")
+        result = await extract_feature_from_prd(prd_content, "Authentication Feature")
 
         self.assertIsNotNone(result)
-        self.assertIn("comprehensive authentication system", result)
-        self.assertIn("Two-factor authentication", result)
-        self.assertIn("secure and scalable", result)
-        self.assertNotIn("Next Feature", result)
+        self.assertIn("comprehensive authentication system", result or "")
+        self.assertIn("Two-factor authentication", result or "")
+        self.assertIn("secure and scalable", result or "")
+        self.assertNotIn("Next Feature", result or "")
 
 
 class TestRunWorkflow(unittest.IsolatedAsyncioTestCase):
