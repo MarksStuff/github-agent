@@ -605,7 +605,7 @@ async def execute_single_step(
 async def list_available_steps() -> list[str]:
     """List all available workflow steps."""
     from .enums import WorkflowStep
-    
+
     # Return steps in execution order (excluding deployment steps)
     steps = [
         WorkflowStep.EXTRACT_FEATURE.value,
