@@ -519,6 +519,12 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                         logger.debug(
                             f"Generated context length: {len(context_doc)} chars"
                         )
+                        logger.debug("LLM Response (first 1000 chars):")
+                        logger.debug("=" * 60)
+                        logger.debug(context_doc[:1000])
+                        logger.debug("=" * 60)
+                        if len(context_doc) > 1000:
+                            logger.debug(f"... (truncated, full response is {len(context_doc)} chars)")
                         return context_doc  # Success with CLI
                     else:
                         raise Exception(f"Claude CLI failed: {claude_result.stderr}")
@@ -546,6 +552,12 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                 context_doc = str(response.content).strip() if response.content else ""
                 logger.info("Successfully generated code context using Anthropic API")
                 logger.debug(f"Generated context length: {len(context_doc)} chars")
+                logger.debug("LLM Response (first 1000 chars):")
+                logger.debug("=" * 60)
+                logger.debug(context_doc[:1000])
+                logger.debug("=" * 60)
+                if len(context_doc) > 1000:
+                    logger.debug(f"... (truncated, full response is {len(context_doc)} chars)")
 
             return context_doc
 
