@@ -7,6 +7,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 
 from langgraph_workflow import (
     ModelRouter,
@@ -104,6 +105,73 @@ Feature Extract:"""
         return "\n".join(feature_lines).strip() if feature_lines else None
 
 
+async def run_workflow_until_step(workflow, initial_state, config, stop_after):
+    """Run workflow progressively until a specific step.
+
+    Args:
+        workflow: MultiAgentWorkflow instance
+        initial_state: Initial workflow state
+        config: LangGraph config with thread_id
+        stop_after: Step name or number to stop after
+
+    Returns:
+        Final state after stopping
+    """
+
+    # Get list of all steps in order
+    all_steps = await list_available_steps()
+
+    # Parse stop_after - could be step name or number
+    if stop_after.isdigit():
+        stop_index = int(stop_after) - 1  # Convert to 0-based index
+        if stop_index < 0 or stop_index >= len(all_steps):
+            raise ValueError(
+                f"Step number {stop_after} is out of range (1-{len(all_steps)})"
+            )
+        stop_step = all_steps[stop_index]
+    else:
+        if stop_after not in all_steps:
+            raise ValueError(
+                f"Unknown step '{stop_after}'. Use --list-steps to see available steps."
+            )
+        stop_step = stop_after
+        stop_index = all_steps.index(stop_step)
+
+    print(f"🎯 Progressive execution: Running until step {stop_index + 1}: {stop_step}")
+    print(f"📋 Will execute steps 1-{stop_index + 1}:")
+    for i, step in enumerate(all_steps[: stop_index + 1], 1):
+        print(f"   {i:2}. {step}")
+
+    # Execute steps one by one until we reach the stop point
+    current_state = initial_state.copy()
+
+    for i, step_name in enumerate(all_steps[: stop_index + 1], 1):
+        print(f"\n🔧 Executing step {i}: {step_name}")
+
+        # Use execute_single_step to run this step
+        updated_state = await execute_single_step(
+            type(workflow),
+            step_name,
+            current_state["repo_path"],
+            current_state["feature_description"],
+            current_state["thread_id"],
+            input_state=current_state,
+        )
+
+        current_state = updated_state
+        print(f"✅ Step {i} completed: {step_name}")
+
+    print(
+        f"\n🏁 Progressive execution stopped after step {stop_index + 1}: {stop_step}"
+    )
+    print(f"💾 State saved with thread_id: {current_state['thread_id']}")
+    print(
+        f"🔄 To continue from here, use: --thread-id {current_state['thread_id']} --resume"
+    )
+
+    return current_state
+
+
 async def run_workflow(
     repo_path: str,
     feature_description: str,
@@ -113,6 +181,7 @@ async def run_workflow(
     feature_file: str | None = None,
     feature_name: str | None = None,
     workflow_class=None,
+    stop_after: str | None = None,
 ):
     """Run the multi-agent workflow.
 
@@ -125,6 +194,7 @@ async def run_workflow(
         feature_file: Path to file containing feature description
         feature_name: Name of specific feature within a larger PRD
         workflow_class: Workflow class to use (defaults to MultiAgentWorkflow)
+        stop_after: Stop execution after this step (step name or number)
     """
 
     # Handle feature input variations
@@ -155,8 +225,17 @@ async def run_workflow(
     if workflow_class is None:
         workflow_class = MultiAgentWorkflow
 
+    # Use mock dependencies for CLI execution (like the server does)
+    from .tests.mocks import create_mock_dependencies
+
+    mock_deps = create_mock_dependencies(thread_id or f"cli-{uuid4().hex[:8]}")
+
     workflow = workflow_class(
-        repo_path=repo_path, thread_id=thread_id, checkpoint_path=checkpoint_path
+        repo_path=repo_path,
+        thread_id=thread_id,
+        agents=mock_deps["agents"],
+        codebase_analyzer=mock_deps["codebase_analyzer"],
+        checkpoint_path=checkpoint_path,
     )
 
     if resume and thread_id:
@@ -197,9 +276,17 @@ async def run_workflow(
             escalation_count=0,
         )
 
-        # Run workflow
+        # Run workflow (with optional stop_after)
         config = {"configurable": {"thread_id": workflow.thread_id}}
-        result = await workflow.app.ainvoke(initial_state, config)
+
+        if stop_after:
+            # Progressive execution - stop after specified step
+            result = await run_workflow_until_step(
+                workflow, initial_state, config, stop_after
+            )
+        else:
+            # Normal full execution
+            result = await workflow.app.ainvoke(initial_state, config)
 
     # Print results
     print("\n" + "=" * 60)
@@ -321,6 +408,235 @@ async def interactive_mode():
             print("Invalid option!")
 
 
+async def execute_single_step(
+    workflow_class,
+    step_name: str,
+    repo_path: str,
+    feature_description: str = "",
+    thread_id: str | None = None,
+    checkpoint_path: str = "agent_state.db",
+    input_state: dict | None = None,
+) -> dict:
+    """Execute a single workflow step for testing/debugging.
+
+    Args:
+        workflow_class: The workflow class to use
+        step_name: Name of the step to execute
+        repo_path: Path to the repository
+        feature_description: Feature description
+        thread_id: Thread ID for persistence
+        checkpoint_path: SQLite checkpoint path
+        input_state: Optional input state (will create default if None)
+
+    Returns:
+        Updated state after step execution
+    """
+    from .enums import ModelRouter, WorkflowPhase
+    from .tests.mocks import create_mock_dependencies
+
+    print(f"🔧 Executing single step: {step_name}")
+
+    # Create workflow with mock dependencies
+    mock_deps = create_mock_dependencies(thread_id or "step-test")
+
+    if workflow_class is None:
+        workflow_class = MultiAgentWorkflow
+
+    workflow = workflow_class(
+        repo_path=repo_path,
+        thread_id=thread_id or "step-test",
+        agents=mock_deps["agents"],
+        codebase_analyzer=mock_deps["codebase_analyzer"],
+        checkpoint_path=checkpoint_path,
+    )
+
+    # Create initial state if not provided
+    if input_state is None:
+        initial_state = {
+            "thread_id": workflow.thread_id,
+            "feature_description": feature_description,
+            "current_phase": WorkflowPhase.PHASE_0_CODE_CONTEXT,
+            "messages_window": [],
+            "summary_log": "",
+            "artifacts_index": {},
+            "code_context_document": None,
+            "design_constraints_document": None,
+            "design_document": None,
+            "arbitration_log": [],
+            "repo_path": repo_path,
+            "git_branch": "main",
+            "last_commit_sha": None,
+            "pr_number": None,
+            "agent_analyses": {},
+            "synthesis_document": None,
+            "conflicts": [],
+            "skeleton_code": None,
+            "test_code": None,
+            "implementation_code": None,
+            "patch_queue": [],
+            "test_report": {},
+            "ci_status": {},
+            "lint_status": {},
+            "quality": "draft",
+            "feedback_gate": "open",
+            "model_router": ModelRouter.OLLAMA,
+            "escalation_count": 0,
+        }
+    else:
+        initial_state = input_state.copy()
+
+    # Get the step method
+    step_methods = {
+        "extract_code_context": workflow.extract_code_context,
+        "parallel_design_exploration": workflow.parallel_design_exploration,
+        "architect_synthesis": workflow.architect_synthesis,
+        "code_investigation": workflow.code_investigation,
+        "human_review": workflow.human_review,
+        "create_design_document": workflow.create_design_document,
+        "iterate_design_document": workflow.iterate_design_document,
+        "finalize_design_document": workflow.finalize_design_document,
+        "create_skeleton": workflow.create_skeleton,
+        "parallel_development": workflow.parallel_development,
+        "reconciliation": workflow.reconciliation,
+        "component_tests": workflow.component_tests,
+        "integration_tests": workflow.integration_tests,
+        "refinement": workflow.refinement,
+    }
+
+    if step_name not in step_methods:
+        raise ValueError(
+            f"Unknown step: {step_name}. Available steps: {list(step_methods.keys())}"
+        )
+
+    # Execute the step
+    print(f"📍 Initial phase: {initial_state.get('current_phase', 'Unknown')}")
+    result_state = await step_methods[step_name](initial_state)
+    print(f"📍 Final phase: {result_state.get('current_phase', 'Unknown')}")
+
+    # Show key changes
+    print("📊 Step Results:")
+    print(f"   - Messages: {len(result_state.get('messages_window', []))}")
+    print(f"   - Artifacts: {len(result_state.get('artifacts_index', {}))}")
+    print(f"   - Quality: {result_state.get('quality', 'unknown')}")
+
+    if result_state.get("artifacts_index"):
+        print("📁 Artifacts created:")
+        for key, path in result_state["artifacts_index"].items():
+            print(f"   - {key}: {path}")
+
+    return result_state
+
+
+async def list_available_steps() -> list[str]:
+    """List all available workflow steps."""
+    steps = [
+        "extract_code_context",
+        "parallel_design_exploration",
+        "architect_synthesis",
+        "code_investigation",
+        "human_review",
+        "create_design_document",
+        "iterate_design_document",
+        "finalize_design_document",
+        "create_skeleton",
+        "parallel_development",
+        "reconciliation",
+        "component_tests",
+        "integration_tests",
+        "refinement",
+    ]
+    return steps
+
+
+async def interactive_step_mode():
+    """Interactive mode for step-by-step execution."""
+    print("\n" + "=" * 60)
+    print("🔧 STEP-BY-STEP WORKFLOW EXECUTION")
+    print("=" * 60)
+
+    repo_path = input("Repository path: ").strip()
+    if not repo_path:
+        print("Repository path is required!")
+        return
+
+    feature = input("Feature description: ").strip()
+    if not feature:
+        print("Feature description is required!")
+        return
+
+    thread_id = input("Thread ID (optional): ").strip() or None
+
+    # Track state between steps
+    current_state = None
+
+    while True:
+        print("\n🔧 Step-by-Step Workflow Execution")
+        print("=" * 40)
+
+        steps = await list_available_steps()
+
+        print("Available steps:")
+        for i, step in enumerate(steps, 1):
+            print(f"  {i:2}. {step}")
+
+        print("\n  0. Exit")
+        print("  s. Show current state")
+        print("  r. Reset state")
+
+        choice = (
+            input(f"\nSelect step to execute (1-{len(steps)}) or command: ")
+            .strip()
+            .lower()
+        )
+
+        if choice == "0" or choice == "exit":
+            break
+        elif choice == "s":
+            if current_state:
+                print("\n📊 Current State:")
+                print(f"   Phase: {current_state.get('current_phase')}")
+                print(f"   Messages: {len(current_state.get('messages_window', []))}")
+                print(f"   Artifacts: {len(current_state.get('artifacts_index', {}))}")
+                print(f"   Quality: {current_state.get('quality')}")
+            else:
+                print("\n📊 No state yet - execute a step first")
+            continue
+        elif choice == "r":
+            current_state = None
+            print("\n🔄 State reset")
+            continue
+
+        try:
+            step_index = int(choice) - 1
+            if 0 <= step_index < len(steps):
+                step_name = steps[step_index]
+
+                print(f"\n⚡ Executing step: {step_name}")
+                result_state = await execute_single_step(
+                    MultiAgentWorkflow,
+                    step_name,
+                    repo_path,
+                    feature,
+                    thread_id,
+                    input_state=current_state,
+                )
+                current_state = result_state
+                print("✅ Step completed successfully!")
+
+                # Ask if user wants to continue
+                continue_choice = (
+                    input("\nContinue to next step? (y/N): ").strip().lower()
+                )
+                if continue_choice == "y":
+                    continue
+            else:
+                print("Invalid step number!")
+        except ValueError:
+            print("Invalid input! Please enter a number or command.")
+        except Exception as e:
+            print(f"❌ Error executing step: {e}")
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -328,7 +644,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Start workflow with direct feature description
+  # Start full workflow with direct feature description
   python run.py --repo-path /path/to/repo --feature "Add user authentication"
 
   # Start workflow from feature file
@@ -342,6 +658,29 @@ Examples:
 
   # Interactive mode
   python run.py --interactive
+
+  # STEP-BY-STEP EXECUTION (NEW!)
+  # List all available steps
+  python run.py --list-steps
+
+  # Execute a single step
+  python run.py --repo-path /path/to/repo --feature "Add auth" --step extract_code_context
+
+  # Interactive step-by-step mode
+  python run.py --step-mode
+
+  # PROGRESSIVE EXECUTION (NEW!)
+  # Run just the first step
+  python run.py --repo-path /path/to/repo --feature "Add auth" --stop-after 1
+
+  # Run first 3 steps
+  python run.py --repo-path /path/to/repo --feature "Add auth" --stop-after 3
+
+  # Run until specific step by name
+  python run.py --repo-path /path/to/repo --feature "Add auth" --stop-after create_design_document
+
+  # Continue from where you left off
+  python run.py --repo-path /path/to/repo --thread-id <saved-id> --resume
         """,
     )
 
@@ -366,6 +705,19 @@ Examples:
     parser.add_argument(
         "--interactive", action="store_true", help="Run in interactive mode"
     )
+    parser.add_argument(
+        "--step-mode", action="store_true", help="Run in step-by-step interactive mode"
+    )
+    parser.add_argument(
+        "--step",
+        help="Execute a single workflow step (use with --list-steps to see options)",
+    )
+    parser.add_argument(
+        "--list-steps", action="store_true", help="List all available workflow steps"
+    )
+    parser.add_argument(
+        "--stop-after", help="Stop execution after this step (use step name or number)"
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     args = parser.parse_args()
@@ -373,7 +725,59 @@ Examples:
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    if args.interactive:
+    if args.list_steps:
+        steps = asyncio.run(list_available_steps())
+        print("\n🔧 Available Workflow Steps:")
+        print("=" * 40)
+        for i, step in enumerate(steps, 1):
+            print(f"  {i:2}. {step}")
+        print("\nUse --step <step_name> to execute a single step")
+        print("Use --step-mode for interactive step-by-step execution")
+
+    elif args.step_mode:
+        asyncio.run(interactive_step_mode())
+
+    elif args.step:
+        if not args.repo_path:
+            print("Error: --repo-path is required when using --step")
+            sys.exit(1)
+        if not args.feature and not args.feature_file:
+            print("Error: --feature or --feature-file is required when using --step")
+            sys.exit(1)
+
+        # Handle feature extraction if needed
+        feature_description = args.feature or ""
+        if args.feature_file:
+            feature_path = Path(args.feature_file)
+            if not feature_path.exists():
+                print(f"Error: Feature file not found: {args.feature_file}")
+                sys.exit(1)
+
+            prd_content = feature_path.read_text()
+            if args.feature_name:
+                extracted_feature = asyncio.run(
+                    extract_feature_from_prd(prd_content, args.feature_name)
+                )
+                if not extracted_feature:
+                    print(f"Error: Feature '{args.feature_name}' not found in PRD")
+                    sys.exit(1)
+                feature_description = extracted_feature
+            else:
+                feature_description = prd_content
+
+        # Execute single step
+        asyncio.run(
+            execute_single_step(
+                MultiAgentWorkflow,
+                args.step,
+                args.repo_path,
+                feature_description,
+                args.thread_id,
+                args.checkpoint_path,
+            )
+        )
+
+    elif args.interactive:
         asyncio.run(interactive_mode())
     elif args.repo_path:
         if not args.resume and not args.feature and not args.feature_file:
@@ -393,6 +797,7 @@ Examples:
                 resume=args.resume,
                 feature_file=args.feature_file,
                 feature_name=args.feature_name,
+                stop_after=args.stop_after,
             )
         )
     else:

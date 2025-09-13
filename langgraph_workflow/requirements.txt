@@ -35,3 +35,8 @@ pytest-cov>=4.0.0
 # Additional testing utilities
 factory-boy>=3.2.0  # For test data generation
 freezegun>=1.2.0    # For time mocking in tests
+
+# LangGraph Studio and API server
+langgraph-cli>=0.1.50
+fastapi>=0.100.0
+uvicorn>=0.20.0

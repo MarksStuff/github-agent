@@ -66,6 +66,48 @@ ollama pull llama3.1
 5. **Integration Tests**: Full system validation
 6. **Refinement**: Final quality improvements
 
+## LangGraph Studio Integration
+
+### Running with LangGraph Studio UI
+
+The workflow is fully integrated with LangGraph Studio for visual monitoring and debugging:
+
+```bash
+# Install LangGraph CLI if not already installed
+pip install langgraph-cli
+
+# Start LangGraph Studio (from langgraph_workflow directory)
+cd langgraph_workflow
+langgraph up
+
+# The UI will be available at http://localhost:8123
+```
+
+The Studio UI provides:
+- **Visual graph representation** of the workflow
+- **Real-time state inspection** as the workflow executes
+- **Step-by-step debugging** capabilities
+- **Message history** and artifact viewing
+- **Interactive input** for human review steps
+
+### Running as API Server
+
+For programmatic access, run the FastAPI server:
+
+```bash
+# Start the API server
+python -m langgraph_workflow.server
+
+# API will be available at http://localhost:8000
+# API docs at http://localhost:8000/docs
+```
+
+API endpoints:
+- `POST /workflows` - Start a new workflow
+- `GET /workflows/{thread_id}` - Get workflow status
+- `POST /workflows/{thread_id}/step` - Execute a single step
+- `GET /steps` - List available workflow steps
+
 ## Usage
 
 ### Basic Usage
