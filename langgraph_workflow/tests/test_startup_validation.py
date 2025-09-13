@@ -21,34 +21,60 @@ from langgraph_workflow.startup_validation import (
 class TestValidateEnvironmentVariables:
     """Test environment variable validation."""
 
-    def test_valid_anthropic_key(self):
-        """Test with valid Anthropic API key."""
-        with patch.dict(
-            os.environ, {"ANTHROPIC_API_KEY": "sk-ant-123456789"}, clear=True
-        ):
+    @patch("subprocess.run")
+    def test_claude_cli_available(self, mock_subprocess):
+        """Test with Claude CLI available."""
+        # Mock successful Claude CLI check
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "1.0.113 (Claude Code)"
+        mock_subprocess.return_value = mock_result
+
+        with patch.dict(os.environ, {}, clear=True):
             result = validate_environment_variables()
             assert result["services"]["anthropic"] is True
             assert len(result["warnings"]) == 1  # Only GitHub warning
 
+    def test_valid_anthropic_key(self):
+        """Test with valid Anthropic API key when CLI not available."""
+        with patch("subprocess.run") as mock_subprocess:
+            # Mock Claude CLI not available
+            mock_subprocess.side_effect = FileNotFoundError("claude command not found")
+
+            with patch.dict(
+                os.environ, {"ANTHROPIC_API_KEY": "sk-ant-123456789"}, clear=True
+            ):
+                result = validate_environment_variables()
+                assert result["services"]["anthropic"] is True
+                assert len(result["warnings"]) == 1  # Only GitHub warning
+
     def test_invalid_anthropic_key_format(self):
         """Test with invalid Anthropic API key format."""
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "invalid-key"}):
-            result = validate_environment_variables()
-            assert result["services"]["anthropic"] is False
-            assert any(
-                "ANTHROPIC_API_KEY not set or invalid format" in w
-                for w in result["warnings"]
-            )
+        with patch("subprocess.run") as mock_subprocess:
+            # Mock Claude CLI not available
+            mock_subprocess.side_effect = FileNotFoundError("claude command not found")
+
+            with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "invalid-key"}):
+                result = validate_environment_variables()
+                assert result["services"]["anthropic"] is False
+                assert any(
+                    "Claude CLI not available and ANTHROPIC_API_KEY not set" in w
+                    for w in result["warnings"]
+                )
 
     def test_missing_anthropic_key(self):
         """Test with missing Anthropic API key."""
-        with patch.dict(os.environ, {}, clear=True):
-            result = validate_environment_variables()
-            assert result["services"]["anthropic"] is False
-            assert any(
-                "ANTHROPIC_API_KEY not set or invalid format" in w
-                for w in result["warnings"]
-            )
+        with patch("subprocess.run") as mock_subprocess:
+            # Mock Claude CLI not available
+            mock_subprocess.side_effect = FileNotFoundError("claude command not found")
+
+            with patch.dict(os.environ, {}, clear=True):
+                result = validate_environment_variables()
+                assert result["services"]["anthropic"] is False
+                assert any(
+                    "Claude CLI not available and ANTHROPIC_API_KEY not set" in w
+                    for w in result["warnings"]
+                )
 
     def test_valid_github_token_ghp(self):
         """Test with valid GitHub token (ghp_ format)."""
@@ -72,12 +98,16 @@ class TestValidateEnvironmentVariables:
                 for w in result["warnings"]
             )
 
-    def test_all_valid_services(self):
+    @patch("subprocess.run")
+    def test_all_valid_services(self, mock_subprocess):
         """Test with all valid environment variables."""
-        with patch.dict(
-            os.environ,
-            {"ANTHROPIC_API_KEY": "sk-ant-123456789", "GITHUB_TOKEN": "ghp_123456789"},
-        ):
+        # Mock successful Claude CLI check
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "1.0.113 (Claude Code)"
+        mock_subprocess.return_value = mock_result
+
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "ghp_123456789"}, clear=True):
             result = validate_environment_variables()
             assert result["services"]["anthropic"] is True
             assert result["services"]["github"] is True
@@ -325,10 +355,10 @@ class TestRunStartupValidation:
     @patch("langgraph_workflow.startup_validation.validate_data_directories")
     @patch("langgraph_workflow.startup_validation.validate_ollama_connection")
     @patch("langgraph_workflow.startup_validation.validate_environment_variables")
-    def test_ollama_failure_does_not_break_overall(
+    def test_ollama_failure_makes_overall_invalid(
         self, mock_env, mock_ollama, mock_dirs
     ):
-        """Test that Ollama failures don't break overall validation (non-critical)."""
+        """Test that Ollama failures make overall validation fail (critical)."""
         mock_env.return_value = {
             "services": {"anthropic": True, "github": True},
             "warnings": [],
@@ -338,8 +368,8 @@ class TestRunStartupValidation:
 
         result = run_startup_validation(verbose=False)
 
-        # Ollama failure should not make overall validation fail
-        assert result["overall_valid"] is True
+        # Ollama failure should make overall validation fail (now critical)
+        assert result["overall_valid"] is False
         assert result["models"]["valid"] is False
 
     @patch("langgraph_workflow.startup_validation.validate_data_directories")
@@ -379,6 +409,44 @@ class TestRunStartupValidation:
         run_startup_validation(verbose=True)
 
         mock_print.assert_called_once()
+
+    @patch("langgraph_workflow.startup_validation.validate_data_directories")
+    @patch("langgraph_workflow.startup_validation.validate_ollama_connection")
+    @patch("langgraph_workflow.startup_validation.validate_environment_variables")
+    def test_missing_anthropic_key_makes_overall_invalid(
+        self, mock_env, mock_ollama, mock_dirs
+    ):
+        """Test that missing Anthropic API key makes overall validation fail (critical)."""
+        mock_env.return_value = {
+            "services": {"anthropic": False, "github": True},
+            "warnings": ["ANTHROPIC_API_KEY not set"],
+        }
+        mock_ollama.return_value = {"valid": True, "models": []}
+        mock_dirs.return_value = {"valid": True, "directories": {}, "errors": []}
+
+        result = run_startup_validation(verbose=False)
+
+        # Missing Anthropic key should make overall validation fail (now critical)
+        assert result["overall_valid"] is False
+
+    @patch("langgraph_workflow.startup_validation.validate_data_directories")
+    @patch("langgraph_workflow.startup_validation.validate_ollama_connection")
+    @patch("langgraph_workflow.startup_validation.validate_environment_variables")
+    def test_only_directories_and_github_not_critical(
+        self, mock_env, mock_ollama, mock_dirs
+    ):
+        """Test that only GitHub token is not critical for validation."""
+        mock_env.return_value = {
+            "services": {"anthropic": True, "github": False},
+            "warnings": ["GITHUB_TOKEN not set"],
+        }
+        mock_ollama.return_value = {"valid": True, "models": []}
+        mock_dirs.return_value = {"valid": True, "directories": {}, "errors": []}
+
+        result = run_startup_validation(verbose=False)
+
+        # Missing GitHub token alone should not make validation fail
+        assert result["overall_valid"] is True
 
 
 class TestCheckMockMode:
@@ -498,10 +566,10 @@ class TestStartupValidationIntegration:
         with patch.dict(os.environ, {}, clear=True):
             result = run_startup_validation(verbose=False)
 
-            # Should still have valid overall status if directories work
-            # (since service failures are non-critical)
-            assert isinstance(result["overall_valid"], bool)
+            # Should fail overall validation since Anthropic and Ollama are now critical
+            assert result["overall_valid"] is False
             assert "environment" in result
             assert "ollama" in result
             assert "directories" in result
             assert "recommendations" in result
+            assert len(result["recommendations"]) > 0  # Should have recommendations

@@ -29,14 +29,38 @@ def validate_environment_variables() -> dict[str, Any]:
         },
     }
 
-    # Check Anthropic API key
+    # Check Claude CLI availability (preferred) or Anthropic API key (fallback)
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-    if anthropic_key and anthropic_key.startswith("sk-ant-"):
-        results["services"]["anthropic"] = True
-    else:
-        results["warnings"].append(
-            "ANTHROPIC_API_KEY not set or invalid format. Claude features will be unavailable."
+
+    # Try Claude CLI first
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ["claude", "--version"], capture_output=True, text=True, timeout=5
         )
+        if result.returncode == 0 and "Claude Code" in result.stdout:
+            results["services"]["anthropic"] = True
+        else:
+            # Fallback to API key check
+            if anthropic_key and anthropic_key.startswith("sk-ant-"):
+                results["services"]["anthropic"] = True
+            else:
+                results["warnings"].append(
+                    "Claude CLI not available and ANTHROPIC_API_KEY not set. Install Claude Code CLI or set API key."
+                )
+    except (
+        subprocess.TimeoutExpired,
+        subprocess.CalledProcessError,
+        FileNotFoundError,
+    ):
+        # Fallback to API key check
+        if anthropic_key and anthropic_key.startswith("sk-ant-"):
+            results["services"]["anthropic"] = True
+        else:
+            results["warnings"].append(
+                "Claude CLI not available and ANTHROPIC_API_KEY not set. Install Claude Code CLI or set API key."
+            )
 
     # Check GitHub token
     github_token = os.getenv("GITHUB_TOKEN")
@@ -198,7 +222,11 @@ def run_startup_validation(verbose: bool = True) -> dict[str, Any]:
         }
 
     # Determine overall validity
-    critical_failures = [not dirs_results["valid"]]
+    critical_failures = [
+        not dirs_results["valid"],  # Data directories must be accessible
+        not env_results["services"]["anthropic"],  # Anthropic API key required
+        not ollama_results["valid"],  # Ollama service must be running
+    ]
 
     if any(critical_failures):
         results["overall_valid"] = False
@@ -206,7 +234,7 @@ def run_startup_validation(verbose: bool = True) -> dict[str, Any]:
     # Generate recommendations
     if not env_results["services"]["anthropic"]:
         results["recommendations"].append(
-            "Set ANTHROPIC_API_KEY for Claude features: export ANTHROPIC_API_KEY=sk-ant-xxxxx"
+            "Install Claude Code CLI or set ANTHROPIC_API_KEY: claude --version || export ANTHROPIC_API_KEY=sk-ant-xxxxx"
         )
 
     if not ollama_results["valid"]:

@@ -156,9 +156,10 @@ class MultiAgentWorkflow:
             else:
                 self.claude_model = None
 
-        # Create artifacts directory
-        self.artifacts_dir = self.repo_path / "agents" / "artifacts" / self.thread_id
-        self.artifacts_dir.mkdir(parents=True, exist_ok=True)
+        # Create artifacts directory using configured path
+        from .config import get_artifacts_path
+
+        self.artifacts_dir = get_artifacts_path(self.thread_id)
 
         # Build the graph
         self.graph = self._build_graph()

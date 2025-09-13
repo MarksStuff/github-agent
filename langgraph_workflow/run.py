@@ -7,7 +7,6 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from uuid import uuid4
 
 from langgraph_workflow import (
     ModelRouter,
@@ -15,19 +14,25 @@ from langgraph_workflow import (
     WorkflowPhase,
     WorkflowState,
 )
-from langgraph_workflow.config import get_checkpoint_path
+
+# Set up logging
+from langgraph_workflow.config import WORKFLOW_CONFIG, get_checkpoint_path
 from langgraph_workflow.startup_validation import (
     check_mock_mode,
     run_startup_validation,
 )
 
-# Set up logging
+# Ensure logs directory exists
+logs_dir = Path(WORKFLOW_CONFIG["paths"]["logs_root"])
+logs_dir.mkdir(parents=True, exist_ok=True)
+log_file = logs_dir / f'workflow_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(f'workflow_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'),
+        logging.FileHandler(str(log_file)),
     ],
 )
 logger = logging.getLogger(__name__)
@@ -44,16 +49,20 @@ async def extract_feature_from_prd(prd_content: str, feature_name: str) -> str |
         Feature description or None if not found
     """
     import os
+    import subprocess
+    import tempfile
 
-    from langchain_anthropic import ChatAnthropic
-    from langchain_core.messages import HumanMessage
-
-    # Initialize Claude model for feature extraction
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if api_key:
-        claude_model = ChatAnthropic()  # type: ignore
-    else:
-        raise ValueError("ANTHROPIC_API_KEY environment variable is required")
+    # Try Claude CLI first, then fall back to API key
+    try:
+        # Check if Claude CLI is available
+        claude_result = subprocess.run(
+            ["claude", "--version"], capture_output=True, text=True, timeout=5
+        )
+        use_claude_cli = (
+            claude_result.returncode == 0 and "Claude Code" in claude_result.stdout
+        )
+    except Exception:
+        use_claude_cli = False
 
     # Create prompt for feature extraction
     extraction_prompt = f"""You are a technical document analyzer. Extract the specific feature information from this PRD document.
@@ -72,8 +81,42 @@ Instructions:
 Feature Extract:"""
 
     try:
-        response = await claude_model.ainvoke([HumanMessage(content=extraction_prompt)])
-        extracted_content = str(response.content).strip() if response.content else ""
+        if use_claude_cli:
+            # Use Claude CLI
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False
+            ) as f:
+                f.write(extraction_prompt)
+                temp_file = f.name
+
+            try:
+                claude_result = subprocess.run(
+                    ["claude", temp_file], capture_output=True, text=True, timeout=30
+                )
+
+                if claude_result.returncode == 0:
+                    extracted_content = claude_result.stdout.strip()
+                else:
+                    raise Exception(f"Claude CLI failed: {claude_result.stderr}")
+
+            finally:
+                os.unlink(temp_file)
+        else:
+            # Fall back to API key
+            from langchain_anthropic import ChatAnthropic
+            from langchain_core.messages import HumanMessage
+
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise ValueError("Neither Claude CLI nor ANTHROPIC_API_KEY available")
+
+            claude_model = ChatAnthropic()  # type: ignore
+            response = await claude_model.ainvoke(
+                [HumanMessage(content=extraction_prompt)]
+            )
+            extracted_content = (
+                str(response.content).strip() if response.content else ""
+            )
 
         # Check if feature was not found
         if extracted_content == "FEATURE_NOT_FOUND":
@@ -230,10 +273,17 @@ async def run_workflow(
     if workflow_class is None:
         workflow_class = MultiAgentWorkflow
 
-    # Use mock dependencies for CLI execution (like the server does)
-    from .tests.mocks import create_mock_dependencies
+    # Use REAL dependencies for CLI execution (NOT mocks!)
+    from .real_codebase_analyzer import RealCodebaseAnalyzer
 
-    mock_deps = create_mock_dependencies(thread_id or f"cli-{uuid4().hex[:8]}")
+    # Create real codebase analyzer
+    codebase_analyzer = RealCodebaseAnalyzer(repo_path)
+
+    # For now, we still use mocks for other dependencies until they're implemented
+    # TODO: Replace these with real implementations
+    from .tests.mocks import create_mock_agents
+
+    agents = create_mock_agents()
 
     # Use config-based checkpoint path if not specified
     if checkpoint_path is None:
@@ -242,8 +292,8 @@ async def run_workflow(
     workflow = workflow_class(
         repo_path=repo_path,
         thread_id=thread_id,
-        agents=mock_deps["agents"],
-        codebase_analyzer=mock_deps["codebase_analyzer"],
+        agents=agents,
+        codebase_analyzer=codebase_analyzer,
         checkpoint_path=checkpoint_path,
     )
 
@@ -400,7 +450,9 @@ async def interactive_mode():
             thread_id = input("Thread ID: ").strip()
             repo_path = input("Repository path: ").strip()
 
-            artifacts_dir = Path(repo_path) / "agents" / "artifacts" / thread_id
+            from .config import get_artifacts_path
+
+            artifacts_dir = get_artifacts_path(thread_id)
             if artifacts_dir.exists():
                 print(f"\nArtifacts in {artifacts_dir}:")
                 for item in artifacts_dir.rglob("*"):
@@ -441,12 +493,14 @@ async def execute_single_step(
         Updated state after step execution
     """
     from .enums import ModelRouter, WorkflowPhase
-    from .tests.mocks import create_mock_dependencies
+    from .real_codebase_analyzer import RealCodebaseAnalyzer
+    from .tests.mocks import create_mock_agents
 
     print(f"🔧 Executing single step: {step_name}")
 
-    # Create workflow with mock dependencies
-    mock_deps = create_mock_dependencies(thread_id or "step-test")
+    # Create workflow with REAL dependencies (NOT mocks!)
+    codebase_analyzer = RealCodebaseAnalyzer(repo_path)
+    agents = create_mock_agents()  # Still using mock agents until implemented
 
     if workflow_class is None:
         workflow_class = MultiAgentWorkflow
@@ -458,8 +512,8 @@ async def execute_single_step(
     workflow = workflow_class(
         repo_path=repo_path,
         thread_id=thread_id or "step-test",
-        agents=mock_deps["agents"],
-        codebase_analyzer=mock_deps["codebase_analyzer"],
+        agents=agents,
+        codebase_analyzer=codebase_analyzer,
         checkpoint_path=checkpoint_path,
     )
 
