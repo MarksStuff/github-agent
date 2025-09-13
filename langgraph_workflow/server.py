@@ -56,47 +56,15 @@ def create_workflow_graph(
 
     logger.info(f"Creating workflow for repo: {repo_path}, thread: {thread_id}")
 
-    # Check if we're in test/development mode or production
-    use_mock_deps = os.getenv("USE_MOCK_DEPENDENCIES", "true").lower() == "true"
-
-    if use_mock_deps:
-        # Use mock dependencies for development/testing
-        mock_deps = create_mock_dependencies(thread_id)
-        workflow = MultiAgentWorkflow(
-            repo_path=repo_path,
-            thread_id=thread_id,
-            agents=mock_deps["agents"],
-            codebase_analyzer=mock_deps["codebase_analyzer"],
-            checkpoint_path=checkpoint_path,
-        )
-    else:
-        # Use real dependencies in production
-        # This would require proper agent and analyzer initialization
-        from langgraph_workflow.agent_personas import Personas
-        from langgraph_workflow.codebase_analyzer import CodebaseAnalyzer
-
-        # Initialize real agents
-        personas = Personas()
-        agents = {
-            agent_type: personas.get_agent(agent_type)
-            for agent_type in [
-                "test-first",
-                "fast-coder",
-                "senior-engineer",
-                "architect",
-            ]
-        }
-
-        # Initialize real codebase analyzer
-        codebase_analyzer = CodebaseAnalyzer(repo_path)
-
-        workflow = MultiAgentWorkflow(
-            repo_path=repo_path,
-            thread_id=thread_id,
-            agents=agents,
-            codebase_analyzer=codebase_analyzer,
-            checkpoint_path=checkpoint_path,
-        )
+    # Use mock dependencies for development (production mode disabled until dependencies are implemented)
+    mock_deps = create_mock_dependencies(thread_id)
+    workflow = MultiAgentWorkflow(
+        repo_path=repo_path,
+        thread_id=thread_id,
+        agents=mock_deps["agents"],
+        codebase_analyzer=mock_deps["codebase_analyzer"],
+        checkpoint_path=checkpoint_path,
+    )
 
     return workflow.app
 
@@ -201,41 +169,15 @@ def create_api_app():
         thread_id = request.thread_id or f"api-{uuid4().hex[:8]}"
 
         try:
-            # Create workflow with appropriate dependencies
-            use_mock_deps = os.getenv("USE_MOCK_DEPENDENCIES", "true").lower() == "true"
-
-            if use_mock_deps:
-                mock_deps = create_mock_dependencies(thread_id)
-                workflow = MultiAgentWorkflow(
-                    repo_path=repo_path,
-                    thread_id=thread_id,
-                    agents=mock_deps["agents"],
-                    codebase_analyzer=mock_deps["codebase_analyzer"],
-                    checkpoint_path="api_state.db",
-                )
-            else:
-                from langgraph_workflow.agent_personas import Personas
-                from langgraph_workflow.codebase_analyzer import CodebaseAnalyzer
-
-                personas = Personas()
-                agents = {
-                    agent_type: personas.get_agent(agent_type)
-                    for agent_type in [
-                        "test-first",
-                        "fast-coder",
-                        "senior-engineer",
-                        "architect",
-                    ]
-                }
-                codebase_analyzer = CodebaseAnalyzer(repo_path)
-
-                MultiAgentWorkflow(
-                    repo_path=repo_path,
-                    thread_id=thread_id,
-                    agents=agents,
-                    codebase_analyzer=codebase_analyzer,
-                    checkpoint_path="api_state.db",
-                )
+            # Create workflow with mock dependencies (production mode disabled until dependencies are implemented)
+            mock_deps = create_mock_dependencies(thread_id)
+            MultiAgentWorkflow(
+                repo_path=repo_path,
+                thread_id=thread_id,
+                agents=mock_deps["agents"],
+                codebase_analyzer=mock_deps["codebase_analyzer"],
+                checkpoint_path="api_state.db",
+            )
 
             # Note: In production, this would be queued or run in background
 
@@ -255,14 +197,16 @@ def create_api_app():
         """Get the status of a workflow."""
         try:
             # Load checkpoint to get current state
-            checkpointer = SqliteSaver.from_conn_string("api_state.db")
-            config = {"configurable": {"thread_id": thread_id}}
-            checkpoint = checkpointer.get(config)
+            with SqliteSaver.from_conn_string("api_state.db") as checkpointer:
+                from langchain_core.runnables import RunnableConfig
 
-            if not checkpoint:
-                raise HTTPException(status_code=404, detail="Workflow not found")
+                config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+                checkpoint = checkpointer.get(config)
 
-            state = checkpoint.get("channel_values", {})
+                if not checkpoint:
+                    raise HTTPException(status_code=404, detail="Workflow not found")
+
+                state = checkpoint.get("channel_values", {})
 
             return {
                 "thread_id": thread_id,
@@ -310,41 +254,15 @@ def create_api_app():
         repo_path = request.repo_path or os.getcwd()
 
         try:
-            # Load workflow with existing state
-            use_mock_deps = os.getenv("USE_MOCK_DEPENDENCIES", "true").lower() == "true"
-
-            if use_mock_deps:
-                mock_deps = create_mock_dependencies(thread_id)
-                workflow = MultiAgentWorkflow(
-                    repo_path=repo_path,
-                    thread_id=thread_id,
-                    agents=mock_deps["agents"],
-                    codebase_analyzer=mock_deps["codebase_analyzer"],
-                    checkpoint_path="api_state.db",
-                )
-            else:
-                from langgraph_workflow.agent_personas import Personas
-                from langgraph_workflow.codebase_analyzer import CodebaseAnalyzer
-
-                personas = Personas()
-                agents = {
-                    agent_type: personas.get_agent(agent_type)
-                    for agent_type in [
-                        "test-first",
-                        "fast-coder",
-                        "senior-engineer",
-                        "architect",
-                    ]
-                }
-                codebase_analyzer = CodebaseAnalyzer(repo_path)
-
-                workflow = MultiAgentWorkflow(
-                    repo_path=repo_path,
-                    thread_id=thread_id,
-                    agents=agents,
-                    codebase_analyzer=codebase_analyzer,
-                    checkpoint_path="api_state.db",
-                )
+            # Load workflow with mock dependencies (production mode disabled until dependencies are implemented)
+            mock_deps = create_mock_dependencies(thread_id)
+            workflow = MultiAgentWorkflow(
+                repo_path=repo_path,
+                thread_id=thread_id,
+                agents=mock_deps["agents"],
+                codebase_analyzer=mock_deps["codebase_analyzer"],
+                checkpoint_path="api_state.db",
+            )
 
             # Get the step method
             step_method = getattr(workflow, request.step_name, None)
@@ -355,14 +273,16 @@ def create_api_app():
                 )
 
             # Load current state from checkpoint
-            config = {"configurable": {"thread_id": thread_id}}
-            checkpointer = SqliteSaver.from_conn_string("api_state.db")
-            checkpoint = checkpointer.get(config)
+            with SqliteSaver.from_conn_string("api_state.db") as checkpointer:
+                from langchain_core.runnables import RunnableConfig
 
-            if not checkpoint:
-                raise HTTPException(status_code=404, detail="Workflow not found")
+                config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+                checkpoint = checkpointer.get(config)
 
-            current_state = checkpoint.get("channel_values", {})
+                if not checkpoint:
+                    raise HTTPException(status_code=404, detail="Workflow not found")
+
+                current_state = checkpoint.get("channel_values", {})
 
             # Execute the step
             updated_state = await step_method(current_state)
