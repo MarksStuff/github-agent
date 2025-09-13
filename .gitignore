@@ -24,3 +24,6 @@ api_state.db
 agents/
 agent_artifacts/
 agent_checkpoints/
+
+# Multi-repository user-specific configuration
+repositories.json

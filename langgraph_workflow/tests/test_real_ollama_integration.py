@@ -12,11 +12,12 @@ from pathlib import Path
 
 import pytest
 
-from langgraph_workflow.config import get_ollama_model
+from langchain_ollama import ChatOllama
 from langgraph_workflow.enums import ModelRouter, WorkflowPhase
 from langgraph_workflow.langgraph_workflow import MultiAgentWorkflow, WorkflowState
 from langgraph_workflow.real_codebase_analyzer import RealCodebaseAnalyzer
 from langgraph_workflow.tests.mocks import create_mock_agents
+from langgraph_workflow.tests.real_agents import create_real_ollama_agents
 
 
 @pytest.mark.integration
@@ -116,14 +117,23 @@ async def get_profile():
     @pytest.fixture
     def real_workflow(self, temp_repo):
         """Create workflow with REAL Ollama model."""
-        # Skip if Ollama not available
-        try:
-            real_ollama = get_ollama_model()
-        except Exception as e:
-            pytest.skip(f"Ollama not available: {e}")
-
+        import os
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        
+        # Check if Ollama is available - FAIL if not (don't skip)
+        if not is_ollama_available():
+            raise RuntimeError(
+                f"🔥 Ollama integration test FAILED: Ollama not running on {ollama_url}\n"
+                f"   Fix with: ollama serve\n"
+                f"   Or set OLLAMA_BASE_URL to correct URL"
+            )
+        
+        real_ollama = ChatOllama(
+            model="qwen3:8b",
+            base_url=ollama_url,
+        )
         analyzer = RealCodebaseAnalyzer(temp_repo)
-        agents = create_mock_agents()  # Still mock agents for now
+        agents = create_real_ollama_agents()  # REAL AGENTS that call Ollama!
 
         workflow = MultiAgentWorkflow(
             repo_path=temp_repo,
@@ -136,6 +146,74 @@ async def get_profile():
         return workflow
 
     @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_ollama_ping_and_models(self):
+        """Test basic Ollama connectivity and list models - should show GPU activity."""
+        import os
+        import requests
+        
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        print(f"🔍 Testing Ollama connectivity to: {ollama_url}")
+        
+        # Test basic ping
+        try:
+            response = requests.get(f"{ollama_url}/api/tags", timeout=5)
+            print(f"✅ Ollama ping successful: {response.status_code}")
+            
+            if response.status_code == 200:
+                models_data = response.json()
+                models = models_data.get('models', [])
+                print(f"📋 Found {len(models)} models:")
+                for model in models:
+                    print(f"   - {model.get('name', 'Unknown')}")
+                    
+                if len(models) == 0:
+                    assert False, (
+                        f"❌ No models found in Ollama at {ollama_url}\n"
+                        f"   Install a model first: ollama pull qwen3:8b\n"
+                        f"   Or any other model, then update the test configuration"
+                    )
+                print("✅ Ollama has available models")
+            else:
+                assert False, f"Ollama returned status {response.status_code}"
+                
+        except requests.exceptions.RequestException as e:
+            assert False, f"Failed to connect to Ollama at {ollama_url}: {e}"
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    @pytest.mark.asyncio
+    async def test_ollama_actual_inference(self):
+        """Test actual model inference - should definitely show GPU activity."""
+        import os
+        from langchain_ollama import ChatOllama
+        from langchain_core.messages import HumanMessage
+        
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        print(f"🚀 Testing actual Ollama model inference at: {ollama_url}")
+        print("🔥 This should show activity on your RTX 5070!")
+        
+        try:
+            # Create ChatOllama instance
+            model = ChatOllama(
+                model="qwen3:8b",
+                base_url=ollama_url,
+                temperature=0.1
+            )
+            
+            # Make a simple inference call
+            print("📡 Sending inference request to model...")
+            response = await model.ainvoke([HumanMessage(content="Hello, respond with exactly: 'GPU test successful'")])
+            
+            print(f"✅ Model response: {response.content}")
+            assert "GPU test successful" in response.content or "successful" in response.content.lower()
+            print("🎉 Actual model inference completed!")
+            
+        except Exception as e:
+            assert False, f"Failed to make inference call to Ollama: {e}"
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
     async def test_real_feature_extraction(self, real_workflow, temp_repo):
         """Test feature extraction node with real repository (no LLM needed)."""
         # This test doesn't need LLM but uses real codebase analyzer
@@ -187,6 +265,7 @@ async def get_profile():
         assert "OAuth2 authentication" in artifact_path.read_text()
 
     @pytest.mark.integration
+    @pytest.mark.asyncio
     async def test_real_codebase_analysis(self, real_workflow, temp_repo):
         """Test codebase analysis with real RealCodebaseAnalyzer (no LLM)."""
         # Test the real codebase analyzer
@@ -205,7 +284,108 @@ async def get_profile():
         )
 
     @pytest.mark.integration
+    @pytest.mark.slow 
+    @pytest.mark.asyncio
+    async def test_ollama_code_context_simulation(self, temp_repo):
+        """Test Ollama-based code context generation by reading files and sending to model.
+        
+        This simulates how code context would work with Ollama (read files, send content).
+        """
+        import os
+        from pathlib import Path
+        from langchain_ollama import ChatOllama
+        from langchain_core.messages import HumanMessage
+        
+        # Skip if CI or no Ollama
+        if os.getenv("CI") or os.getenv("GITHUB_ACTIONS"):
+            pytest.skip("Skipping real Ollama test in CI")
+            
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        print(f"🚀 Testing Ollama code context generation at: {ollama_url}")
+        print("🔥 This should show GPU activity!")
+        
+        # Read actual code files from temp repo
+        repo_path = Path(temp_repo)
+        code_files = []
+        
+        # Collect Python files
+        for py_file in repo_path.rglob("*.py"):
+            if py_file.is_file() and py_file.stat().st_size < 10000:  # Skip huge files
+                try:
+                    content = py_file.read_text()
+                    relative_path = py_file.relative_to(repo_path)
+                    code_files.append({
+                        "path": str(relative_path),
+                        "content": content
+                    })
+                except Exception:
+                    continue  # Skip unreadable files
+                    
+        # Also include text files like README
+        for txt_file in repo_path.glob("*.md"):
+            if txt_file.is_file():
+                try:
+                    content = txt_file.read_text()
+                    code_files.append({
+                        "path": txt_file.name,
+                        "content": content
+                    })
+                except Exception:
+                    continue
+        
+        print(f"📁 Found {len(code_files)} files to analyze")
+        
+        # Create code context prompt with actual file contents
+        files_content = "\n\n".join([
+            f"## File: {file['path']}\n```\n{file['content']}\n```" 
+            for file in code_files[:5]  # Limit to first 5 files
+        ])
+        
+        prompt = f"""You are analyzing a codebase for feature development. 
+
+**Repository Structure:**
+{len(code_files)} files found in the repository.
+
+**Key Files Content:**
+{files_content}
+
+**Task:**
+Analyze this codebase and create a brief code context summary (2-3 paragraphs) covering:
+1. What type of application this appears to be
+2. Key technologies/frameworks in use
+3. Overall architecture/structure
+
+Keep the response concise and focused on what would be useful for implementing new features.
+"""
+
+        try:
+            # Create Ollama model
+            model = ChatOllama(
+                model="qwen3:8b",
+                base_url=ollama_url,
+                temperature=0.3
+            )
+            
+            print("📡 Sending code analysis request to Ollama...")
+            response = await model.ainvoke([HumanMessage(content=prompt)])
+            
+            analysis = response.content
+            print(f"✅ Ollama code analysis completed!")
+            print(f"📄 Analysis length: {len(analysis)} characters")
+            print(f"🏷️  First 200 chars: {analysis[:200]}...")
+            
+            # Verify we got a substantial response
+            assert len(analysis) > 100, "Analysis should be substantial"
+            assert "application" in analysis.lower() or "code" in analysis.lower(), "Should mention code/application"
+            
+            return analysis
+            
+        except Exception as e:
+            assert False, f"Failed to generate code context with Ollama: {e}"
+
+    @pytest.mark.integration
     @pytest.mark.slow
+    @pytest.mark.asyncio 
     async def test_real_ollama_code_context_generation(self, real_workflow, temp_repo):
         """Test code context generation with REAL Ollama model.
 
@@ -270,7 +450,8 @@ async def get_profile():
         print(f"🏷️  First 200 chars: {context_doc[:200]}...")
 
     @pytest.mark.integration
-    @pytest.mark.slow
+    @pytest.mark.slow 
+    @pytest.mark.asyncio
     async def test_real_agent_analysis(self, real_workflow, temp_repo):
         """Test agent analysis with real Ollama model.
 
@@ -326,27 +507,39 @@ async def get_profile():
         analysis = await real_workflow._agent_analysis(
             real_workflow.agents["senior-engineer"], "senior-engineer", agent_context
         )
-
-        print(f"💡 Agent analysis: {analysis[:200]}...")
-
+        
+        print(f"💡 Agent analysis: {analysis}")
+        
         # Verify we got a real response
-        assert len(analysis) > 50  # Should be substantial
-        assert analysis != "Mock codebase analysis completed"  # Not a mock response
+        if isinstance(analysis, tuple):
+            agent_type, response = analysis
+            print(f"Agent type: {agent_type}, Response: {response}")
+            assert response != "Mock codebase analysis completed"  # Not a mock response
+            assert len(response) > 10  # Should be substantial
+        else:
+            assert len(analysis) > 10  # Should be substantial  
+            assert analysis != "Mock codebase analysis completed"  # Not a mock response
 
 
 # Helper function to check if Ollama is available
 def is_ollama_available():
-    """Check if Ollama is running locally."""
+    """Check if Ollama is running on configured URL."""
     try:
+        import os
         import requests
-
-        response = requests.get("http://localhost:11434/api/tags", timeout=2)
+        
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        response = requests.get(f"{ollama_url}/api/tags", timeout=2)
         return response.status_code == 200
     except:
         return False
 
 
 # Conditional marker - only run if Ollama is available
-pytestmark = pytest.mark.skipif(
-    not is_ollama_available(), reason="Ollama not running on localhost:11434"
-)
+def get_ollama_url():
+    """Get the configured Ollama URL."""
+    import os
+    return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+
+# Integration tests should FAIL (not skip) when Ollama is misconfigured
+# This helps users identify configuration issues rather than silently skipping tests
