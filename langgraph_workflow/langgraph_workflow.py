@@ -471,6 +471,19 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
 """
 
         try:
+            # Log prompt metadata for visibility
+            prompt_length = len(analysis_prompt)
+            logger.info(
+                f"Using evidence-based code analysis prompt ({prompt_length} chars)"
+            )
+            logger.info(f"Repository path: {repo_path}")
+
+            # Log the full prompt for debugging
+            logger.debug("Code context analysis prompt:")
+            logger.debug("=" * 80)
+            logger.debug(analysis_prompt)
+            logger.debug("=" * 80)
+
             # Try Claude CLI first, then fall back to API
             import os
             import subprocess
@@ -500,6 +513,12 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
 
                     if claude_result.returncode == 0:
                         context_doc = claude_result.stdout.strip()
+                        logger.info(
+                            "Successfully generated code context using Claude CLI"
+                        )
+                        logger.debug(
+                            f"Generated context length: {len(context_doc)} chars"
+                        )
                         return context_doc  # Success with CLI
                     else:
                         raise Exception(f"Claude CLI failed: {claude_result.stderr}")
@@ -525,6 +544,8 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                     [HumanMessage(content=analysis_prompt)]
                 )
                 context_doc = str(response.content).strip() if response.content else ""
+                logger.info("Successfully generated code context using Anthropic API")
+                logger.debug(f"Generated context length: {len(context_doc)} chars")
 
             return context_doc
 
