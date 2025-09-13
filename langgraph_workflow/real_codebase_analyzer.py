@@ -15,9 +15,14 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         Args:
             repo_path: Path to the repository to analyze
         """
-        self.repo_path = Path(repo_path)
-        if not self.repo_path.exists():
+        self._repo_path = Path(repo_path)
+        if not self._repo_path.exists():
             raise ValueError(f"Repository path does not exist: {repo_path}")
+
+    @property
+    def repo_path(self) -> Path:
+        """Get the repository path being analyzed."""
+        return self._repo_path
 
     def analyze(self) -> dict[str, Any]:
         """Analyze the codebase and return structured information.
@@ -126,7 +131,7 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
 
         for language, patterns in language_patterns.items():
             for pattern in patterns:
-                if list(self.repo_path.rglob(pattern)):
+                if list(self._repo_path.rglob(pattern)):
                     languages.append(language)
                     break
 
@@ -137,11 +142,11 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         frameworks = []
 
         # Check for common framework indicators
-        if (self.repo_path / "package.json").exists():
+        if (self._repo_path / "package.json").exists():
             try:
                 import json
 
-                with open(self.repo_path / "package.json") as f:
+                with open(self._repo_path / "package.json") as f:
                     package_data = json.load(f)
                     deps = {
                         **package_data.get("dependencies", {}),
@@ -161,9 +166,9 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
             except Exception:
                 pass
 
-        if (self.repo_path / "requirements.txt").exists():
+        if (self._repo_path / "requirements.txt").exists():
             try:
-                with open(self.repo_path / "requirements.txt") as f:
+                with open(self._repo_path / "requirements.txt") as f:
                     requirements = f.read().lower()
 
                     if "fastapi" in requirements:
@@ -198,8 +203,8 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
 
         # Check requirements.txt
         try:
-            if (self.repo_path / "requirements.txt").exists():
-                with open(self.repo_path / "requirements.txt") as f:
+            if (self._repo_path / "requirements.txt").exists():
+                with open(self._repo_path / "requirements.txt") as f:
                     requirements = f.read().lower()
 
                     for db, indicators in db_indicators.items():
@@ -209,7 +214,9 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
             pass
 
         # Check for database files
-        if list(self.repo_path.rglob("*.db")) or list(self.repo_path.rglob("*.sqlite")):
+        if list(self._repo_path.rglob("*.db")) or list(
+            self._repo_path.rglob("*.sqlite")
+        ):
             if "SQLite" not in databases:
                 databases.append("SQLite")
 
@@ -240,14 +247,14 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         ]
 
         for filename in important_files:
-            file_path = self.repo_path / filename
+            file_path = self._repo_path / filename
             if file_path.exists():
                 key_files.append(f"{filename} - {self._get_file_description(filename)}")
 
         # Add some directory-based files
         common_dirs = ["src", "lib", "app", "api", "models", "services", "components"]
         for dir_name in common_dirs:
-            dir_path = self.repo_path / dir_name
+            dir_path = self._repo_path / dir_name
             if dir_path.exists() and dir_path.is_dir():
                 key_files.append(f"{dir_name}/ - {self._get_dir_description(dir_name)}")
 
@@ -290,10 +297,10 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         # This is a simplified analysis
         # In a full implementation, this would analyze imports, dependencies, etc.
 
-        has_api = bool(list(self.repo_path.rglob("*api*")))
-        has_models = bool(list(self.repo_path.rglob("*model*")))
-        has_services = bool(list(self.repo_path.rglob("*service*")))
-        has_tests = bool(list(self.repo_path.rglob("test*")))
+        has_api = bool(list(self._repo_path.rglob("*api*")))
+        has_models = bool(list(self._repo_path.rglob("*model*")))
+        has_services = bool(list(self._repo_path.rglob("*service*")))
+        has_tests = bool(list(self._repo_path.rglob("test*")))
 
         if has_api and has_models and has_services:
             return "Layered architecture with API, service, and data layers"
@@ -309,7 +316,7 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         patterns = set()  # Use set to avoid duplicates
 
         # Look for common pattern indicators
-        py_files = list(self.repo_path.rglob("*.py"))
+        py_files = list(self._repo_path.rglob("*.py"))
 
         for file_path in py_files[:20]:  # Limit search
             try:
@@ -341,20 +348,20 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         conventions = []
 
         # Check for common convention files
-        if (self.repo_path / ".flake8").exists() or (
-            self.repo_path / "setup.cfg"
+        if (self._repo_path / ".flake8").exists() or (
+            self._repo_path / "setup.cfg"
         ).exists():
             conventions.append("PEP 8 (Python)")
 
-        if (self.repo_path / ".eslintrc").exists() or (
-            self.repo_path / ".eslintrc.json"
+        if (self._repo_path / ".eslintrc").exists() or (
+            self._repo_path / ".eslintrc.json"
         ).exists():
             conventions.append("ESLint (JavaScript/TypeScript)")
 
-        if (self.repo_path / ".editorconfig").exists():
+        if (self._repo_path / ".editorconfig").exists():
             conventions.append("EditorConfig")
 
-        if (self.repo_path / ".pre-commit-config.yaml").exists():
+        if (self._repo_path / ".pre-commit-config.yaml").exists():
             conventions.append("Pre-commit hooks")
 
         return ", ".join(conventions) if conventions else "Standard conventions"
@@ -364,14 +371,14 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         interfaces = []
 
         # Look for Python abstract base classes
-        py_files = list(self.repo_path.rglob("*interface*.py"))
-        py_files.extend(list(self.repo_path.rglob("*abc*.py")))
+        py_files = list(self._repo_path.rglob("*interface*.py"))
+        py_files.extend(list(self._repo_path.rglob("*abc*.py")))
 
         if py_files:
             interfaces.append("Python abstract interfaces")
 
         # Look for TypeScript interfaces
-        ts_files = list(self.repo_path.rglob("*.ts"))
+        ts_files = list(self._repo_path.rglob("*.ts"))
         for file_path in ts_files[:10]:
             try:
                 content = file_path.read_text()
@@ -387,13 +394,13 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         """Find service definitions."""
         services = []
 
-        if list(self.repo_path.rglob("*service*.py")):
+        if list(self._repo_path.rglob("*service*.py")):
             services.append("Python services")
 
-        if list(self.repo_path.rglob("*api*.py")):
+        if list(self._repo_path.rglob("*api*.py")):
             services.append("API endpoints")
 
-        if (self.repo_path / "docker-compose.yml").exists():
+        if (self._repo_path / "docker-compose.yml").exists():
             services.append("Containerized services")
 
         return ", ".join(services) if services else "Monolithic structure"
@@ -402,17 +409,17 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         """Analyze testing approach."""
         testing = []
 
-        if list(self.repo_path.rglob("test_*.py")) or list(
-            self.repo_path.rglob("*_test.py")
+        if list(self._repo_path.rglob("test_*.py")) or list(
+            self._repo_path.rglob("*_test.py")
         ):
             testing.append("pytest")
 
-        if list(self.repo_path.rglob("*.test.js")) or list(
-            self.repo_path.rglob("*.spec.js")
+        if list(self._repo_path.rglob("*.test.js")) or list(
+            self._repo_path.rglob("*.spec.js")
         ):
             testing.append("JavaScript tests")
 
-        if (self.repo_path / "pytest.ini").exists():
+        if (self._repo_path / "pytest.ini").exists():
             testing.append("pytest configuration")
 
         return ", ".join(testing) if testing else "Testing setup to be determined"
@@ -422,7 +429,7 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         # This is a simplified implementation
         # In a full version, this would analyze git history
 
-        if (self.repo_path / ".git").exists():
+        if (self._repo_path / ".git").exists():
             return "Git repository - recent changes can be analyzed from commit history"
         else:
             return "No version control detected"
@@ -433,8 +440,8 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         patterns = ["*auth*", "*login*", "*user*", "*session*", "*jwt*"]
 
         for pattern in patterns:
-            files = list(self.repo_path.rglob(pattern))
-            auth_files.extend([str(f.relative_to(self.repo_path)) for f in files[:3]])
+            files = list(self._repo_path.rglob(pattern))
+            auth_files.extend([str(f.relative_to(self._repo_path)) for f in files[:3]])
 
         return auth_files[:10]
 
@@ -444,8 +451,8 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         patterns = ["*api*", "*endpoint*", "*router*", "*handler*"]
 
         for pattern in patterns:
-            files = list(self.repo_path.rglob(pattern))
-            api_files.extend([str(f.relative_to(self.repo_path)) for f in files[:3]])
+            files = list(self._repo_path.rglob(pattern))
+            api_files.extend([str(f.relative_to(self._repo_path)) for f in files[:3]])
 
         return api_files[:10]
 
@@ -455,7 +462,7 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         patterns = ["*model*", "*migration*", "*schema*", "*.sql", "*database*"]
 
         for pattern in patterns:
-            files = list(self.repo_path.rglob(pattern))
-            db_files.extend([str(f.relative_to(self.repo_path)) for f in files[:3]])
+            files = list(self._repo_path.rglob(pattern))
+            db_files.extend([str(f.relative_to(self._repo_path)) for f in files[:3]])
 
         return db_files[:10]

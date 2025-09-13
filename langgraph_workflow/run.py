@@ -834,9 +834,11 @@ Examples:
         if not args.repo_path:
             print("Error: --repo-path is required when using --step")
             sys.exit(1)
+            return  # Ensure we don't continue even if sys.exit is mocked
         if not args.feature and not args.feature_file:
             print("Error: --feature or --feature-file is required when using --step")
             sys.exit(1)
+            return  # Ensure we don't continue even if sys.exit is mocked
 
         # Handle feature extraction if needed
         feature_description = args.feature or ""
@@ -845,6 +847,7 @@ Examples:
             if not feature_path.exists():
                 print(f"Error: Feature file not found: {args.feature_file}")
                 sys.exit(1)
+                return  # Ensure we don't continue even if sys.exit is mocked
 
             prd_content = feature_path.read_text()
             if args.feature_name:
@@ -854,6 +857,7 @@ Examples:
                 if not extracted_feature:
                     print(f"Error: Feature '{args.feature_name}' not found in PRD")
                     sys.exit(1)
+                    return  # Ensure we don't continue even if sys.exit is mocked
                 feature_description = extracted_feature
             else:
                 feature_description = prd_content
