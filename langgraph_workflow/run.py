@@ -497,7 +497,7 @@ async def execute_single_step(
     Returns:
         Updated state after step execution
     """
-    from .enums import ModelRouter, WorkflowPhase
+    from .enums import ModelRouter, WorkflowPhase, WorkflowStep
     from .real_codebase_analyzer import RealCodebaseAnalyzer
     from .tests.mocks import create_mock_agents
 
@@ -559,22 +559,23 @@ async def execute_single_step(
     else:
         initial_state = input_state.copy()
 
-    # Get the step method
+    # Get the step method - map step names to workflow methods
     step_methods = {
-        "extract_code_context": workflow.extract_code_context,
-        "parallel_design_exploration": workflow.parallel_design_exploration,
-        "architect_synthesis": workflow.architect_synthesis,
-        "code_investigation": workflow.code_investigation,
-        "human_review": workflow.human_review,
-        "create_design_document": workflow.create_design_document,
-        "iterate_design_document": workflow.iterate_design_document,
-        "finalize_design_document": workflow.finalize_design_document,
-        "create_skeleton": workflow.create_skeleton,
-        "parallel_development": workflow.parallel_development,
-        "reconciliation": workflow.reconciliation,
-        "component_tests": workflow.component_tests,
-        "integration_tests": workflow.integration_tests,
-        "refinement": workflow.refinement,
+        WorkflowStep.EXTRACT_FEATURE.value: workflow.extract_feature,
+        WorkflowStep.EXTRACT_CODE_CONTEXT.value: workflow.extract_code_context,
+        WorkflowStep.PARALLEL_DESIGN_EXPLORATION.value: workflow.parallel_design_exploration,
+        WorkflowStep.ARCHITECT_SYNTHESIS.value: workflow.architect_synthesis,
+        WorkflowStep.CODE_INVESTIGATION.value: workflow.code_investigation,
+        WorkflowStep.HUMAN_REVIEW.value: workflow.human_review,
+        WorkflowStep.CREATE_DESIGN_DOCUMENT.value: workflow.create_design_document,
+        WorkflowStep.ITERATE_DESIGN_DOCUMENT.value: workflow.iterate_design_document,
+        WorkflowStep.FINALIZE_DESIGN_DOCUMENT.value: workflow.finalize_design_document,
+        WorkflowStep.CREATE_SKELETON.value: workflow.create_skeleton,
+        WorkflowStep.PARALLEL_DEVELOPMENT.value: workflow.parallel_development,
+        WorkflowStep.RECONCILIATION.value: workflow.reconciliation,
+        WorkflowStep.COMPONENT_TESTS.value: workflow.component_tests,
+        WorkflowStep.INTEGRATION_TESTS.value: workflow.integration_tests,
+        WorkflowStep.REFINEMENT.value: workflow.refinement,
     }
 
     if step_name not in step_methods:
@@ -603,21 +604,25 @@ async def execute_single_step(
 
 async def list_available_steps() -> list[str]:
     """List all available workflow steps."""
+    from .enums import WorkflowStep
+    
+    # Return steps in execution order (excluding deployment steps)
     steps = [
-        "extract_code_context",
-        "parallel_design_exploration",
-        "architect_synthesis",
-        "code_investigation",
-        "human_review",
-        "create_design_document",
-        "iterate_design_document",
-        "finalize_design_document",
-        "create_skeleton",
-        "parallel_development",
-        "reconciliation",
-        "component_tests",
-        "integration_tests",
-        "refinement",
+        WorkflowStep.EXTRACT_FEATURE.value,
+        WorkflowStep.EXTRACT_CODE_CONTEXT.value,
+        WorkflowStep.PARALLEL_DESIGN_EXPLORATION.value,
+        WorkflowStep.ARCHITECT_SYNTHESIS.value,
+        WorkflowStep.CODE_INVESTIGATION.value,
+        WorkflowStep.HUMAN_REVIEW.value,
+        WorkflowStep.CREATE_DESIGN_DOCUMENT.value,
+        WorkflowStep.ITERATE_DESIGN_DOCUMENT.value,
+        WorkflowStep.FINALIZE_DESIGN_DOCUMENT.value,
+        WorkflowStep.CREATE_SKELETON.value,
+        WorkflowStep.PARALLEL_DEVELOPMENT.value,
+        WorkflowStep.RECONCILIATION.value,
+        WorkflowStep.COMPONENT_TESTS.value,
+        WorkflowStep.INTEGRATION_TESTS.value,
+        WorkflowStep.REFINEMENT.value,
     ]
     return steps
 

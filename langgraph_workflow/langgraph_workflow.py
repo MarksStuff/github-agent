@@ -19,7 +19,7 @@ from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
 # Import enums from separate module to avoid circular imports
-from .enums import AgentType, ModelRouter, WorkflowPhase
+from .enums import AgentType, ModelRouter, WorkflowPhase, WorkflowStep
 
 # Import agent personas and interfaces
 from .interfaces import CodebaseAnalyzerInterface
@@ -180,78 +180,78 @@ class MultiAgentWorkflow:
         workflow = StateGraph(WorkflowState)
 
         # Phase 0: Feature and Code Context Extraction
-        workflow.add_node("extract_feature", self.extract_feature)
-        workflow.add_node("extract_code_context", self.extract_code_context)
+        workflow.add_node(WorkflowStep.EXTRACT_FEATURE.value, self.extract_feature)
+        workflow.add_node(WorkflowStep.EXTRACT_CODE_CONTEXT.value, self.extract_code_context)
 
         # Phase 1: Design Exploration
         workflow.add_node(
-            "parallel_design_exploration", self.parallel_design_exploration
+            WorkflowStep.PARALLEL_DESIGN_EXPLORATION.value, self.parallel_design_exploration
         )
-        workflow.add_node("architect_synthesis", self.architect_synthesis)
-        workflow.add_node("code_investigation", self.code_investigation)
-        workflow.add_node("human_review", self.human_review)
+        workflow.add_node(WorkflowStep.ARCHITECT_SYNTHESIS.value, self.architect_synthesis)
+        workflow.add_node(WorkflowStep.CODE_INVESTIGATION.value, self.code_investigation)
+        workflow.add_node(WorkflowStep.HUMAN_REVIEW.value, self.human_review)
 
         # Phase 2: Design Document
-        workflow.add_node("create_design_document", self.create_design_document)
-        workflow.add_node("iterate_design_document", self.iterate_design_document)
-        workflow.add_node("finalize_design_document", self.finalize_design_document)
+        workflow.add_node(WorkflowStep.CREATE_DESIGN_DOCUMENT.value, self.create_design_document)
+        workflow.add_node(WorkflowStep.ITERATE_DESIGN_DOCUMENT.value, self.iterate_design_document)
+        workflow.add_node(WorkflowStep.FINALIZE_DESIGN_DOCUMENT.value, self.finalize_design_document)
 
         # Phase 3: Implementation
-        workflow.add_node("create_skeleton", self.create_skeleton)
-        workflow.add_node("parallel_development", self.parallel_development)
-        workflow.add_node("reconciliation", self.reconciliation)
-        workflow.add_node("component_tests", self.component_tests)
-        workflow.add_node("integration_tests", self.integration_tests)
-        workflow.add_node("refinement", self.refinement)
+        workflow.add_node(WorkflowStep.CREATE_SKELETON.value, self.create_skeleton)
+        workflow.add_node(WorkflowStep.PARALLEL_DEVELOPMENT.value, self.parallel_development)
+        workflow.add_node(WorkflowStep.RECONCILIATION.value, self.reconciliation)
+        workflow.add_node(WorkflowStep.COMPONENT_TESTS.value, self.component_tests)
+        workflow.add_node(WorkflowStep.INTEGRATION_TESTS.value, self.integration_tests)
+        workflow.add_node(WorkflowStep.REFINEMENT.value, self.refinement)
 
         # Helper nodes
         workflow.add_node("update_summary", self.update_summary)
-        workflow.add_node("push_to_github", self.push_to_github)
-        workflow.add_node("wait_for_ci", self.wait_for_ci)
-        workflow.add_node("apply_patches", self.apply_patches)
+        workflow.add_node(WorkflowStep.PUSH_TO_GITHUB.value, self.push_to_github)
+        workflow.add_node(WorkflowStep.WAIT_FOR_CI.value, self.wait_for_ci)
+        workflow.add_node(WorkflowStep.APPLY_PATCHES.value, self.apply_patches)
 
         # Set entry point
-        workflow.set_entry_point("extract_feature")
+        workflow.set_entry_point(WorkflowStep.EXTRACT_FEATURE.value)
 
         # Add edges for Phase 0
-        workflow.add_edge("extract_feature", "extract_code_context")
-        workflow.add_edge("extract_code_context", "parallel_design_exploration")
+        workflow.add_edge(WorkflowStep.EXTRACT_FEATURE.value, WorkflowStep.EXTRACT_CODE_CONTEXT.value)
+        workflow.add_edge(WorkflowStep.EXTRACT_CODE_CONTEXT.value, WorkflowStep.PARALLEL_DESIGN_EXPLORATION.value)
 
         # Phase 1 flow
-        workflow.add_edge("parallel_design_exploration", "architect_synthesis")
+        workflow.add_edge(WorkflowStep.PARALLEL_DESIGN_EXPLORATION.value, WorkflowStep.ARCHITECT_SYNTHESIS.value)
         workflow.add_conditional_edges(
-            "architect_synthesis",
+            WorkflowStep.ARCHITECT_SYNTHESIS.value,
             self.needs_code_investigation,
-            {True: "code_investigation", False: "human_review"},
+            {True: WorkflowStep.CODE_INVESTIGATION.value, False: WorkflowStep.HUMAN_REVIEW.value},
         )
-        workflow.add_edge("code_investigation", "human_review")
-        workflow.add_edge("human_review", "create_design_document")
+        workflow.add_edge(WorkflowStep.CODE_INVESTIGATION.value, WorkflowStep.HUMAN_REVIEW.value)
+        workflow.add_edge(WorkflowStep.HUMAN_REVIEW.value, WorkflowStep.CREATE_DESIGN_DOCUMENT.value)
 
         # Phase 2 flow
-        workflow.add_edge("create_design_document", "iterate_design_document")
+        workflow.add_edge(WorkflowStep.CREATE_DESIGN_DOCUMENT.value, WorkflowStep.ITERATE_DESIGN_DOCUMENT.value)
         workflow.add_conditional_edges(
-            "iterate_design_document",
+            WorkflowStep.ITERATE_DESIGN_DOCUMENT.value,
             self.design_document_complete,
-            {True: "finalize_design_document", False: "iterate_design_document"},
+            {True: WorkflowStep.FINALIZE_DESIGN_DOCUMENT.value, False: WorkflowStep.ITERATE_DESIGN_DOCUMENT.value},
         )
-        workflow.add_edge("finalize_design_document", "create_skeleton")
+        workflow.add_edge(WorkflowStep.FINALIZE_DESIGN_DOCUMENT.value, WorkflowStep.CREATE_SKELETON.value)
 
         # Phase 3 flow
-        workflow.add_edge("create_skeleton", "parallel_development")
-        workflow.add_edge("parallel_development", "reconciliation")
+        workflow.add_edge(WorkflowStep.CREATE_SKELETON.value, WorkflowStep.PARALLEL_DEVELOPMENT.value)
+        workflow.add_edge(WorkflowStep.PARALLEL_DEVELOPMENT.value, WorkflowStep.RECONCILIATION.value)
         workflow.add_conditional_edges(
-            "reconciliation",
+            WorkflowStep.RECONCILIATION.value,
             self.needs_human_arbitration,
-            {True: "human_review", False: "component_tests"},
+            {True: WorkflowStep.HUMAN_REVIEW.value, False: WorkflowStep.COMPONENT_TESTS.value},
         )
-        workflow.add_edge("component_tests", "integration_tests")
-        workflow.add_edge("integration_tests", "refinement")
-        workflow.add_edge("refinement", "push_to_github")
-        workflow.add_edge("push_to_github", "wait_for_ci")
+        workflow.add_edge(WorkflowStep.COMPONENT_TESTS.value, WorkflowStep.INTEGRATION_TESTS.value)
+        workflow.add_edge(WorkflowStep.INTEGRATION_TESTS.value, WorkflowStep.REFINEMENT.value)
+        workflow.add_edge(WorkflowStep.REFINEMENT.value, WorkflowStep.PUSH_TO_GITHUB.value)
+        workflow.add_edge(WorkflowStep.PUSH_TO_GITHUB.value, WorkflowStep.WAIT_FOR_CI.value)
         workflow.add_conditional_edges(
-            "wait_for_ci", self.ci_passed, {True: END, False: "apply_patches"}
+            WorkflowStep.WAIT_FOR_CI.value, self.ci_passed, {True: END, False: WorkflowStep.APPLY_PATCHES.value}
         )
-        workflow.add_edge("apply_patches", "push_to_github")
+        workflow.add_edge(WorkflowStep.APPLY_PATCHES.value, WorkflowStep.PUSH_TO_GITHUB.value)
 
         return workflow
 
