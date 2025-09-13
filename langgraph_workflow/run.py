@@ -50,7 +50,6 @@ async def extract_feature_from_prd(prd_content: str, feature_name: str) -> str |
     """
     import os
     import subprocess
-    import tempfile
 
     # Try Claude CLI first, then fall back to API key
     try:
@@ -82,26 +81,26 @@ Feature Extract:"""
 
     try:
         if use_claude_cli:
-            # Use Claude CLI
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".txt", delete=False
-            ) as f:
-                f.write(extraction_prompt)
-                temp_file = f.name
-
+            # Use Claude CLI with stdin to avoid file permission issues
             try:
                 claude_result = subprocess.run(
-                    ["claude", temp_file], capture_output=True, text=True, timeout=30
+                    ["claude"],
+                    input=extraction_prompt,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
                 )
 
                 if claude_result.returncode == 0:
                     extracted_content = claude_result.stdout.strip()
                 else:
                     raise Exception(f"Claude CLI failed: {claude_result.stderr}")
+            except Exception as e:
+                # If CLI fails, fall back to API
+                logger.warning(f"Claude CLI failed, falling back to API: {e}")
+                use_claude_cli = False
 
-            finally:
-                os.unlink(temp_file)
-        else:
+        if not use_claude_cli:
             # Fall back to API key
             from langchain_anthropic import ChatAnthropic
             from langchain_core.messages import HumanMessage
@@ -835,9 +834,11 @@ Examples:
         if not args.repo_path:
             print("Error: --repo-path is required when using --step")
             sys.exit(1)
+            return  # Ensure we don't continue even if sys.exit is mocked
         if not args.feature and not args.feature_file:
             print("Error: --feature or --feature-file is required when using --step")
             sys.exit(1)
+            return  # Ensure we don't continue even if sys.exit is mocked
 
         # Handle feature extraction if needed
         feature_description = args.feature or ""
@@ -846,6 +847,7 @@ Examples:
             if not feature_path.exists():
                 print(f"Error: Feature file not found: {args.feature_file}")
                 sys.exit(1)
+                return  # Ensure we don't continue even if sys.exit is mocked
 
             prd_content = feature_path.read_text()
             if args.feature_name:
@@ -855,6 +857,7 @@ Examples:
                 if not extracted_feature:
                     print(f"Error: Feature '{args.feature_name}' not found in PRD")
                     sys.exit(1)
+                    return  # Ensure we don't continue even if sys.exit is mocked
                 feature_description = extracted_feature
             else:
                 feature_description = prd_content

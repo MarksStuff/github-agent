@@ -107,6 +107,12 @@ class BaseAgentInterface(ABC):
 class CodebaseAnalyzerInterface(ABC):
     """Abstract interface for codebase analysis."""
 
+    @property
+    @abstractmethod
+    def repo_path(self) -> Path:
+        """Get the repository path being analyzed."""
+        pass
+
     @abstractmethod
     def analyze(self) -> dict[str, Any]:
         """Analyze the codebase."""
