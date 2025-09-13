@@ -16,6 +16,10 @@ from langgraph_workflow import (
     WorkflowState,
 )
 from langgraph_workflow.config import get_checkpoint_path
+from langgraph_workflow.startup_validation import (
+    check_mock_mode,
+    run_startup_validation,
+)
 
 # Set up logging
 logging.basicConfig(
@@ -648,6 +652,22 @@ async def interactive_step_mode():
 
 def main():
     """Main entry point."""
+    # Run startup validation unless in mock mode or just listing steps
+    if "--list-steps" not in sys.argv and not check_mock_mode():
+        print("🔍 Validating startup requirements...")
+        validation_results = run_startup_validation(verbose=False)
+
+        if not validation_results["overall_valid"]:
+            print("❌ Startup validation failed!")
+            print("\n💡 To run anyway with mock dependencies:")
+            print("   export USE_MOCK_DEPENDENCIES=true")
+            print("\n🔧 Or fix the issues and try again:")
+            for rec in validation_results["recommendations"]:
+                print(f"   - {rec}")
+            sys.exit(1)
+        else:
+            print("✅ Startup validation passed!")
+
     parser = argparse.ArgumentParser(
         description="Run the LangGraph multi-agent workflow",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -727,12 +747,23 @@ Examples:
     parser.add_argument(
         "--stop-after", help="Stop execution after this step (use step name or number)"
     )
+    parser.add_argument(
+        "--validate", action="store_true", help="Run startup validation and exit"
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     args = parser.parse_args()
 
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
+
+    if args.validate:
+        if check_mock_mode():
+            print("🧪 Mock mode enabled - all services will be mocked")
+        else:
+            results = run_startup_validation(verbose=True)
+            sys.exit(0 if results["overall_valid"] else 1)
+        return
 
     if args.list_steps:
         steps = asyncio.run(list_available_steps())
