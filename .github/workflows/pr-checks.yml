@@ -387,7 +387,7 @@ jobs:
                 --cov-report=html:coverage_reports/html \
                 --junit-xml=coverage_reports/pytest-results.xml \
                 --verbose \
-                tests/ 2>&1 | tee build_output/python_test_output.txt
+                2>&1 | tee build_output/python_test_output.txt
               
 
 
