@@ -236,7 +236,10 @@ Detailed requirements for authentication..."""
 
         # Mock filesystem error
         from unittest.mock import patch
-        with patch("pathlib.Path.mkdir", side_effect=PermissionError("Permission denied")):
+
+        with patch(
+            "pathlib.Path.mkdir", side_effect=PermissionError("Permission denied")
+        ):
             # Should raise the underlying error
             with pytest.raises(PermissionError):
                 await workflow.extract_feature(state)
@@ -282,7 +285,7 @@ Detailed requirements for authentication..."""
         updated_state = await workflow.extract_feature(state)
         assert updated_state["feature_description"] == ""
         assert "feature_description" in updated_state["artifacts_index"]
-        
+
         # Check artifact was created (even if empty)
         artifact_path = Path(updated_state["artifacts_index"]["feature_description"])
         assert artifact_path.exists()
@@ -332,7 +335,7 @@ Detailed requirements for authentication..."""
     async def test_extract_feature_state_transitions(self, workflow, temp_repo):
         """Test that feature extraction properly manages workflow state."""
         initial_artifacts = {"existing": "/some/path"}
-        
+
         state = WorkflowState(
             thread_id="test-thread",
             feature_description="Test feature",
@@ -372,7 +375,7 @@ Detailed requirements for authentication..."""
         assert "existing" in updated_state["artifacts_index"]
         assert updated_state["artifacts_index"]["existing"] == "/some/path"
         assert "feature_description" in updated_state["artifacts_index"]
-        
+
         # Should preserve all other state fields
         assert updated_state["thread_id"] == "test-thread"
         assert updated_state["current_phase"] == WorkflowPhase.PHASE_0_CODE_CONTEXT
@@ -456,7 +459,7 @@ This feature requires updates to:
 
         state = WorkflowState(
             thread_id="test-complex-content",
-            feature_description="", # Will be overwritten
+            feature_description="",  # Will be overwritten
             raw_feature_input=complex_feature,
             extracted_feature=None,  # Should use the full raw input
             current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
@@ -492,21 +495,25 @@ This feature requires updates to:
 
         # Verify complex content was stored correctly
         assert updated_state["feature_description"] == complex_feature
-        
+
         # Check artifact file contains the full complex content
         artifact_path = Path(updated_state["artifacts_index"]["feature_description"])
         assert artifact_path.exists()
         stored_content = artifact_path.read_text()
-        
+
         # Verify content integrity
         assert stored_content == complex_feature
         assert "JWT-based authentication" in stored_content
         assert "Role-based access control" in stored_content
         assert "Multi-factor authentication" in stored_content
         assert "Database schema" in stored_content
-        
+
         # Verify line structure is preserved
-        lines = stored_content.split('\n')
+        lines = stored_content.split("\n")
         assert lines[0] == "## User Authentication & Authorization System"
-        assert len([line for line in lines if line.strip().startswith('-')]) >= 8  # Multiple bullet points
-        assert len([line for line in lines if line.strip().startswith('#')]) >= 3  # Multiple headers
+        assert (
+            len([line for line in lines if line.strip().startswith("-")]) >= 8
+        )  # Multiple bullet points
+        assert (
+            len([line for line in lines if line.strip().startswith("#")]) >= 3
+        )  # Multiple headers
