@@ -307,41 +307,42 @@ Create a detailed Code Context Document based on this repository analysis and th
 {feature_description}
 
 ## CRITICAL ANALYSIS INSTRUCTIONS:
-You must analyze the raw data intelligently and understand what this codebase actually does:
+You must analyze the raw data intelligently to understand what this codebase actually does and how it's architected:
 
-1. **Primary Languages**: Focus on the MAIN programming languages used for application code (typically Python here). Languages like YAML/JSON are configuration files, not primary development languages.
+1. **Language Analysis**: Distinguish between primary development languages (used for core application logic) and configuration/data languages (YAML, JSON, XML typically used for config, not core development). Focus your technology stack analysis on the languages that drive the application.
 
-2. **Architecture Understanding**: Based on the frameworks (LangGraph, LangChain) and patterns, understand this is likely:
-   - An AI/ML workflow automation system using LangGraph
-   - MCP (Model Context Protocol) server implementation
-   - Uses dependency injection with abstract base classes and real/mock/test implementations
-   - Multi-agent workflow orchestration system
+2. **Framework Interpretation**: Analyze the frameworks listed to understand the system's purpose:
+   - Web frameworks suggest web applications or APIs
+   - AI/ML frameworks indicate data science or AI applications
+   - Game engines suggest gaming applications
+   - Mobile frameworks indicate mobile apps
+   - Look for clues about the domain and purpose
 
-3. **Key Architectural Patterns to Highlight**:
-   - Dependency injection pattern throughout
-   - Abstract base classes with production/mock/test implementations
-   - Multi-agent workflow orchestration
-   - MCP server architecture
-   - Plugin-based extensibility
+3. **Architecture Pattern Recognition**: Based on the detected patterns and project structure, infer the actual architectural approach:
+   - Look for dependency injection, layered architecture, microservices, plugins, etc.
+   - Consider how the patterns work together to form a coherent architecture
+   - Identify if this is a library, application, service, framework, or tool
 
-4. **Avoid Generic Descriptions**: Don't just restate the raw data. Interpret it intelligently and provide specific insights about what this system does and how it's architected.
+4. **System Purpose Analysis**: Combine all evidence (frameworks, patterns, file structure) to understand what problem this system solves and what domain it operates in.
+
+5. **Avoid Generic Descriptions**: Don't just restate the raw data. Synthesize it into meaningful insights about the system's actual purpose, architecture, and design philosophy.
 
 ## Instructions:
 Create a comprehensive, professional Code Context Document that includes:
 
-1. **Executive Summary** - What this system actually does (AI workflow automation, MCP server, etc.)
-2. **Architecture Overview** - Multi-agent architecture, dependency injection, plugin patterns
-3. **Technology Stack** - Focus on PRIMARY languages and frameworks, explain their role
-4. **Design Patterns & Principles** - Dependency injection, abstract interfaces, multi-agent patterns
-5. **Code Organization** - How the workflow, agents, and services are structured
-6. **Integration Points** - MCP protocol, external AI services, workflow orchestration
-7. **Testing Strategy** - Mock/real implementations, dependency injection for testing
-8. **Development Workflow** - How the patterns support development and testing
-9. **Security Considerations** - AI service integrations, credential management
-10. **Performance Characteristics** - Multi-agent workflow performance
-11. **Feature Implementation Context** - How to extend the workflow/agent system
+1. **Executive Summary** - What this system actually does and its primary purpose
+2. **Architecture Overview** - The architectural approach, patterns, and design philosophy
+3. **Technology Stack** - Primary languages and frameworks with their roles and rationale
+4. **Design Patterns & Principles** - Key patterns in use and architectural decisions made
+5. **Code Organization** - How code is structured and the organizational philosophy
+6. **Integration Points** - External interfaces, APIs, protocols, and service integrations
+7. **Testing Strategy** - Testing approach and how the architecture supports testability
+8. **Development Workflow** - How the architecture supports development and maintenance
+9. **Security Considerations** - Security patterns and practices relevant to this system
+10. **Performance Characteristics** - How the architecture affects performance and scalability
+11. **Feature Implementation Context** - How new features should integrate with this architecture
 
-Be intelligent about the analysis. Don't just repeat raw data - interpret it and explain what this system actually does.
+Be intelligent about the analysis. Don't just repeat raw data - interpret it to explain what this system actually does and how it's designed.
 """
 
         try:
