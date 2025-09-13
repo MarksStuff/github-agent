@@ -550,50 +550,41 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
             return context_doc
 
         except Exception as e:
-            logger.error(f"Error generating intelligent code context: {e}")
-            logger.warning("Falling back to basic template")
+            logger.error("CRITICAL: Code context generation failed!")
+            logger.error(f"Error details: {e}")
+            logger.error(f"Error type: {type(e).__name__}")
 
-            # Fallback to improved template
-            return f"""# Code Context Document
+            # Don't fallback - fail clearly with detailed error information
+            error_details = str(e)
+            if "ANTHROPIC_API_KEY" in error_details:
+                error_msg = (
+                    f"Code context generation failed - No API access available!\n\n"
+                    f"ISSUE: {error_details}\n\n"
+                    f"SOLUTIONS:\n"
+                    f"1. Set ANTHROPIC_API_KEY environment variable\n"
+                    f"2. Ensure Claude CLI is working: 'claude --version'\n"
+                    f"3. Check Claude CLI permissions if using file-based prompts\n\n"
+                    f"Cannot proceed without LLM access for code analysis."
+                )
+            elif "timeout" in error_details.lower():
+                error_msg = (
+                    f"Code context generation failed - LLM call timed out!\n\n"
+                    f"ISSUE: {error_details}\n\n"
+                    f"POSSIBLE CAUSES:\n"
+                    f"1. Large repository taking too long to analyze\n"
+                    f"2. Network connectivity issues\n"
+                    f"3. LLM service overloaded\n\n"
+                    f"Try again or check your connection."
+                )
+            else:
+                error_msg = (
+                    f"Code context generation failed with unexpected error!\n\n"
+                    f"ERROR: {error_details}\n"
+                    f"TYPE: {type(e).__name__}\n\n"
+                    f"Please check logs for more details and ensure LLM access is configured."
+                )
 
-## Executive Summary
-This codebase implements a {analysis.get('architecture', 'Python application')} using modern development practices and established architectural patterns.
-
-## Architecture Overview
-**Primary Architecture**: {analysis.get('architecture', 'To be analyzed')}
-
-The codebase follows a structured approach with clear separation of concerns and modular design principles.
-
-## Technology Stack
-- **Languages**: {', '.join(analysis.get('languages', ['Python']))}
-- **Frameworks**: {', '.join(analysis.get('frameworks', ['None detected']))}
-- **Databases**: {', '.join(analysis.get('databases', ['None detected']))}
-
-## Design Patterns & Principles
-**Detected Patterns**: {analysis.get('patterns', 'Standard OOP patterns')}
-
-The codebase demonstrates good software engineering practices with appropriate use of design patterns.
-
-## Code Organization
-**Key Components**:
-{chr(10).join(f'- {file}' for file in analysis.get('key_files', ['Main application files'])[:10])}
-
-## Integration Points
-**Interfaces**: {analysis.get('interfaces', 'Standard Python interfaces')}
-**Services**: {analysis.get('services', 'Modular service architecture')}
-
-## Testing Strategy
-**Testing Approach**: {analysis.get('testing', 'Standard testing practices')}
-
-## Development Workflow
-**Code Conventions**: {analysis.get('conventions', 'Standard Python conventions')}
-
-## Feature Implementation Context
-The upcoming feature "{feature_description[:100]}..." will integrate with this architecture following established patterns and conventions.
-
-## Recent Changes
-{analysis.get('recent_changes', 'Codebase ready for new development')}
-"""
+            raise RuntimeError(error_msg) from e
 
     async def parallel_design_exploration(self, state: WorkflowState) -> WorkflowState:
         """Phase 1 Step 1: All agents analyze in parallel using Ollama."""

@@ -135,35 +135,33 @@ This architecture is well-suited for implementing new features through the estab
                 )
 
     @pytest.mark.asyncio
-    async def test_context_generation_fallback_template(
+    async def test_context_generation_fails_with_clear_error(
         self, temp_workflow, mock_analysis
     ):
-        """Test fallback to template when LLM fails."""
+        """Test that LLM failures raise clear errors instead of falling back."""
 
         # Mock the codebase analyzer
         with patch.object(
             temp_workflow.codebase_analyzer, "analyze", return_value=mock_analysis
         ):
-            # Mock CLI failure to trigger fallback
+            # Mock CLI failure and no API key
             with patch(
                 "subprocess.run", side_effect=FileNotFoundError("CLI not found")
             ):
                 with patch.dict("os.environ", {}, clear=True):  # No API key
-                    result = await temp_workflow._generate_intelligent_code_context(
-                        mock_analysis, "Add user authentication system"
-                    )
+                    # Should raise RuntimeError with clear error message
+                    with pytest.raises(RuntimeError) as exc_info:
+                        await temp_workflow._generate_intelligent_code_context(
+                            mock_analysis, "Add user authentication system"
+                        )
 
-                    # Should still produce a structured document
-                    assert result is not None
-                    assert "# Code Context Document" in result
-                    assert "Executive Summary" in result
-                    assert "Architecture Overview" in result
-                    assert "Technology Stack" in result
-
-                    # Should include analysis data
-                    assert "Python" in result
-                    assert "FastAPI" in result
-                    assert "Layered architecture" in result
+                    # Verify error message is helpful
+                    error_msg = str(exc_info.value)
+                    assert "Code context generation failed" in error_msg
+                    assert "No API access available" in error_msg
+                    assert "ANTHROPIC_API_KEY" in error_msg
+                    assert "SOLUTIONS:" in error_msg
+                    assert "claude --version" in error_msg
 
     @pytest.mark.asyncio
     async def test_context_generation_with_feature_context(
@@ -208,37 +206,3 @@ Key integration considerations:
 
                 # Should provide implementation guidance
                 assert "implementation" in result_lower or "integrate" in result_lower
-
-    @pytest.mark.asyncio
-    async def test_empty_analysis_handling(self, temp_workflow):
-        """Test handling of empty or minimal analysis data."""
-
-        empty_analysis = {
-            "architecture": "",
-            "languages": [],
-            "frameworks": [],
-            "databases": [],
-            "patterns": "",
-            "key_files": [],
-        }
-
-        with patch.object(
-            temp_workflow.codebase_analyzer, "analyze", return_value=empty_analysis
-        ):
-            # Force fallback template
-            with patch("subprocess.run", side_effect=Exception("LLM unavailable")):
-                result = await temp_workflow._generate_intelligent_code_context(
-                    empty_analysis, "Test feature"
-                )
-
-                # Should handle empty data gracefully
-                assert result is not None
-                assert "# Code Context Document" in result
-                assert "Executive Summary" in result
-
-                # Should not crash or have empty sections
-                assert (
-                    "None detected" in result
-                    or "Standard" in result
-                    or "Python application" in result
-                )
