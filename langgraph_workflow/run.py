@@ -15,6 +15,7 @@ from langgraph_workflow import (
     WorkflowPhase,
     WorkflowState,
 )
+from langgraph_workflow.config import get_checkpoint_path
 
 # Set up logging
 logging.basicConfig(
@@ -176,7 +177,7 @@ async def run_workflow(
     repo_path: str,
     feature_description: str,
     thread_id: str | None = None,
-    checkpoint_path: str = "agent_state.db",
+    checkpoint_path: str | None = None,
     resume: bool = False,
     feature_file: str | None = None,
     feature_name: str | None = None,
@@ -229,6 +230,10 @@ async def run_workflow(
     from .tests.mocks import create_mock_dependencies
 
     mock_deps = create_mock_dependencies(thread_id or f"cli-{uuid4().hex[:8]}")
+
+    # Use config-based checkpoint path if not specified
+    if checkpoint_path is None:
+        checkpoint_path = get_checkpoint_path("agent_state")
 
     workflow = workflow_class(
         repo_path=repo_path,
@@ -414,7 +419,7 @@ async def execute_single_step(
     repo_path: str,
     feature_description: str = "",
     thread_id: str | None = None,
-    checkpoint_path: str = "agent_state.db",
+    checkpoint_path: str | None = None,
     input_state: dict | None = None,
 ) -> dict:
     """Execute a single workflow step for testing/debugging.
@@ -441,6 +446,10 @@ async def execute_single_step(
 
     if workflow_class is None:
         workflow_class = MultiAgentWorkflow
+
+    # Use config-based checkpoint path if not specified
+    if checkpoint_path is None:
+        checkpoint_path = get_checkpoint_path("agent_state")
 
     workflow = workflow_class(
         repo_path=repo_path,

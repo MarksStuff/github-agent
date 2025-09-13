@@ -18,6 +18,7 @@ from langgraph_workflow import (
     WorkflowPhase,
     WorkflowState,
 )
+from langgraph_workflow.config import get_checkpoint_path
 from langgraph_workflow.tests.mocks import create_mock_dependencies
 
 # Load environment variables
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 def create_workflow_graph(
     repo_path: str | None = None,
     thread_id: str | None = None,
-    checkpoint_path: str = "studio_state.db",
+    checkpoint_path: str | None = None,
 ):
     """Create a workflow graph for LangGraph Studio.
 
@@ -55,6 +56,10 @@ def create_workflow_graph(
         thread_id = f"studio-{uuid4().hex[:8]}"
 
     logger.info(f"Creating workflow for repo: {repo_path}, thread: {thread_id}")
+
+    # Use config-based checkpoint path if not specified
+    if checkpoint_path is None:
+        checkpoint_path = get_checkpoint_path("studio_state")
 
     # Use mock dependencies for development (production mode disabled until dependencies are implemented)
     mock_deps = create_mock_dependencies(thread_id)
@@ -176,7 +181,7 @@ def create_api_app():
                 thread_id=thread_id,
                 agents=mock_deps["agents"],
                 codebase_analyzer=mock_deps["codebase_analyzer"],
-                checkpoint_path="api_state.db",
+                checkpoint_path=get_checkpoint_path("api_state"),
             )
 
             # Note: In production, this would be queued or run in background
@@ -197,7 +202,9 @@ def create_api_app():
         """Get the status of a workflow."""
         try:
             # Load checkpoint to get current state
-            with SqliteSaver.from_conn_string("api_state.db") as checkpointer:
+            with SqliteSaver.from_conn_string(
+                get_checkpoint_path("api_state")
+            ) as checkpointer:
                 from langchain_core.runnables import RunnableConfig
 
                 config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
@@ -261,7 +268,7 @@ def create_api_app():
                 thread_id=thread_id,
                 agents=mock_deps["agents"],
                 codebase_analyzer=mock_deps["codebase_analyzer"],
-                checkpoint_path="api_state.db",
+                checkpoint_path=get_checkpoint_path("api_state"),
             )
 
             # Get the step method
@@ -273,7 +280,9 @@ def create_api_app():
                 )
 
             # Load current state from checkpoint
-            with SqliteSaver.from_conn_string("api_state.db") as checkpointer:
+            with SqliteSaver.from_conn_string(
+                get_checkpoint_path("api_state")
+            ) as checkpointer:
                 from langchain_core.runnables import RunnableConfig
 
                 config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
