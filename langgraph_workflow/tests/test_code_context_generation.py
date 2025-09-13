@@ -218,8 +218,10 @@ Key integration considerations:
             # Mock Claude CLI to return empty response
             version_mock = Mock(returncode=0, stdout="1.0.113 (Claude Code)")
             empty_response_mock = Mock(returncode=0, stdout="")  # Empty response
-            
-            with patch("subprocess.run", side_effect=[version_mock, empty_response_mock]):
+
+            with patch(
+                "subprocess.run", side_effect=[version_mock, empty_response_mock]
+            ):
                 # Should raise ValueError for empty response
                 with pytest.raises(RuntimeError) as exc_info:
                     await temp_workflow._generate_intelligent_code_context(
@@ -229,8 +231,11 @@ Key integration considerations:
                 # The empty response causes CLI to fail, then API fails due to no key
                 # We should see the API key error, but check logs for empty response
                 error_msg = str(exc_info.value)
-                assert "no api access available" in error_msg.lower() or "empty response" in error_msg.lower()
-                
+                assert (
+                    "no api access available" in error_msg.lower()
+                    or "empty response" in error_msg.lower()
+                )
+
                 # The important thing is that empty responses are detected and logged
                 # (The actual exception depends on whether API fallback is available)
 
@@ -245,9 +250,13 @@ Key integration considerations:
             # Mock Claude CLI to return very short response
             version_mock = Mock(returncode=0, stdout="1.0.113 (Claude Code)")
             short_response_mock = Mock(returncode=0, stdout="Too short")  # 9 chars
-            
-            with patch("subprocess.run", side_effect=[version_mock, short_response_mock]):
-                with patch("langgraph_workflow.langgraph_workflow.logger") as mock_logger:
+
+            with patch(
+                "subprocess.run", side_effect=[version_mock, short_response_mock]
+            ):
+                with patch(
+                    "langgraph_workflow.langgraph_workflow.logger"
+                ) as mock_logger:
                     result = await temp_workflow._generate_intelligent_code_context(
                         mock_analysis, "Add user authentication system"
                     )
@@ -255,7 +264,9 @@ Key integration considerations:
                     # Should return the short response but log warnings
                     assert result == "Too short"
                     mock_logger.warning.assert_called()
-                    
+
                     # Check that warning mentions suspicious length
-                    warning_calls = [call.args[0] for call in mock_logger.warning.call_args_list]
+                    warning_calls = [
+                        call.args[0] for call in mock_logger.warning.call_args_list
+                    ]
                     assert any("suspiciously short" in msg for msg in warning_calls)
