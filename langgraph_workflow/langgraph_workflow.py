@@ -330,7 +330,6 @@ Be specific and detailed rather than generic. Highlight architectural constraint
             # Try Claude CLI first, then fall back to API
             import os
             import subprocess
-            import tempfile
 
             # Check if Claude CLI is available
             try:
@@ -345,16 +344,11 @@ Be specific and detailed rather than generic. Highlight architectural constraint
                 use_claude_cli = False
 
             if use_claude_cli:
-                # Use Claude CLI
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".txt", delete=False
-                ) as f:
-                    f.write(analysis_prompt)
-                    temp_file = f.name
-
+                # Use Claude CLI with stdin to avoid file permission issues
                 try:
                     claude_result = subprocess.run(
-                        ["claude", temp_file],
+                        ["claude"],
+                        input=analysis_prompt,
                         capture_output=True,
                         text=True,
                         timeout=60,  # Longer timeout for comprehensive analysis
@@ -362,13 +356,16 @@ Be specific and detailed rather than generic. Highlight architectural constraint
 
                     if claude_result.returncode == 0:
                         context_doc = claude_result.stdout.strip()
+                        return context_doc  # Success with CLI
                     else:
                         raise Exception(f"Claude CLI failed: {claude_result.stderr}")
 
-                finally:
-                    os.unlink(temp_file)
+                except Exception as e:
+                    # If CLI fails, fall back to API
+                    logger.warning(f"Claude CLI failed, falling back to API: {e}")
+                    use_claude_cli = False
 
-            else:
+            if not use_claude_cli:
                 # Fall back to API key
                 from langchain_anthropic import ChatAnthropic
                 from langchain_core.messages import HumanMessage
