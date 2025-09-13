@@ -199,6 +199,186 @@ Detailed requirements for authentication..."""
         assert artifact_path.read_text() == extracted_feature
 
     @pytest.mark.asyncio
+    async def test_extract_feature_error_handling(self, workflow, temp_repo):
+        """Test feature extraction handles file system errors gracefully."""
+        state = WorkflowState(
+            thread_id="test-thread",
+            feature_description="Add user authentication",
+            raw_feature_input=None,
+            extracted_feature=None,
+            current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
+            messages_window=[],
+            summary_log="",
+            artifacts_index={},
+            code_context_document=None,
+            design_constraints_document=None,
+            design_document=None,
+            arbitration_log=[],
+            repo_path=temp_repo,
+            git_branch="main",
+            last_commit_sha=None,
+            pr_number=None,
+            agent_analyses={},
+            synthesis_document=None,
+            conflicts=[],
+            skeleton_code=None,
+            test_code=None,
+            implementation_code=None,
+            patch_queue=[],
+            test_report={},
+            ci_status={},
+            lint_status={},
+            quality="draft",
+            feedback_gate="open",
+            model_router=ModelRouter.OLLAMA,
+            escalation_count=0,
+        )
+
+        # Mock filesystem error
+        from unittest.mock import patch
+        with patch("pathlib.Path.mkdir", side_effect=PermissionError("Permission denied")):
+            # Should raise the underlying error
+            with pytest.raises(PermissionError):
+                await workflow.extract_feature(state)
+
+    @pytest.mark.asyncio
+    async def test_extract_feature_empty_inputs(self, workflow, temp_repo):
+        """Test feature extraction with empty or None inputs."""
+        # Test with empty feature description
+        state = WorkflowState(
+            thread_id="test-thread",
+            feature_description="",  # Empty
+            raw_feature_input=None,
+            extracted_feature=None,
+            current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
+            messages_window=[],
+            summary_log="",
+            artifacts_index={},
+            code_context_document=None,
+            design_constraints_document=None,
+            design_document=None,
+            arbitration_log=[],
+            repo_path=temp_repo,
+            git_branch="main",
+            last_commit_sha=None,
+            pr_number=None,
+            agent_analyses={},
+            synthesis_document=None,
+            conflicts=[],
+            skeleton_code=None,
+            test_code=None,
+            implementation_code=None,
+            patch_queue=[],
+            test_report={},
+            ci_status={},
+            lint_status={},
+            quality="draft",
+            feedback_gate="open",
+            model_router=ModelRouter.OLLAMA,
+            escalation_count=0,
+        )
+
+        # Should handle empty gracefully
+        updated_state = await workflow.extract_feature(state)
+        assert updated_state["feature_description"] == ""
+        assert "feature_description" in updated_state["artifacts_index"]
+        
+        # Check artifact was created (even if empty)
+        artifact_path = Path(updated_state["artifacts_index"]["feature_description"])
+        assert artifact_path.exists()
+        assert artifact_path.read_text() == ""
+
+    @pytest.mark.asyncio
+    async def test_extract_feature_none_handling(self, workflow, temp_repo):
+        """Test feature extraction with None values."""
+        state = WorkflowState(
+            thread_id="test-thread",
+            feature_description="Valid feature",
+            raw_feature_input=None,
+            extracted_feature=None,  # This should trigger the fallback path
+            current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
+            messages_window=[],
+            summary_log="",
+            artifacts_index={},
+            code_context_document=None,
+            design_constraints_document=None,
+            design_document=None,
+            arbitration_log=[],
+            repo_path=temp_repo,
+            git_branch="main",
+            last_commit_sha=None,
+            pr_number=None,
+            agent_analyses={},
+            synthesis_document=None,
+            conflicts=[],
+            skeleton_code=None,
+            test_code=None,
+            implementation_code=None,
+            patch_queue=[],
+            test_report={},
+            ci_status={},
+            lint_status={},
+            quality="draft",
+            feedback_gate="open",
+            model_router=ModelRouter.OLLAMA,
+            escalation_count=0,
+        )
+
+        # Should fall back to feature_description when others are None
+        updated_state = await workflow.extract_feature(state)
+        assert updated_state["feature_description"] == "Valid feature"
+
+    @pytest.mark.asyncio
+    async def test_extract_feature_state_transitions(self, workflow, temp_repo):
+        """Test that feature extraction properly manages workflow state."""
+        initial_artifacts = {"existing": "/some/path"}
+        
+        state = WorkflowState(
+            thread_id="test-thread",
+            feature_description="Test feature",
+            raw_feature_input=None,
+            extracted_feature=None,
+            current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
+            messages_window=[],
+            summary_log="",
+            artifacts_index=initial_artifacts.copy(),  # Should preserve existing artifacts
+            code_context_document=None,
+            design_constraints_document=None,
+            design_document=None,
+            arbitration_log=[],
+            repo_path=temp_repo,
+            git_branch="main",
+            last_commit_sha=None,
+            pr_number=None,
+            agent_analyses={},
+            synthesis_document=None,
+            conflicts=[],
+            skeleton_code=None,
+            test_code=None,
+            implementation_code=None,
+            patch_queue=[],
+            test_report={},
+            ci_status={},
+            lint_status={},
+            quality="draft",
+            feedback_gate="open",
+            model_router=ModelRouter.OLLAMA,
+            escalation_count=0,
+        )
+
+        updated_state = await workflow.extract_feature(state)
+
+        # Should preserve existing artifacts and add new one
+        assert "existing" in updated_state["artifacts_index"]
+        assert updated_state["artifacts_index"]["existing"] == "/some/path"
+        assert "feature_description" in updated_state["artifacts_index"]
+        
+        # Should preserve all other state fields
+        assert updated_state["thread_id"] == "test-thread"
+        assert updated_state["current_phase"] == WorkflowPhase.PHASE_0_CODE_CONTEXT
+        assert updated_state["repo_path"] == temp_repo
+
+    @pytest.mark.asyncio
     async def test_artifact_directory_creation(self, workflow, temp_repo):
         """Test that artifact directory is created properly."""
         state = WorkflowState(
@@ -242,3 +422,91 @@ Detailed requirements for authentication..."""
         assert "unique-test-thread" in str(artifact_path)
         assert artifact_path.parent.name == "unique-test-thread"
         assert artifact_path.parent.parent.name == "artifacts"
+
+    @pytest.mark.asyncio
+    async def test_extract_feature_with_complex_content(self, workflow, temp_repo):
+        """Test feature extraction with complex multi-line content and validation."""
+        complex_feature = """## User Authentication & Authorization System
+
+### Core Requirements:
+- JWT-based authentication with refresh tokens
+- Role-based access control (RBAC) with granular permissions
+- Multi-factor authentication (MFA) support
+- Session management with configurable timeouts
+
+### Technical Specifications:
+- Integration with OAuth2 providers (Google, GitHub, etc.)
+- Password policy enforcement (complexity, rotation)
+- Audit logging for all authentication events
+- Rate limiting for failed login attempts
+
+### Security Considerations:
+- Secure password storage with bcrypt hashing
+- Protection against brute force attacks
+- CSRF token validation
+- Secure cookie handling with HTTPOnly and SameSite flags
+
+### Implementation Notes:
+This feature requires updates to:
+1. Database schema (users, roles, permissions tables)
+2. API middleware for authentication/authorization
+3. Frontend login/registration components
+4. Admin panel for user management
+"""
+
+        state = WorkflowState(
+            thread_id="test-complex-content",
+            feature_description="", # Will be overwritten
+            raw_feature_input=complex_feature,
+            extracted_feature=None,  # Should use the full raw input
+            current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
+            messages_window=[],
+            summary_log="",
+            artifacts_index={},
+            code_context_document=None,
+            design_constraints_document=None,
+            design_document=None,
+            arbitration_log=[],
+            repo_path=temp_repo,
+            git_branch="main",
+            last_commit_sha=None,
+            pr_number=None,
+            agent_analyses={},
+            synthesis_document=None,
+            conflicts=[],
+            skeleton_code=None,
+            test_code=None,
+            implementation_code=None,
+            patch_queue=[],
+            test_report={},
+            ci_status={},
+            lint_status={},
+            quality="draft",
+            feedback_gate="open",
+            model_router=ModelRouter.OLLAMA,
+            escalation_count=0,
+        )
+
+        # Execute feature extraction
+        updated_state = await workflow.extract_feature(state)
+
+        # Verify complex content was stored correctly
+        assert updated_state["feature_description"] == complex_feature
+        
+        # Check artifact file contains the full complex content
+        artifact_path = Path(updated_state["artifacts_index"]["feature_description"])
+        assert artifact_path.exists()
+        stored_content = artifact_path.read_text()
+        
+        # Verify content integrity
+        assert stored_content == complex_feature
+        assert "JWT-based authentication" in stored_content
+        assert "Role-based access control" in stored_content
+        assert "Multi-factor authentication" in stored_content
+        assert "Database schema" in stored_content
+        
+        # Verify line structure is preserved
+        lines = stored_content.split('\n')
+        assert lines[0] == "## User Authentication & Authorization System"
+        assert len([line for line in lines if line.strip().startswith('-')]) >= 8  # Multiple bullet points
+        assert len([line for line in lines if line.strip().startswith('#')]) >= 3  # Multiple headers
