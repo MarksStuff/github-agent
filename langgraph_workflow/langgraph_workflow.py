@@ -525,6 +525,15 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                         logger.debug("=" * 60)
                         if len(context_doc) > 1000:
                             logger.debug(f"... (truncated, full response is {len(context_doc)} chars)")
+                        
+                        # Validate CLI response
+                        if not context_doc or len(context_doc.strip()) == 0:
+                            raise ValueError("Claude CLI returned empty response - no content generated")
+                        if len(context_doc.strip()) < 100:
+                            logger.warning(f"Claude CLI response suspiciously short: {len(context_doc.strip())} chars")
+                            logger.warning("Response content:")
+                            logger.warning(repr(context_doc))
+                        
                         return context_doc  # Success with CLI
                     else:
                         raise Exception(f"Claude CLI failed: {claude_result.stderr}")
@@ -558,6 +567,14 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                 logger.debug("=" * 60)
                 if len(context_doc) > 1000:
                     logger.debug(f"... (truncated, full response is {len(context_doc)} chars)")
+                
+                # Validate API response
+                if not context_doc or len(context_doc.strip()) == 0:
+                    raise ValueError("Anthropic API returned empty response - no content generated")
+                if len(context_doc.strip()) < 100:
+                    logger.warning(f"API response suspiciously short: {len(context_doc.strip())} chars")
+                    logger.warning("Response content:")
+                    logger.warning(repr(context_doc))
 
             return context_doc
 
