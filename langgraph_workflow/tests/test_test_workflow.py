@@ -113,7 +113,7 @@ class TestTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
 
     async def test_codebase_analyzer_responses(self):
         """Test that codebase analyzer provides realistic responses."""
-        analysis = await self.test_workflow.codebase_analyzer.analyze()
+        analysis = self.test_workflow.codebase_analyzer.analyze()
 
         # Verify structure
         self.assertIn("architecture", analysis)

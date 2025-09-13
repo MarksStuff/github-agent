@@ -152,7 +152,7 @@ class MultiAgentWorkflow:
             api_key = os.getenv("ANTHROPIC_API_KEY")
             if api_key:
                 # Create with minimal parameters that should work
-                self.claude_model = ChatAnthropic()
+                self.claude_model = ChatAnthropic()  # type: ignore
             else:
                 self.claude_model = None
 
@@ -1143,7 +1143,7 @@ async def main():
     from langchain_core.runnables import RunnableConfig
 
     config: RunnableConfig = {"configurable": {"thread_id": workflow.thread_id}}  # type: ignore
-    result = await workflow.app.ainvoke(dict(initial_state), config)
+    result = await workflow.app.ainvoke(dict(initial_state), config)  # type: ignore
 
     print(f"Workflow completed. Final quality: {result['quality']}")
     print(f"Artifacts saved to: {workflow.artifacts_dir}")

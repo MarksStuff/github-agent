@@ -112,6 +112,11 @@ class CodebaseAnalyzerInterface(ABC):
         """Analyze the codebase."""
         pass
 
+    @abstractmethod
+    def analyze_feature_impact(self, feature_description: str) -> dict[str, Any]:
+        """Analyze the impact of a proposed feature."""
+        pass
+
 
 class CheckpointerInterface(ABC):
     """Abstract interface for workflow checkpointing."""

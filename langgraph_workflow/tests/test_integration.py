@@ -142,7 +142,7 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
 
         for case in test_cases:
             with self.subTest(case["name"]):
-                result = should_escalate_to_claude(**case["params"])
+                result = should_escalate_to_claude(**case["params"])  # type: ignore
                 self.assertEqual(
                     result,
                     case["should_escalate"],
@@ -377,7 +377,7 @@ class TestWorkflowPerformanceFixed(unittest.IsolatedAsyncioTestCase):
 
         # Add many artifact paths (simulating large project)
         for i in range(1000):
-            state["artifacts_index"][f"artifact_{i}"] = f"/path/to/artifact_{i}.txt"
+            state["artifacts_index"][f"artifact_{i}"] = f"/path/to/artifact_{i}.txt"  # type: ignore
 
         # Verify state size remains manageable (paths only, no content)
         import sys

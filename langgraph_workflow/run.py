@@ -45,7 +45,7 @@ async def extract_feature_from_prd(prd_content: str, feature_name: str) -> str |
     # Initialize Claude model for feature extraction
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if api_key:
-        claude_model = ChatAnthropic()
+        claude_model = ChatAnthropic()  # type: ignore
     else:
         raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 

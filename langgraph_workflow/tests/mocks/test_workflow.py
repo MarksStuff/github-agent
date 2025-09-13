@@ -60,7 +60,7 @@ class TestLangGraphCheckpointer(BaseCheckpointSaver):
     def get_tuple(self, config):
         return self.memory_saver.get_tuple(config)
 
-    def list(self, config, *, filter=None, before=None, limit=None):
+    def list(self, config, *, filter=None, before=None, limit=None):  # noqa: A002
         return self.memory_saver.list(config, filter=filter, before=before, limit=limit)
 
     def put(self, config, checkpoint, metadata, new_versions):
@@ -106,7 +106,7 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
         self.claude_model = MockModel(["Test Claude response"])
 
         # Create test codebase analyzer
-        self.codebase_analyzer = MockCodebaseAnalyzer()
+        self.codebase_analyzer = MockCodebaseAnalyzer()  # type: ignore
 
         # Create test GitHub integration
         self.github = MockGitHub()
@@ -115,7 +115,7 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
         self.graph = self._build_graph()
 
         # Use test checkpointer
-        self.checkpointer = TestLangGraphCheckpointer()
+        self.checkpointer = TestLangGraphCheckpointer()  # type: ignore
         self.app = self.graph.compile(checkpointer=self.checkpointer)
 
     def _create_test_agents(self) -> dict[AgentType, MockAgent]:
@@ -191,7 +191,7 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
         state["current_phase"] = WorkflowPhase.PHASE_0_CODE_CONTEXT
 
         # Use test codebase analyzer
-        analysis = await self.codebase_analyzer.analyze()
+        analysis = self.codebase_analyzer.analyze()
 
         # Create code context document (real logic)
         context_doc = f"""# Code Context Document
