@@ -508,7 +508,7 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                         input=analysis_prompt,
                         capture_output=True,
                         text=True,
-                        timeout=60,  # Longer timeout for comprehensive analysis
+                        # No timeout - let Claude take as long as needed for thorough analysis
                     )
 
                     if claude_result.returncode == 0:
