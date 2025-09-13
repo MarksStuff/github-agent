@@ -2,6 +2,29 @@
 
 Comprehensive test suite for the LangGraph-based multi-agent workflow implementation.
 
+## 🚨 **IMPORTANT: Two Types of Tests** 
+
+### 🧪 **Unit Tests (Default - Uses Mocks)**
+- **Fast**: ~200ms total
+- **No external dependencies**: Uses `MockModel`, `MockCodebaseAnalyzer`
+- **CI/CD friendly**: Runs in GitHub Actions
+- **No GPU usage**: Won't hit your RTX 5070
+
+### 🔥 **Integration Tests (Optional - Uses REAL Ollama)**
+- **Slow**: 30-120s per test
+- **Real dependencies**: Calls your actual Ollama/RTX 5070
+- **Local only**: Requires Ollama running
+- **GPU active**: You'll see activity in `nvidia-smi`
+
+```bash
+# Default: Unit tests only (fast, no GPU)
+pytest
+
+# Integration tests (hits your RTX 5070!)
+pytest -m integration
+./scripts/run-integration-tests.sh
+```
+
 ## Test Structure
 
 ```
