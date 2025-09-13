@@ -15,3 +15,12 @@ htmlcov/
 .pytest_cache/
 .ruff_cache/
 .vscode/
+
+# LangGraph workflow transitory files
+*.db
+agent_state.db
+studio_state.db
+api_state.db
+agents/
+agent_artifacts/
+agent_checkpoints/
