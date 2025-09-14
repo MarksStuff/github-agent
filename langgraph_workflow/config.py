@@ -4,6 +4,17 @@ import os
 from pathlib import Path
 from typing import Any
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    # Look for .env file in project root (parent of langgraph_workflow)
+    env_path = Path(__file__).parent.parent / ".env"
+    if env_path.exists():
+        load_dotenv(env_path)
+except ImportError:
+    # python-dotenv not installed, skip loading .env file
+    pass
+
 from .constants import (
     CLAUDE_CLI_TIMEOUT,
     DEFAULT_OLLAMA_MODEL,

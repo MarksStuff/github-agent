@@ -116,8 +116,9 @@ async def get_profile():
     def real_workflow(self, temp_repo):
         """Create workflow with REAL Ollama model."""
         import os
+        from langgraph_workflow.config import get_ollama_base_url, get_ollama_model
 
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://marks-pc:11434")
+        ollama_url = get_ollama_base_url()
 
         # Check if Ollama is available - FAIL if not (don't skip)
         if not is_ollama_available():
@@ -128,7 +129,7 @@ async def get_profile():
             )
 
         real_ollama = ChatOllama(
-            model="qwen2.5-coder:7b",
+            model=get_ollama_model("default"),
             base_url=ollama_url,
         )
         analyzer = RealCodebaseAnalyzer(temp_repo)
@@ -151,8 +152,9 @@ async def get_profile():
         import os
 
         import requests
+        from langgraph_workflow.config import get_ollama_base_url
 
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://marks-pc:11434")
+        ollama_url = get_ollama_base_url()
         print(f"🔍 Testing Ollama connectivity to: {ollama_url}")
 
         # Test basic ping
@@ -191,15 +193,16 @@ async def get_profile():
 
         from langchain_core.messages import HumanMessage
         from langchain_ollama import ChatOllama
+        from langgraph_workflow.config import get_ollama_base_url, get_ollama_model
 
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://marks-pc:11434")
+        ollama_url = get_ollama_base_url()
         print(f"🚀 Testing actual Ollama model inference at: {ollama_url}")
         print("🔥 This should show activity on your RTX 5070!")
 
         try:
-            # Create ChatOllama instance - use qwen2.5-coder model which should be available
+            # Create ChatOllama instance using config system
             model = ChatOllama(
-                model="qwen2.5-coder:7b", base_url=ollama_url, temperature=0.1
+                model=get_ollama_model("default"), base_url=ollama_url, temperature=0.1
             )
 
             # Make a simple inference call
@@ -307,7 +310,8 @@ async def get_profile():
         from langchain_core.messages import HumanMessage
 
         # Integration tests should FAIL in CI if Ollama not configured (not skip)
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://marks-pc:11434")
+        from langgraph_workflow.config import get_ollama_base_url, get_ollama_model
+        ollama_url = get_ollama_base_url()
         print(f"🚀 Testing Ollama code context generation at: {ollama_url}")
         print("🔥 This should show GPU activity!")
 
@@ -362,9 +366,9 @@ Keep the response concise and focused on what would be useful for implementing n
 """
 
         try:
-            # Create Ollama model
+            # Create Ollama model using config system
             model = ChatOllama(
-                model="qwen2.5-coder:7b", base_url=ollama_url, temperature=0.3
+                model=get_ollama_model("default"), base_url=ollama_url, temperature=0.3
             )
 
             print("📡 Sending code analysis request to Ollama...")
@@ -472,9 +476,11 @@ Base everything on the provided analysis data. Be precise and factual.
             from langchain_core.messages import HumanMessage
             from langchain_ollama import ChatOllama
 
-            # Get Ollama configuration
-            ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-            ollama_model = os.getenv("OLLAMA_MODEL", "qwen3-coder:8b")
+            # Get Ollama configuration from our config system
+            from langgraph_workflow.config import get_ollama_base_url, get_ollama_model
+            
+            ollama_base_url = get_ollama_base_url()
+            ollama_model = get_ollama_model("default")
             ollama_client = ChatOllama(
                 base_url=ollama_base_url,
                 model=ollama_model,
@@ -609,8 +615,9 @@ def is_ollama_available():
         import os
 
         import requests
+        from langgraph_workflow.config import get_ollama_base_url
 
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://marks-pc:11434")
+        ollama_url = get_ollama_base_url()
         response = requests.get(f"{ollama_url}/api/tags", timeout=2)
         return response.status_code == 200
     except Exception:
@@ -620,9 +627,8 @@ def is_ollama_available():
 # Conditional marker - only run if Ollama is available
 def get_ollama_url():
     """Get the configured Ollama URL."""
-    import os
-
-    return os.getenv("OLLAMA_BASE_URL", "http://marks-pc:11434")
+    from langgraph_workflow.config import get_ollama_base_url
+    return get_ollama_base_url()
 
 
 # Integration tests should FAIL (not skip) when Ollama is misconfigured
