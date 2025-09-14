@@ -72,7 +72,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.head_ref || github.ref }}
-          clean: true
+          clean: false
           fetch-depth: 0
 
       - name: Make scripts executable
@@ -128,11 +128,21 @@ jobs:
           fi
           if [ -d "$GITHUB_WORKSPACE" ]; then
             echo "Cleaning workspace directory: $GITHUB_WORKSPACE"
-            # Fix permissions first to allow cleanup
-            sudo chmod -R 755 "$GITHUB_WORKSPACE" 2>/dev/null || true
+            
+            # Nuclear option: if there are permission issues, remove the entire workspace
+            if ! sudo rm -rf "$GITHUB_WORKSPACE"/* 2>/dev/null; then
+              echo "Standard cleanup failed, using nuclear option..."
+              # Set permissions on everything
+              sudo chmod -R 777 "$GITHUB_WORKSPACE" 2>/dev/null || true
+              sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+              # Try again with force
+              sudo rm -rf "$GITHUB_WORKSPACE"/* 2>/dev/null || true
+              sudo rm -rf "$GITHUB_WORKSPACE"/.* 2>/dev/null || true
+            fi
+            
+            # Ensure workspace directory exists and has correct permissions
+            mkdir -p "$GITHUB_WORKSPACE"
             sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
-            # Clean cache and build directories
-            sudo find "$GITHUB_WORKSPACE" -type d \( -name "__pycache__" -o -name ".pytest_cache" -o -name "artifacts" -o -name ".mypy_cache" \) -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
           fi
 
       - name: Checkout code
@@ -140,7 +150,7 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_TOKEN || secrets.GITHUB_TOKEN }}
           ref: ${{ github.head_ref || github.ref }}
-          clean: true
+          clean: false
           fetch-depth: 0
 
       - name: Configure Git
@@ -254,7 +264,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.head_ref || github.ref }}
-          clean: true
+          clean: false
           fetch-depth: 0
 
       - name: Make scripts executable
@@ -342,7 +352,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.head_ref || github.ref }}
-          clean: true
+          clean: false
           fetch-depth: 0
 
       - name: Create coverage directory
@@ -544,7 +554,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.head_ref || github.ref }}
-          clean: true
+          clean: false
           fetch-depth: 0
       
       - name: Download coverage reports
@@ -596,7 +606,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.head_ref || github.ref }}
-          clean: true
+          clean: false
           fetch-depth: 0
 
       - name: Check Ollama availability
