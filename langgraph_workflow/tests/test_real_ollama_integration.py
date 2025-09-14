@@ -117,7 +117,7 @@ async def get_profile():
         """Create workflow with REAL Ollama model."""
         import os
 
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://marks-pc:11434")
 
         # Check if Ollama is available - FAIL if not (don't skip)
         if not is_ollama_available():
@@ -128,7 +128,7 @@ async def get_profile():
             )
 
         real_ollama = ChatOllama(
-            model="qwen3:8b",
+            model="qwen2.5-coder:7b",
             base_url=ollama_url,
         )
         analyzer = RealCodebaseAnalyzer(temp_repo)
@@ -152,7 +152,7 @@ async def get_profile():
 
         import requests
 
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://marks-pc:11434")
         print(f"🔍 Testing Ollama connectivity to: {ollama_url}")
 
         # Test basic ping
@@ -170,7 +170,7 @@ async def get_profile():
                 if len(models) == 0:
                     raise AssertionError(
                         f"❌ No models found in Ollama at {ollama_url}\n"
-                        f"   Install a model first: ollama pull qwen3:8b\n"
+                        f"   Install a model first: ollama pull qwen2.5-coder:7b\n"
                         f"   Or any other model, then update the test configuration"
                     )
                 print("✅ Ollama has available models")
@@ -192,13 +192,13 @@ async def get_profile():
         from langchain_core.messages import HumanMessage
         from langchain_ollama import ChatOllama
 
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://marks-pc:11434")
         print(f"🚀 Testing actual Ollama model inference at: {ollama_url}")
         print("🔥 This should show activity on your RTX 5070!")
 
         try:
-            # Create ChatOllama instance
-            model = ChatOllama(model="qwen3:8b", base_url=ollama_url, temperature=0.1)
+            # Create ChatOllama instance - use qwen2.5-coder model which should be available
+            model = ChatOllama(model="qwen2.5-coder:7b", base_url=ollama_url, temperature=0.1)
 
             # Make a simple inference call
             print("📡 Sending inference request to model...")
@@ -305,7 +305,7 @@ async def get_profile():
         from langchain_core.messages import HumanMessage
 
         # Integration tests should FAIL in CI if Ollama not configured (not skip)
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://marks-pc:11434")
         print(f"🚀 Testing Ollama code context generation at: {ollama_url}")
         print("🔥 This should show GPU activity!")
 
@@ -361,7 +361,7 @@ Keep the response concise and focused on what would be useful for implementing n
 
         try:
             # Create Ollama model
-            model = ChatOllama(model="qwen3:8b", base_url=ollama_url, temperature=0.3)
+            model = ChatOllama(model="qwen2.5-coder:7b", base_url=ollama_url, temperature=0.3)
 
             print("📡 Sending code analysis request to Ollama...")
             response = await model.ainvoke([HumanMessage(content=prompt)])
@@ -525,7 +525,7 @@ def is_ollama_available():
 
         import requests
 
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://marks-pc:11434")
         response = requests.get(f"{ollama_url}/api/tags", timeout=2)
         return response.status_code == 200
     except Exception:
@@ -537,7 +537,7 @@ def get_ollama_url():
     """Get the configured Ollama URL."""
     import os
 
-    return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    return os.getenv("OLLAMA_BASE_URL", "http://marks-pc:11434")
 
 
 # Integration tests should FAIL (not skip) when Ollama is misconfigured
