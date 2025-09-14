@@ -51,18 +51,6 @@ async def extract_feature_from_prd(prd_content: str, feature_name: str) -> str |
     import os
     import subprocess
 
-    # Try Claude CLI first, then fall back to API key
-    try:
-        # Check if Claude CLI is available
-        claude_result = subprocess.run(
-            ["claude", "--version"], capture_output=True, text=True, timeout=5
-        )
-        use_claude_cli = (
-            claude_result.returncode == 0 and "Claude Code" in claude_result.stdout
-        )
-    except Exception:
-        use_claude_cli = False
-
     # Create prompt for feature extraction
     extraction_prompt = f"""You are a technical document analyzer. Extract the specific feature information from this PRD document.
 
@@ -79,36 +67,84 @@ Instructions:
 
 Feature Extract:"""
 
+    extracted_content = None
+
+    # Try Ollama first if available
     try:
+        from langchain_ollama import ChatOllama
+
+        # Check for Ollama configuration
+        ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+
+        logger.info("Attempting feature extraction with Ollama")
+        ollama_client = ChatOllama(
+            base_url=ollama_base_url,
+            model=ollama_model,
+        )
+
+        from langchain_core.messages import HumanMessage
+
+        response = await ollama_client.ainvoke(
+            [HumanMessage(content=extraction_prompt)]
+        )
+        extracted_content = str(response.content).strip() if response.content else ""
+
+        if extracted_content and len(extracted_content) > 10:
+            logger.info("Successfully extracted feature using Ollama")
+
+            # Check if feature was not found
+            if extracted_content == "FEATURE_NOT_FOUND":
+                return None
+            return extracted_content
+        else:
+            logger.warning("Ollama returned empty or very short response")
+
+    except Exception as e:
+        logger.warning(f"Ollama feature extraction failed: {e}")
+
+    # Fall back to Claude CLI if available
+    try:
+        # Check if Claude CLI is available
+        claude_result = subprocess.run(
+            ["claude", "--version"], capture_output=True, text=True, timeout=5
+        )
+        use_claude_cli = (
+            claude_result.returncode == 0 and "Claude Code" in claude_result.stdout
+        )
+
         if use_claude_cli:
-            # Use Claude CLI with stdin to avoid file permission issues
-            try:
-                claude_result = subprocess.run(
-                    ["claude"],
-                    input=extraction_prompt,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
+            logger.info("Attempting feature extraction with Claude CLI")
+            claude_result = subprocess.run(
+                ["claude"],
+                input=extraction_prompt,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
 
-                if claude_result.returncode == 0:
-                    extracted_content = claude_result.stdout.strip()
-                else:
-                    raise Exception(f"Claude CLI failed: {claude_result.stderr}")
-            except Exception as e:
-                # If CLI fails, fall back to API
-                logger.warning(f"Claude CLI failed, falling back to API: {e}")
-                use_claude_cli = False
+            if claude_result.returncode == 0:
+                extracted_content = claude_result.stdout.strip()
+                logger.info("Successfully extracted feature using Claude CLI")
 
-        if not use_claude_cli:
-            # Fall back to API key
-            from langchain_anthropic import ChatAnthropic
-            from langchain_core.messages import HumanMessage
+                # Check if feature was not found
+                if extracted_content == "FEATURE_NOT_FOUND":
+                    return None
+                return extracted_content
+            else:
+                logger.warning(f"Claude CLI failed: {claude_result.stderr}")
 
-            api_key = os.getenv("ANTHROPIC_API_KEY")
-            if not api_key:
-                raise ValueError("Neither Claude CLI nor ANTHROPIC_API_KEY available")
+    except Exception as e:
+        logger.warning(f"Claude CLI failed: {e}")
 
+    # Fall back to Claude API if available
+    try:
+        from langchain_anthropic import ChatAnthropic
+        from langchain_core.messages import HumanMessage
+
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if api_key:
+            logger.info("Attempting feature extraction with Claude API")
             claude_model = ChatAnthropic()  # type: ignore
             response = await claude_model.ainvoke(
                 [HumanMessage(content=extraction_prompt)]
@@ -117,39 +153,45 @@ Feature Extract:"""
                 str(response.content).strip() if response.content else ""
             )
 
-        # Check if feature was not found
-        if extracted_content == "FEATURE_NOT_FOUND":
-            return None
+            if extracted_content:
+                logger.info("Successfully extracted feature using Claude API")
 
-        return extracted_content
+                # Check if feature was not found
+                if extracted_content == "FEATURE_NOT_FOUND":
+                    return None
+                return extracted_content
+        else:
+            logger.warning("ANTHROPIC_API_KEY not available")
 
     except Exception as e:
-        logger.error(f"Error extracting feature with LLM: {e}")
-        # Fallback to simple text search as backup
-        logger.warning("Falling back to simple text extraction")
+        logger.warning(f"Claude API failed: {e}")
 
-        lines = prd_content.split("\n")
-        feature_lines = []
-        in_feature = False
+    # If all LLM methods failed, fall back to simple text search
+    logger.error("All LLM methods failed for feature extraction")
+    logger.warning("Falling back to simple text extraction")
 
-        for line in lines:
-            # Look for feature headers (markdown headers or numbered items)
-            if feature_name.lower() in line.lower():
-                # Found the feature
-                in_feature = True
-                feature_lines.append(line)
-            elif in_feature:
-                # Check if we've hit the next feature/section
-                if (
-                    line.startswith("#")
-                    or line.startswith("##")
-                    or (line.strip() and line[0].isdigit() and "." in line[:5])
-                ):
-                    # This looks like a new section
-                    break
-                feature_lines.append(line)
+    lines = prd_content.split("\n")
+    feature_lines = []
+    in_feature = False
 
-        return "\n".join(feature_lines).strip() if feature_lines else None
+    for line in lines:
+        # Look for feature headers (markdown headers or numbered items)
+        if feature_name.lower() in line.lower():
+            # Found the feature
+            in_feature = True
+            feature_lines.append(line)
+        elif in_feature:
+            # Check if we've hit the next feature/section
+            if (
+                line.startswith("#")
+                or line.startswith("##")
+                or (line.strip() and line[0].isdigit() and "." in line[:5])
+            ):
+                # This looks like a new section
+                break
+            feature_lines.append(line)
+
+    return "\n".join(feature_lines).strip() if feature_lines else None
 
 
 async def run_workflow_until_step(workflow, initial_state, config, stop_after):

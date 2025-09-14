@@ -596,112 +596,84 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
 
             context_doc = None
 
-            # Try Ollama first if available
-            if self.ollama_model is not None:
-                try:
-                    logger.info("Using Ollama for code context generation")
-                    response = await self._call_model(
-                        analysis_prompt, ModelRouter.OLLAMA
+            # Code context generation requires file system access - only Claude Code CLI can do this
+            # Ollama and Claude API cannot read files, they just generate generic fictional content
+            
+            # Try Claude CLI first since it has file access
+            try:
+                import subprocess
+                
+                # Check if Claude CLI is available
+                claude_result = subprocess.run(
+                    ["claude", "--version"], capture_output=True, text=True, timeout=5
+                )
+                use_claude_cli = (
+                    claude_result.returncode == 0 and "Claude Code" in claude_result.stdout
+                )
+                
+                if use_claude_cli:
+                    logger.info("Using Claude CLI for code context generation (has file access)")
+                    claude_result = subprocess.run(
+                        ["claude"],
+                        input=analysis_prompt,
+                        capture_output=True,
+                        text=True,
+                        timeout=120,  # Longer timeout for code analysis
                     )
-                    context_doc = str(response).strip() if response else ""
 
-                    if context_doc and len(context_doc.strip()) > 100:
-                        logger.info("Successfully generated code context using Ollama")
-                        logger.debug(
-                            f"Generated context length: {len(context_doc)} chars"
-                        )
-
-                        # Log first part of response for debugging
-                        logger.debug("LLM Response (first 1000 chars):")
-                        logger.debug("=" * 60)
-                        logger.debug(context_doc[:1000])
-                        logger.debug("=" * 60)
-                        if len(context_doc) > 1000:
-                            logger.debug(
-                                f"... (truncated, full response is {len(context_doc)} chars)"
-                            )
-
-                        if len(context_doc.strip()) < 200:
-                            logger.warning(
-                                f"Ollama response suspiciously short: {len(context_doc.strip())} chars"
-                            )
-
-                        return context_doc
+                    if claude_result.returncode == 0:
+                        context_doc = claude_result.stdout.strip()
+                        logger.info("Successfully generated code context using Claude CLI")
+                        logger.debug(f"Generated context length: {len(context_doc)} chars")
+                        
+                        if len(context_doc.strip()) > 100:
+                            return context_doc
+                        else:
+                            logger.warning("Claude CLI returned very short response")
                     else:
-                        logger.warning("Ollama returned empty or very short response")
+                        logger.warning(f"Claude CLI failed: {claude_result.stderr}")
+                else:
+                    logger.warning("Claude Code CLI not available - cannot access repository files")
+                    
+            except Exception as e:
+                logger.warning(f"Claude CLI failed: {e}")
 
-                except Exception as e:
-                    logger.warning(f"Ollama code context generation failed: {e}")
-
-            # Fall back to Claude if available
-            use_claude_fallback = self.claude_model is not None
-
-            if use_claude_fallback:
-                # Use Claude model via _call_model
+            # Fall back to Claude API if available (but warn it can't read files)
+            if self.claude_model is not None:
+                logger.warning("Falling back to Claude API - but it cannot read your actual files!")
+                logger.warning("This will generate generic content, not analyze your real codebase")
                 try:
-                    logger.info("Using Claude for code context generation")
+                    logger.info("Using Claude API for code context generation (no file access)")
                     response = await self._call_model(
                         analysis_prompt, ModelRouter.CLAUDE_CODE
                     )
                     context_doc = str(response).strip() if response else ""
 
                     if context_doc and len(context_doc.strip()) > 100:
-                        logger.info("Successfully generated code context using Claude")
-                        logger.debug(
-                            f"Generated context length: {len(context_doc)} chars"
-                        )
-                        logger.debug("LLM Response (first 1000 chars):")
-                        logger.debug("=" * 60)
-                        logger.debug(context_doc[:1000])
-                        logger.debug("=" * 60)
-                        if len(context_doc) > 1000:
-                            logger.debug(
-                                f"... (truncated, full response is {len(context_doc)} chars)"
-                            )
-
-                        if len(context_doc.strip()) < 200:
-                            logger.warning(
-                                f"Claude response suspiciously short: {len(context_doc.strip())} chars"
-                            )
-
+                        logger.warning("Generated generic context using Claude API (not real codebase)")
                         return context_doc
                     else:
-                        logger.warning("Claude returned empty or very short response")
+                        logger.warning("Claude API returned empty or very short response")
 
                 except Exception as e:
-                    logger.warning(f"Claude model failed: {e}")
+                    logger.warning(f"Claude API failed: {e}")
 
-            # If no models worked, generate error message
+            # If no methods worked, generate a helpful error message
             logger.error("CRITICAL: Code context generation failed!")
 
-            available_models = []
-            if self.ollama_model is not None:
-                available_models.append("Ollama")
-            if self.claude_model is not None:
-                available_models.append("Claude")
+            error_msg = """Code context generation failed - Claude Code CLI required for file access!
 
-            if not available_models:
-                error_msg = """Code context generation failed - No LLM models available!
-
-ISSUE: Neither Ollama nor Claude models are configured
+ISSUE: Code context generation needs to read your actual repository files, but:
+- Ollama cannot read files (generates generic fictional content)
+- Claude API cannot read files (generates generic fictional content) 
+- Only Claude Code CLI can access and analyze your real codebase
 
 SOLUTIONS:
-1. For Ollama: Ensure Ollama is running and model is available
-2. For Claude: Set ANTHROPIC_API_KEY environment variable or configure Claude CLI
-3. Check model configuration in workflow initialization
+1. Install Claude Code CLI: https://docs.anthropic.com/en/docs/claude-code
+2. Or set ANTHROPIC_API_KEY (but this will generate generic content, not analyze real files)
+3. Make sure you're running from the correct repository directory
 
-Cannot proceed without LLM access for code analysis."""
-            else:
-                error_msg = f"""Code context generation failed - Available models ({', '.join(available_models)}) failed to generate content!
-
-ISSUE: All configured LLM models failed or returned empty responses
-
-SOLUTIONS:
-1. Check model connectivity and availability
-2. Verify model parameters and configuration
-3. Check logs for specific error details
-
-Cannot proceed without working LLM access for code analysis."""
+REQUIRED: Claude Code CLI with file system access for accurate codebase analysis."""
 
             raise RuntimeError(error_msg)
 
