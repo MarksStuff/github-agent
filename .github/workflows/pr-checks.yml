@@ -583,60 +583,63 @@ jobs:
       - name: Check Ollama availability
         id: ollama_check
         run: |
-          # Check if Ollama is available on the CI runner
-          if command -v ollama &> /dev/null; then
-            echo "Ollama command found"
-            # Check if Ollama service is running
-            if curl -s http://localhost:11434/api/version > /dev/null 2>&1; then
-              echo "ollama_available=true" >> $GITHUB_OUTPUT
-              echo "✅ Ollama is available and running"
-              # List available models
-              ollama list || true
-            else
-              echo "ollama_available=false" >> $GITHUB_OUTPUT
-              echo "⚠️ Ollama command found but service not running"
-            fi
+          # Extract Ollama URL from pytest.ini to avoid duplication
+          OLLAMA_URL=$(grep "OLLAMA_BASE_URL" pytest.ini | cut -d'=' -f2 | xargs)
+          echo "Checking Ollama availability at: $OLLAMA_URL"
+          
+          # Test connection from Docker container - same way integration tests will connect
+          if docker run --rm \
+            --network host \
+            curlimages/curl:latest \
+            curl -s --connect-timeout 10 "$OLLAMA_URL/api/version" > /dev/null 2>&1; then
+            echo "ollama_available=true" >> $GITHUB_OUTPUT
+            echo "✅ Ollama is available at $OLLAMA_URL"
           else
-            echo "ollama_available=false" >> $GITHUB_OUTPUT
-            echo "⚠️ Ollama not installed on this runner"
+            echo "ollama_available=false" >> $GITHUB_OUTPUT  
+            echo "⚠️ Ollama not accessible at $OLLAMA_URL"
+            echo "This means integration tests will be skipped"
           fi
 
       - name: Run integration tests
         if: steps.ollama_check.outputs.ollama_available == 'true'
-        env:
-          OLLAMA_BASE_URL: http://localhost:11434
         run: |
+          # Extract Ollama URL from pytest.ini (single source of truth)
+          OLLAMA_URL=$(grep "OLLAMA_BASE_URL" pytest.ini | cut -d'=' -f2 | xargs)
           echo "=== Running Integration Tests with Ollama ==="
+          echo "Using Ollama server at: $OLLAMA_URL (from pytest.ini)"
           
-          # Use the same Docker container for consistency
+          # Use the same Docker container for consistency with network access
           docker run --rm \
             -v "$GITHUB_WORKSPACE":/workspace \
             -w /workspace \
             -e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
-            -e OLLAMA_BASE_URL="http://host.docker.internal:11434" \
-            --add-host=host.docker.internal:host-gateway \
+            --network host \
             mstriebeck/multi-lang-ci-runner:${{ needs.setup.outputs.swift-version }}-python${{ needs.setup.outputs.python-version }} \
             /bin/bash -c "
-              echo 'Running integration tests with Ollama...'
+              # Get Ollama URL from pytest.ini inside container too
+              OLLAMA_URL=\\\$(grep \"OLLAMA_BASE_URL\" pytest.ini | cut -d'=' -f2 | xargs)
+              echo \"Running integration tests with Ollama at: \\\$OLLAMA_URL\"
+              echo \"Testing connectivity first...\"
+              curl -s --connect-timeout 5 \"\\\$OLLAMA_URL/api/version\" || echo \"Warning: Could not reach Ollama\"
               
-              # Run only integration tests
+              # Run only integration tests (pytest.ini will set OLLAMA_BASE_URL env var)
               pytest -m integration \
                 --verbose \
                 --tb=short \
                 --junit-xml=integration_test_results.xml \
                 2>&1 | tee integration_test_output.txt
               
-              test_exit_code=\${PIPESTATUS[0]}
+              test_exit_code=\\\${PIPESTATUS[0]}
               
               echo '=== Integration Test Results ===' 
-              if [ \$test_exit_code -eq 0 ]; then
+              if [ \\\$test_exit_code -eq 0 ]; then
                 echo '✅ All integration tests passed'
               else
                 echo '❌ Some integration tests failed'
                 echo 'See integration_test_output.txt for details'
               fi
               
-              exit \$test_exit_code
+              exit \\\$test_exit_code
             "
 
       - name: Fail if Ollama unavailable
