@@ -72,8 +72,8 @@ Context:
 Provide your feedback focusing on your area of expertise."""
 
 
-class TestFirstDrivenAgent(LangGraphAgent):
-    """Test-first agent for LangGraph workflow."""
+class TddAgent(LangGraphAgent):
+    """Test-driven development agent for LangGraph workflow."""
 
     def __init__(self, base_agent: BaseAgentInterface):
         """Initialize test-first agent.
@@ -411,7 +411,7 @@ def create_agents(
         Dict of agent_type -> agent instance
     """
     return {
-        "test-first": TestFirstDrivenAgent(base_agents["test-first"]),
+        "test-first": TddAgent(base_agents["test-first"]),
         "fast-coder": FastCoderAgent(base_agents["fast-coder"]),
         "senior-engineer": SeniorEngineerAgent(base_agents["senior-engineer"]),
         "architect": ArchitectAgent(base_agents["architect"]),

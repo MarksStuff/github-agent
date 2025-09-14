@@ -215,12 +215,11 @@ Key integration considerations:
             mock_response = MockLLMResponse(mock_context)
             mock_calls = mock_response.create_claude_cli_mock()
 
-            # Make sure environment doesn't interfere
-            with patch.dict("os.environ", {"ANTHROPIC_API_KEY": ""}, clear=False):
-                with patch("subprocess.run", side_effect=mock_calls):
-                    result = await real_workflow._generate_intelligent_code_context(
-                        mock_analysis, feature_description
-                    )
+            # Mock Claude CLI to be available
+            with patch("subprocess.run", side_effect=mock_calls):
+                result = await real_workflow._generate_intelligent_code_context(
+                    mock_analysis, feature_description
+                )
 
                 # Should mention the specific feature
                 result_lower = result.lower()

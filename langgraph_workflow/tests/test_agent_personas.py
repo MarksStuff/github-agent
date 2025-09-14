@@ -7,7 +7,7 @@ from ..agent_personas import (
     FastCoderAgent,
     LangGraphAgent,
     SeniorEngineerAgent,
-    TestFirstDrivenAgent,
+    TddAgent,
     create_agents,
 )
 from .mocks import MockAgent
@@ -76,14 +76,14 @@ class TestLangGraphAgent(unittest.IsolatedAsyncioTestCase):
         self.assertIn(str(context), prompt)
 
 
-class TestTestFirstDrivenAgent(unittest.IsolatedAsyncioTestCase):
-    """Test TestFirstDrivenAgent functionality."""
+class TestTddAgent(unittest.IsolatedAsyncioTestCase):
+    """Test TddAgent functionality."""
 
     def setUp(self):
         """Set up test fixtures."""
         # Use dependency injection instead of patching
         mock_base = MockAgent("test-first", {"test": "Mock test response"})
-        self.agent = TestFirstDrivenAgent(base_agent=mock_base)
+        self.agent = TddAgent(base_agent=mock_base)
 
     async def test_initialization(self):
         """Test test-first agent initialization."""
@@ -293,7 +293,7 @@ class TestAgentFactory(unittest.TestCase):
         self.assertIn("architect", agents)
 
         # Verify correct agent types
-        self.assertIsInstance(agents["test-first"], TestFirstDrivenAgent)
+        self.assertIsInstance(agents["test-first"], TddAgent)
         self.assertIsInstance(agents["fast-coder"], FastCoderAgent)
         self.assertIsInstance(agents["senior-engineer"], SeniorEngineerAgent)
         self.assertIsInstance(agents["architect"], ArchitectAgent)

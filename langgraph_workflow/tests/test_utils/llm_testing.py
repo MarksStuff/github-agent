@@ -157,8 +157,10 @@ class MockLLMResponse:
         return [version_mock, response_mock]
 
     def create_claude_cli_mock(self) -> list[Mock]:
-        """Deprecated: Use create_cli_mock() instead."""
-        return self.create_cli_mock()
+        """Create mocks for Claude CLI calls specifically."""
+        version_mock = Mock(returncode=0, stdout="1.0.113 (Claude Code)")
+        response_mock = Mock(returncode=0, stdout=self.response_text)
+        return [version_mock, response_mock]
 
     def create_api_mock(self) -> Mock:
         """Create mock for API response."""
