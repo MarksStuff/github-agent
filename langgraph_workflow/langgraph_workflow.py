@@ -591,41 +591,57 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
             logger.debug(analysis_prompt)
             logger.debug("=" * 80)
 
-            # Try Claude CLI first, then fall back to API
+            # Use Ollama first if available, then fall back to Claude
             import os
-            import subprocess
 
-            # Check if Claude CLI is available
-            try:
-                claude_result = subprocess.run(
-                    ["claude", "--version"], capture_output=True, text=True, timeout=5
-                )
-                use_claude_cli = (
-                    claude_result.returncode == 0
-                    and "Claude Code" in claude_result.stdout
-                )
-            except Exception:
-                use_claude_cli = False
-
-            if use_claude_cli:
-                # Use Claude CLI with stdin to avoid file permission issues
+            context_doc = None
+            
+            # Try Ollama first if available
+            if self.ollama_model is not None:
                 try:
-                    claude_result = subprocess.run(
-                        ["claude"],
-                        input=analysis_prompt,
-                        capture_output=True,
-                        text=True,
-                        # No timeout - let Claude take as long as needed for thorough analysis
-                    )
+                    logger.info("Using Ollama for code context generation")
+                    response = await self._call_model(analysis_prompt, ModelRouter.OLLAMA)
+                    context_doc = str(response).strip() if response else ""
+                    
+                    if context_doc and len(context_doc.strip()) > 100:
+                        logger.info("Successfully generated code context using Ollama")
+                        logger.debug(f"Generated context length: {len(context_doc)} chars")
+                        
+                        # Log first part of response for debugging
+                        logger.debug("LLM Response (first 1000 chars):")
+                        logger.debug("=" * 60)
+                        logger.debug(context_doc[:1000])
+                        logger.debug("=" * 60)
+                        if len(context_doc) > 1000:
+                            logger.debug(
+                                f"... (truncated, full response is {len(context_doc)} chars)"
+                            )
+                        
+                        if len(context_doc.strip()) < 200:
+                            logger.warning(
+                                f"Ollama response suspiciously short: {len(context_doc.strip())} chars"
+                            )
+                            
+                        return context_doc
+                    else:
+                        logger.warning("Ollama returned empty or very short response")
+                        
+                except Exception as e:
+                    logger.warning(f"Ollama code context generation failed: {e}")
+                    
+            # Fall back to Claude if available
+            use_claude_fallback = self.claude_model is not None
 
-                    if claude_result.returncode == 0:
-                        context_doc = claude_result.stdout.strip()
-                        logger.info(
-                            "Successfully generated code context using Claude CLI"
-                        )
-                        logger.debug(
-                            f"Generated context length: {len(context_doc)} chars"
-                        )
+            if use_claude_fallback:
+                # Use Claude model via _call_model
+                try:
+                    logger.info("Using Claude for code context generation")
+                    response = await self._call_model(analysis_prompt, ModelRouter.CLAUDE_CODE)
+                    context_doc = str(response).strip() if response else ""
+
+                    if context_doc and len(context_doc.strip()) > 100:
+                        logger.info("Successfully generated code context using Claude")
+                        logger.debug(f"Generated context length: {len(context_doc)} chars")
                         logger.debug("LLM Response (first 1000 chars):")
                         logger.debug("=" * 60)
                         logger.debug(context_doc[:1000])
@@ -635,28 +651,54 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                                 f"... (truncated, full response is {len(context_doc)} chars)"
                             )
 
-                        # Validate CLI response
-                        if not context_doc or len(context_doc.strip()) == 0:
-                            raise ValueError(
-                                "Claude CLI returned empty response - no content generated"
-                            )
-                        if len(context_doc.strip()) < 100:
+                        if len(context_doc.strip()) < 200:
                             logger.warning(
-                                f"Claude CLI response suspiciously short: {len(context_doc.strip())} chars"
+                                f"Claude response suspiciously short: {len(context_doc.strip())} chars"
                             )
-                            logger.warning("Response content:")
-                            logger.warning(repr(context_doc))
 
-                        return context_doc  # Success with CLI
+                        return context_doc
                     else:
-                        raise Exception(f"Claude CLI failed: {claude_result.stderr}")
+                        logger.warning("Claude returned empty or very short response")
 
                 except Exception as e:
-                    # If CLI fails, fall back to API
-                    logger.warning(f"Claude CLI failed, falling back to API: {e}")
-                    use_claude_cli = False
+                    logger.warning(f"Claude model failed: {e}")
 
-            if not use_claude_cli:
+            # If no models worked, generate error message
+            logger.error("CRITICAL: Code context generation failed!")
+            
+            available_models = []
+            if self.ollama_model is not None:
+                available_models.append("Ollama")
+            if self.claude_model is not None:
+                available_models.append("Claude")
+                
+            if not available_models:
+                error_msg = """Code context generation failed - No LLM models available!
+
+ISSUE: Neither Ollama nor Claude models are configured
+
+SOLUTIONS:
+1. For Ollama: Ensure Ollama is running and model is available
+2. For Claude: Set ANTHROPIC_API_KEY environment variable or configure Claude CLI
+3. Check model configuration in workflow initialization
+
+Cannot proceed without LLM access for code analysis."""
+            else:
+                error_msg = f"""Code context generation failed - Available models ({', '.join(available_models)}) failed to generate content!
+
+ISSUE: All configured LLM models failed or returned empty responses
+
+SOLUTIONS:
+1. Check model connectivity and availability
+2. Verify model parameters and configuration  
+3. Check logs for specific error details
+
+Cannot proceed without working LLM access for code analysis."""
+
+            raise RuntimeError(error_msg)
+            
+            # This old fallback code is no longer needed
+            if False:
                 # Fall back to API key
                 from langchain_anthropic import ChatAnthropic
                 from langchain_core.messages import HumanMessage

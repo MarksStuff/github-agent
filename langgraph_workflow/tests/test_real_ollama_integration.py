@@ -441,7 +441,7 @@ Keep the response concise and focused on what would be useful for implementing n
         # Verify we got a real response
         assert result["code_context_document"] is not None
         assert len(result["code_context_document"]) > 100  # Should be substantial
-        assert "artifacts" in result["artifacts_index"]
+        assert "code_context" in result["artifacts_index"]
 
         # Check the content makes sense
         context_doc = result["code_context_document"]
