@@ -595,18 +595,22 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
             import os
 
             context_doc = None
-            
+
             # Try Ollama first if available
             if self.ollama_model is not None:
                 try:
                     logger.info("Using Ollama for code context generation")
-                    response = await self._call_model(analysis_prompt, ModelRouter.OLLAMA)
+                    response = await self._call_model(
+                        analysis_prompt, ModelRouter.OLLAMA
+                    )
                     context_doc = str(response).strip() if response else ""
-                    
+
                     if context_doc and len(context_doc.strip()) > 100:
                         logger.info("Successfully generated code context using Ollama")
-                        logger.debug(f"Generated context length: {len(context_doc)} chars")
-                        
+                        logger.debug(
+                            f"Generated context length: {len(context_doc)} chars"
+                        )
+
                         # Log first part of response for debugging
                         logger.debug("LLM Response (first 1000 chars):")
                         logger.debug("=" * 60)
@@ -616,19 +620,19 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                             logger.debug(
                                 f"... (truncated, full response is {len(context_doc)} chars)"
                             )
-                        
+
                         if len(context_doc.strip()) < 200:
                             logger.warning(
                                 f"Ollama response suspiciously short: {len(context_doc.strip())} chars"
                             )
-                            
+
                         return context_doc
                     else:
                         logger.warning("Ollama returned empty or very short response")
-                        
+
                 except Exception as e:
                     logger.warning(f"Ollama code context generation failed: {e}")
-                    
+
             # Fall back to Claude if available
             use_claude_fallback = self.claude_model is not None
 
@@ -636,12 +640,16 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                 # Use Claude model via _call_model
                 try:
                     logger.info("Using Claude for code context generation")
-                    response = await self._call_model(analysis_prompt, ModelRouter.CLAUDE_CODE)
+                    response = await self._call_model(
+                        analysis_prompt, ModelRouter.CLAUDE_CODE
+                    )
                     context_doc = str(response).strip() if response else ""
 
                     if context_doc and len(context_doc.strip()) > 100:
                         logger.info("Successfully generated code context using Claude")
-                        logger.debug(f"Generated context length: {len(context_doc)} chars")
+                        logger.debug(
+                            f"Generated context length: {len(context_doc)} chars"
+                        )
                         logger.debug("LLM Response (first 1000 chars):")
                         logger.debug("=" * 60)
                         logger.debug(context_doc[:1000])
@@ -665,13 +673,13 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
 
             # If no models worked, generate error message
             logger.error("CRITICAL: Code context generation failed!")
-            
+
             available_models = []
             if self.ollama_model is not None:
                 available_models.append("Ollama")
             if self.claude_model is not None:
                 available_models.append("Claude")
-                
+
             if not available_models:
                 error_msg = """Code context generation failed - No LLM models available!
 
@@ -690,13 +698,13 @@ ISSUE: All configured LLM models failed or returned empty responses
 
 SOLUTIONS:
 1. Check model connectivity and availability
-2. Verify model parameters and configuration  
+2. Verify model parameters and configuration
 3. Check logs for specific error details
 
 Cannot proceed without working LLM access for code analysis."""
 
             raise RuntimeError(error_msg)
-            
+
             # This old fallback code is no longer needed
             if False:
                 # Fall back to API key
