@@ -474,8 +474,7 @@ Base everything on the provided analysis data. Be precise and factual.
 
             # Get Ollama configuration
             ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-            ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
-
+            ollama_model = os.getenv("OLLAMA_MODEL", "qwen3-coder:8b")
             ollama_client = ChatOllama(
                 base_url=ollama_base_url,
                 model=ollama_model,
@@ -524,7 +523,10 @@ Base everything on the provided analysis data. Be precise and factual.
         except ImportError:
             pytest.skip("langchain-ollama not available for prompt testing")
         except Exception as e:
-            if "connection" in str(e).lower() or "refused" in str(e).lower():
+            if ("connection" in str(e).lower() or 
+                "refused" in str(e).lower() or 
+                "not found" in str(e).lower() or 
+                "404" in str(e)):
                 pytest.skip(f"Ollama not available for prompt testing: {e}")
             else:
                 raise

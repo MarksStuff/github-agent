@@ -126,8 +126,8 @@ MODEL_CONFIG: dict[str, Any] = {
     "ollama": {
         "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         "models": {
-            "default": "qwen2.5-coder:7b",
-            "developer": "qwen2.5-coder:7b",
+            "default": "qwen3-coder:8b",
+            "developer": "qwen3-coder:8b",
             "tester": "llama3.1",
             "summarizer": "llama3.1",
         },

@@ -75,7 +75,7 @@ Feature Extract:"""
 
         # Check for Ollama configuration
         ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+        ollama_model = os.getenv("OLLAMA_MODEL", "qwen3-coder:8b")
 
         logger.info("Attempting feature extraction with Ollama")
         ollama_client = ChatOllama(

@@ -144,7 +144,7 @@ class MultiAgentWorkflow:
             self.ollama_model = ollama_model
         else:
             self.ollama_model = ChatOllama(
-                model="qwen2.5-coder:7b",
+                model="qwen3-coder:8b",
                 base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
             )
 
