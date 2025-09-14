@@ -402,7 +402,6 @@ class MultiAgentWorkflow:
 
         # Create structured prompt for comprehensive analysis
         # Import json for formatting analysis data
-        import json
 
         # Use comprehensive prompt that examines actual code to find architectural patterns
         analysis_prompt = f"""You are a Senior Software Engineer conducting a comprehensive codebase analysis.
@@ -595,7 +594,6 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
         logger.debug("=" * 80)
 
         # Use Ollama first if available, then fall back to Claude
-        import os
 
         context_doc = None
 
@@ -611,8 +609,7 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                 ["claude", "--version"], capture_output=True, text=True, timeout=5
             )
             use_claude_cli = (
-                claude_result.returncode == 0
-                and "Claude Code" in claude_result.stdout
+                claude_result.returncode == 0 and "Claude Code" in claude_result.stdout
             )
 
             if use_claude_cli:
@@ -629,12 +626,8 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
 
                 if claude_result.returncode == 0:
                     context_doc = claude_result.stdout.strip()
-                    logger.info(
-                        "Successfully generated code context using Claude CLI"
-                    )
-                    logger.info(
-                        f"Generated context length: {len(context_doc)} chars"
-                    )
+                    logger.info("Successfully generated code context using Claude CLI")
+                    logger.info(f"Generated context length: {len(context_doc)} chars")
 
                     # Log the actual response for debugging
                     if len(context_doc) > 0:
@@ -646,8 +639,12 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                         if len(context_doc.strip()) > 2000:
                             return context_doc
                         else:
-                            logger.error(f"Claude CLI returned insufficient response ({len(context_doc)} chars)")
-                            logger.error("Comprehensive code analysis should produce detailed multi-section document")
+                            logger.error(
+                                f"Claude CLI returned insufficient response ({len(context_doc)} chars)"
+                            )
+                            logger.error(
+                                "Comprehensive code analysis should produce detailed multi-section document"
+                            )
                             logger.error(f"Response preview: {context_doc[:200]}...")
                             raise RuntimeError(
                                 "Claude CLI failed to provide comprehensive code analysis. "
@@ -669,7 +666,6 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                 "Code context generation requires Claude CLI with file system access. "
                 f"Claude CLI error: {e}"
             )
-
 
     async def parallel_design_exploration(self, state: WorkflowState) -> WorkflowState:
         """Phase 1 Step 1: All agents analyze in parallel using Ollama."""
