@@ -332,7 +332,6 @@ class MultiAgentWorkflow:
             logger.info("Using direct feature description")
 
         # Store the feature as an artifact
-        from pathlib import Path
 
         # Use the proper artifacts directory (in ~/.local/share/github-agent/langgraph/artifacts/)
         feature_artifact_path = self.artifacts_dir / "feature_description.md"
@@ -399,10 +398,10 @@ class MultiAgentWorkflow:
         # Create structured prompt for comprehensive analysis
         # Import json for formatting analysis data
         import json
-        
+
         # Create optimized prompt that uses pre-analyzed data instead of asking for full re-analysis
         analysis_json = json.dumps(analysis, indent=2)
-        
+
         analysis_prompt = f"""You are a Senior Software Engineer creating a comprehensive Code Context Document.
 
 I have already analyzed the repository structure and extracted key information. Please synthesize this data into a well-formatted, actionable Code Context Document.
@@ -414,8 +413,8 @@ I have already analyzed the repository structure and extracted key information. 
 {analysis_json}
 ```
 
-## TASK: 
-Create a comprehensive, UNBIASED Code Context Document using ONLY the pre-analyzed data above. 
+## TASK:
+Create a comprehensive, UNBIASED Code Context Document using ONLY the pre-analyzed data above.
 
 IMPORTANT RULES:
 1. This is an OBJECTIVE analysis - do NOT reference any specific features or implementation targets
@@ -435,7 +434,7 @@ Structure the document as follows:
 - **Frameworks**: Actually imported and used in the code
 - **Development Tools**: Testing, linting, deployment tools
 
-### 3. CODEBASE STRUCTURE  
+### 3. CODEBASE STRUCTURE
 - Directory organization and actual purpose
 - Key modules and what they do
 - Testing structure and conventions
@@ -502,18 +501,26 @@ Base everything on the provided analysis data. Be precise and factual.
 
                     if claude_result.returncode == 0:
                         context_doc = claude_result.stdout.strip()
-                        logger.info("Successfully generated code context using Claude CLI")
-                        logger.info(f"Generated context length: {len(context_doc)} chars")
-                        
+                        logger.info(
+                            "Successfully generated code context using Claude CLI"
+                        )
+                        logger.info(
+                            f"Generated context length: {len(context_doc)} chars"
+                        )
+
                         # Log the actual response for debugging
                         if len(context_doc) > 0:
-                            logger.info(f"Claude CLI response preview: {context_doc[:500]}...")
-                            
+                            logger.info(
+                                f"Claude CLI response preview: {context_doc[:500]}..."
+                            )
+
                             # Lower threshold since we're using pre-analyzed data now
                             if len(context_doc.strip()) > 50:
                                 return context_doc
                             else:
-                                logger.warning(f"Claude CLI returned very short response ({len(context_doc)} chars): {context_doc}")
+                                logger.warning(
+                                    f"Claude CLI returned very short response ({len(context_doc)} chars): {context_doc}"
+                                )
                         else:
                             logger.warning("Claude CLI returned empty response")
                     else:
