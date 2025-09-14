@@ -41,45 +41,31 @@ jobs:
           if [ -d "$GITHUB_WORKSPACE" ]; then
             echo "Cleaning workspace directory: $GITHUB_WORKSPACE"
             
-            # Nuclear approach: completely wipe the workspace
-            echo "Attempting complete workspace cleanup..."
+            # Best-effort cleanup without sudo (runner doesn't have passwordless sudo)
+            # Remove files we can delete, ignore permission errors
+            echo "Removing files that can be deleted without elevated privileges..."
             
-            # Try multiple strategies to ensure complete cleanup
-            sudo chmod -R 777 "$GITHUB_WORKSPACE" 2>/dev/null || true
-            sudo chattr -R -i "$GITHUB_WORKSPACE" 2>/dev/null || true  # Remove immutable flags if any
+            # Remove common cache directories that we can delete
+            rm -rf "$GITHUB_WORKSPACE/__pycache__" 2>/dev/null || true
+            rm -rf "$GITHUB_WORKSPACE"/.pytest_cache 2>/dev/null || true
+            rm -rf "$GITHUB_WORKSPACE"/.mypy_cache 2>/dev/null || true
+            rm -rf "$GITHUB_WORKSPACE"/.coverage 2>/dev/null || true
+            rm -rf "$GITHUB_WORKSPACE"/coverage_reports 2>/dev/null || true
+            rm -rf "$GITHUB_WORKSPACE"/build_output 2>/dev/null || true
+            rm -rf "$GITHUB_WORKSPACE"/artifacts 2>/dev/null || true
             
-            # Remove .git directory first to avoid git state issues
-            if [ -d "$GITHUB_WORKSPACE/.git" ]; then
-              echo "Removing .git directory..."
-              sudo rm -rf "$GITHUB_WORKSPACE/.git" 2>/dev/null || true
-            fi
-            
-            # Remove everything else
-            sudo rm -rf "$GITHUB_WORKSPACE"/* 2>/dev/null || true
-            sudo rm -rf "$GITHUB_WORKSPACE"/.[!.]* 2>/dev/null || true  # Remove hidden files/dirs except . and ..
-            
-            # If still having issues, try lsof and kill processes using files
-            if [ -d "$GITHUB_WORKSPACE/.pytest_cache" ]; then
-              echo "Pytest cache still exists, trying to kill processes..."
-              sudo lsof +D "$GITHUB_WORKSPACE" 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r sudo kill -9 2>/dev/null || true
-              sleep 1
-              sudo rm -rf "$GITHUB_WORKSPACE/.pytest_cache" 2>/dev/null || true
-            fi
-            
-            # Recreate clean workspace
-            sudo rm -rf "$GITHUB_WORKSPACE" 2>/dev/null || true
-            mkdir -p "$GITHUB_WORKSPACE"
-            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE"
-            chmod 755 "$GITHUB_WORKSPACE"
+            # Try to remove other content we can
+            find "$GITHUB_WORKSPACE" -name "__pycache__" -type d -exec rm -rf {} \; 2>/dev/null || true
+            find "$GITHUB_WORKSPACE" -name ".pytest_cache" -type d -exec rm -rf {} \; 2>/dev/null || true
             
             if [ "$DEBUG_OUTPUT" = "true" ]; then
-              echo "DEBUG: Nuclear cleanup completed, workspace recreated"
+              echo "DEBUG: Best-effort cleanup completed"
+              echo "DEBUG: Remaining files (if any) will be handled by checkout action"
+              ls -la "$GITHUB_WORKSPACE" || true
             fi
           else
-            mkdir -p "$GITHUB_WORKSPACE"
-            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE"
             if [ "$DEBUG_OUTPUT" = "true" ]; then
-              echo "DEBUG: Workspace created fresh"
+              echo "DEBUG: Workspace doesn't exist yet, nothing to clean"
             fi
           fi
 
@@ -124,10 +110,10 @@ jobs:
           if [ "$DEBUG_OUTPUT" = "true" ]; then
             echo "DEBUG: Cleaning up after setup..."
           fi
-          sudo find "$GITHUB_WORKSPACE" -type d -name ".build" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name ".build" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          # chown not needed - files created with correct ownership via docker -u flag
 
   ruff-autofix:
     name: Ruff Auto-fix
@@ -146,19 +132,19 @@ jobs:
             echo "Cleaning workspace directory: $GITHUB_WORKSPACE"
             
             # Nuclear option: if there are permission issues, remove the entire workspace
-            if ! sudo rm -rf "$GITHUB_WORKSPACE"/* 2>/dev/null; then
+            if ! rm -rf "$GITHUB_WORKSPACE"/* 2>/dev/null; then
               echo "Standard cleanup failed, using nuclear option..."
               # Set permissions on everything
-              sudo chmod -R 777 "$GITHUB_WORKSPACE" 2>/dev/null || true
-              sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+              # chmod not needed - files created with correct ownership via docker -u flag
+              # chown not needed - files created with correct ownership via docker -u flag
               # Try again with force
-              sudo rm -rf "$GITHUB_WORKSPACE"/* 2>/dev/null || true
-              sudo rm -rf "$GITHUB_WORKSPACE"/.* 2>/dev/null || true
+              rm -rf "$GITHUB_WORKSPACE"/* 2>/dev/null || true
+              rm -rf "$GITHUB_WORKSPACE"/.* 2>/dev/null || true
             fi
             
             # Ensure workspace directory exists and has correct permissions
             mkdir -p "$GITHUB_WORKSPACE"
-            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+            # chown not needed - files created with correct ownership via docker -u flag
           fi
 
       - name: Checkout code
@@ -251,9 +237,9 @@ jobs:
           if [ "$DEBUG_OUTPUT" = "true" ]; then
             echo "DEBUG: Cleaning up after ruff auto-fix..."
           fi
-          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          # chown not needed - files created with correct ownership via docker -u flag
 
   code-checks:
     name: Code Checks (Ruff, mypy, Bandit)
@@ -269,10 +255,10 @@ jobs:
           if [ -d "$GITHUB_WORKSPACE" ]; then
             echo "Cleaning workspace directory: $GITHUB_WORKSPACE"
             # Fix permissions first to allow cleanup
-            sudo chmod -R 755 "$GITHUB_WORKSPACE" 2>/dev/null || true
-            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+            # chmod not needed - files created with correct ownership via docker -u flag
+            # chown not needed - files created with correct ownership via docker -u flag
             # Clean cache and build directories
-            sudo find "$GITHUB_WORKSPACE" -type d \( -name "__pycache__" -o -name ".pytest_cache" -o -name ".mypy_cache" -o -name "artifacts" \) -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
+            find "$GITHUB_WORKSPACE" -type d \( -name "__pycache__" -o -name ".pytest_cache" -o -name ".mypy_cache" -o -name "artifacts" \) -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
           fi
 
       - name: Checkout code
@@ -336,10 +322,10 @@ jobs:
           if [ "$DEBUG_OUTPUT" = "true" ]; then
             echo "DEBUG: Cleaning up after code checks..."
           fi
-          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name ".mypy_cache" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name ".mypy_cache" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          # chown not needed - files created with correct ownership via docker -u flag
 
   python-tests-and-coverage:
     name: Python Tests & Coverage
@@ -357,10 +343,10 @@ jobs:
           if [ -d "$GITHUB_WORKSPACE" ]; then
             echo "Cleaning workspace directory: $GITHUB_WORKSPACE"
             # Fix permissions first to allow cleanup
-            sudo chmod -R 755 "$GITHUB_WORKSPACE" 2>/dev/null || true
-            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+            # chmod not needed - files created with correct ownership via docker -u flag
+            # chown not needed - files created with correct ownership via docker -u flag
             # Clean cache and build directories
-            sudo find "$GITHUB_WORKSPACE" -type d \( -name "__pycache__" -o -name ".pytest_cache" -o -name ".coverage" -o -name "artifacts" \) -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
+            find "$GITHUB_WORKSPACE" -type d \( -name "__pycache__" -o -name ".pytest_cache" -o -name ".coverage" -o -name "artifacts" \) -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
           fi
 
       - name: Checkout code
@@ -552,10 +538,10 @@ jobs:
           if [ "$DEBUG_OUTPUT" = "true" ]; then
             echo "DEBUG: Cleaning up after Python tests..."
           fi
-          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          # chown not needed - files created with correct ownership via docker -u flag
 
 
 
@@ -722,13 +708,13 @@ jobs:
           if [ "$DEBUG_OUTPUT" = "true" ]; then
             echo "DEBUG: Running final workspace cleanup..."
           fi
-          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name ".mypy_cache" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name ".coverage" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "coverage_reports" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "code_check_output" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "ruff_autofix_output" -exec rm -rf {} \; 2>/dev/null || true
-          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name ".mypy_cache" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name ".coverage" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "coverage_reports" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "code_check_output" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "ruff_autofix_output" -exec rm -rf {} \; 2>/dev/null || true
+          # chown not needed - files created with correct ownership via docker -u flag
           echo "Final cleanup completed"
