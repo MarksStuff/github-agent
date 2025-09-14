@@ -598,21 +598,24 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
 
             # Code context generation requires file system access - only Claude Code CLI can do this
             # Ollama and Claude API cannot read files, they just generate generic fictional content
-            
+
             # Try Claude CLI first since it has file access
             try:
                 import subprocess
-                
+
                 # Check if Claude CLI is available
                 claude_result = subprocess.run(
                     ["claude", "--version"], capture_output=True, text=True, timeout=5
                 )
                 use_claude_cli = (
-                    claude_result.returncode == 0 and "Claude Code" in claude_result.stdout
+                    claude_result.returncode == 0
+                    and "Claude Code" in claude_result.stdout
                 )
-                
+
                 if use_claude_cli:
-                    logger.info("Using Claude CLI for code context generation (has file access)")
+                    logger.info(
+                        "Using Claude CLI for code context generation (has file access)"
+                    )
                     claude_result = subprocess.run(
                         ["claude"],
                         input=analysis_prompt,
@@ -623,9 +626,13 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
 
                     if claude_result.returncode == 0:
                         context_doc = claude_result.stdout.strip()
-                        logger.info("Successfully generated code context using Claude CLI")
-                        logger.debug(f"Generated context length: {len(context_doc)} chars")
-                        
+                        logger.info(
+                            "Successfully generated code context using Claude CLI"
+                        )
+                        logger.debug(
+                            f"Generated context length: {len(context_doc)} chars"
+                        )
+
                         if len(context_doc.strip()) > 100:
                             return context_doc
                         else:
@@ -633,27 +640,39 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                     else:
                         logger.warning(f"Claude CLI failed: {claude_result.stderr}")
                 else:
-                    logger.warning("Claude Code CLI not available - cannot access repository files")
-                    
+                    logger.warning(
+                        "Claude Code CLI not available - cannot access repository files"
+                    )
+
             except Exception as e:
                 logger.warning(f"Claude CLI failed: {e}")
 
             # Fall back to Claude API if available (but warn it can't read files)
             if self.claude_model is not None:
-                logger.warning("Falling back to Claude API - but it cannot read your actual files!")
-                logger.warning("This will generate generic content, not analyze your real codebase")
+                logger.warning(
+                    "Falling back to Claude API - but it cannot read your actual files!"
+                )
+                logger.warning(
+                    "This will generate generic content, not analyze your real codebase"
+                )
                 try:
-                    logger.info("Using Claude API for code context generation (no file access)")
+                    logger.info(
+                        "Using Claude API for code context generation (no file access)"
+                    )
                     response = await self._call_model(
                         analysis_prompt, ModelRouter.CLAUDE_CODE
                     )
                     context_doc = str(response).strip() if response else ""
 
                     if context_doc and len(context_doc.strip()) > 100:
-                        logger.warning("Generated generic context using Claude API (not real codebase)")
+                        logger.warning(
+                            "Generated generic context using Claude API (not real codebase)"
+                        )
                         return context_doc
                     else:
-                        logger.warning("Claude API returned empty or very short response")
+                        logger.warning(
+                            "Claude API returned empty or very short response"
+                        )
 
                 except Exception as e:
                     logger.warning(f"Claude API failed: {e}")
@@ -665,7 +684,7 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
 
 ISSUE: Code context generation needs to read your actual repository files, but:
 - Ollama cannot read files (generates generic fictional content)
-- Claude API cannot read files (generates generic fictional content) 
+- Claude API cannot read files (generates generic fictional content)
 - Only Claude Code CLI can access and analyze your real codebase
 
 SOLUTIONS:

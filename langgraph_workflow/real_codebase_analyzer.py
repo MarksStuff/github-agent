@@ -113,16 +113,30 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
 
         # Directories to exclude from language detection (dependencies, not source code)
         excluded_dirs = {
-            ".venv", "venv", "env", ".env",  # Python virtual environments
-            "node_modules", ".npm",  # Node.js dependencies
-            "__pycache__", ".pytest_cache",  # Python cache directories
-            ".git", ".gitignore",  # Git metadata
+            ".venv",
+            "venv",
+            "env",
+            ".env",  # Python virtual environments
+            "node_modules",
+            ".npm",  # Node.js dependencies
+            "__pycache__",
+            ".pytest_cache",  # Python cache directories
+            ".git",
+            ".gitignore",  # Git metadata
             "site-packages",  # Python packages
-            "dist", "build", ".tox",  # Build artifacts
-            "coverage", ".coverage", "htmlcov",  # Coverage files and HTML reports
-            ".mypy_cache", ".ruff_cache",  # Linting cache
-            "artifacts", "tmp", "temp",  # Temporary directories
-            "logs", "log",  # Log directories
+            "dist",
+            "build",
+            ".tox",  # Build artifacts
+            "coverage",
+            ".coverage",
+            "htmlcov",  # Coverage files and HTML reports
+            ".mypy_cache",
+            ".ruff_cache",  # Linting cache
+            "artifacts",
+            "tmp",
+            "temp",  # Temporary directories
+            "logs",
+            "log",  # Log directories
         }
 
         # Check for common language file extensions
@@ -150,9 +164,11 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
                 for file_path in self._repo_path.rglob(pattern):
                     # Check if file is in an excluded directory
                     path_parts = file_path.relative_to(self._repo_path).parts
-                    if not any(excluded_dir in path_parts for excluded_dir in excluded_dirs):
+                    if not any(
+                        excluded_dir in path_parts for excluded_dir in excluded_dirs
+                    ):
                         matching_files.append(file_path)
-                
+
                 if matching_files:
                     languages.append(language)
                     break
