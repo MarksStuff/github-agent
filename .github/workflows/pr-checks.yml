@@ -684,7 +684,7 @@ jobs:
           echo "To fix this:"
           echo "1. Ensure Ollama is installed on the CI runner"
           echo "2. Ensure Ollama service is running (ollama serve)"
-          echo "3. Ensure required models are pulled (e.g., ollama pull qwen3-coder:8b)"
+          echo "3. Ensure required models are pulled (e.g., ollama pull qwen3:8b)"
           echo ""
           echo "For emergency bypass (use with caution):"
           echo "- Re-run workflow with manual trigger and skip_integration_on_failure=true"

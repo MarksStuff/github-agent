@@ -125,8 +125,8 @@ class TestModelConfig(unittest.TestCase):
 
         # Test models
         models = ollama_config["models"]
-        self.assertEqual(models["default"], "qwen3-coder:8b")
-        self.assertEqual(models["developer"], "qwen3-coder:8b")
+        self.assertEqual(models["default"], "qwen3:8b")
+        self.assertEqual(models["developer"], "qwen3:8b")
         self.assertEqual(models["tester"], "llama3.1")
         self.assertEqual(models["summarizer"], "llama3.1")
 
