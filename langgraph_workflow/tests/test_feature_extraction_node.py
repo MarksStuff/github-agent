@@ -234,11 +234,12 @@ Detailed requirements for authentication..."""
             escalation_count=0,
         )
 
-        # Mock filesystem error
+        # Mock filesystem error in get_artifacts_path
         from unittest.mock import patch
 
         with patch(
-            "pathlib.Path.mkdir", side_effect=PermissionError("Permission denied")
+            "langgraph_workflow.config.get_artifacts_path", 
+            side_effect=PermissionError("Permission denied")
         ):
             # Should raise the underlying error
             with pytest.raises(PermissionError):
