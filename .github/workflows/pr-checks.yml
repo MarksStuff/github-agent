@@ -645,13 +645,15 @@ jobs:
             -w /workspace \
             -e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
             --network host \
+            -u $(id -u):$(id -g) \
             mstriebeck/multi-lang-ci-runner:${{ needs.setup.outputs.swift-version }}-python${{ needs.setup.outputs.python-version }} \
-            /bin/bash -c "
-              # Get Ollama URL from pytest.ini inside container too
-              OLLAMA_URL=\\\$(grep \"OLLAMA_BASE_URL\" pytest.ini | cut -d'=' -f2 | xargs)
-              echo \"Running integration tests with Ollama at: \\\$OLLAMA_URL\"
-              echo \"Testing connectivity first...\"
-              curl -s --connect-timeout 5 \"\\\$OLLAMA_URL/api/version\" || echo \"Warning: Could not reach Ollama\"
+            /bin/bash -c '
+              echo "Running integration tests..."
+              echo "Testing connectivity to Ollama..."
+              # Extract URL from pytest.ini for connectivity test
+              OLLAMA_URL=$(grep "OLLAMA_BASE_URL" pytest.ini | cut -d"=" -f2 | xargs)
+              echo "Ollama URL: $OLLAMA_URL"
+              curl -s --connect-timeout 5 "$OLLAMA_URL/api/version" || echo "Warning: Could not reach Ollama"
               
               # Run only integration tests (pytest.ini will set OLLAMA_BASE_URL env var)
               pytest -m integration \
@@ -660,18 +662,18 @@ jobs:
                 --junit-xml=integration_test_results.xml \
                 2>&1 | tee integration_test_output.txt
               
-              test_exit_code=\\\${PIPESTATUS[0]}
+              test_exit_code=${PIPESTATUS[0]}
               
-              echo '=== Integration Test Results ===' 
-              if [ \\\$test_exit_code -eq 0 ]; then
-                echo '✅ All integration tests passed'
+              echo "=== Integration Test Results ===" 
+              if [ $test_exit_code -eq 0 ]; then
+                echo "✅ All integration tests passed"
               else
-                echo '❌ Some integration tests failed'
-                echo 'See integration_test_output.txt for details'
+                echo "❌ Some integration tests failed"
+                echo "See integration_test_output.txt for details"
               fi
               
-              exit \\\$test_exit_code
-            "
+              exit $test_exit_code
+            '
 
       - name: Fail if Ollama unavailable
         if: steps.ollama_check.outputs.ollama_available != 'true'
