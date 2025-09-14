@@ -225,7 +225,6 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("Ollama response", ollama_response_2)
 
-
     async def test_state_persistence(self):
         """Test that state is properly maintained between phases."""
         # Start with initial state

@@ -136,7 +136,6 @@ class TestModelConfig(unittest.TestCase):
         self.assertEqual(params["max_tokens"], 4000)
         self.assertEqual(params["top_p"], 0.9)
 
-
     @patch.dict(os.environ, {"OLLAMA_BASE_URL": "http://custom:8080"})
     def test_ollama_environment_override(self):
         """Test Ollama base URL from environment."""
@@ -145,7 +144,6 @@ class TestModelConfig(unittest.TestCase):
         # Note: In actual implementation, this would require reloading the module
         # For this test, we verify the environment variable is used in initialization
         self.assertTrue(True)  # Placeholder - actual test would check dynamic loading
-
 
 
 class TestMCPConfig(unittest.TestCase):
@@ -300,7 +298,6 @@ class TestConfigUtilities(unittest.TestCase):
         expected_path = expected_base / thread_id
         self.assertEqual(str(path), str(expected_path))
         self.assertIsInstance(path, Path)
-
 
 
 class TestConfigurationValidation(unittest.TestCase):

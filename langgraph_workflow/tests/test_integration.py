@@ -108,7 +108,6 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         result = await self.workflow.create_design_document(state)
         self.assertIsNotNone(result["design_document"])
 
-
     async def test_github_integration_workflow(self):
         """Test GitHub integration throughout workflow."""
         # Use mock GitHub (our own implementation, not MagicMock)
@@ -198,7 +197,7 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         # Test Ollama routing for complex phases (all phases use Ollama now)
         complex_ollama_phases = [
             "Extract comprehensive code context from repository",
-            "Create detailed implementation skeleton with interfaces", 
+            "Create detailed implementation skeleton with interfaces",
             "Perform complex reconciliation of tests and implementation",
         ]
 
