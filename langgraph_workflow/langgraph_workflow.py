@@ -28,7 +28,6 @@ from .config import (
 
 # Import constants
 from .constants import (
-    MIN_CODE_CONTEXT_LENGTH,
     MODEL_VERSION_CHECK_TIMEOUT,
 )
 
@@ -419,6 +418,8 @@ class MultiAgentWorkflow:
         Note: feature_description is included for compatibility but not used
         to keep analysis unbiased.
         """
+        # Quality threshold for code context - defined locally where it's used
+        min_code_context_length = 2000
 
         # Get the repository path from the analyzer
         repo_path = self.codebase_analyzer.repo_path
@@ -663,7 +664,7 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                         )
 
                         # Expect comprehensive analysis (configured minimum length for detailed code context)
-                        if len(context_doc.strip()) > MIN_CODE_CONTEXT_LENGTH:
+                        if len(context_doc.strip()) > min_code_context_length:
                             return context_doc
                         else:
                             logger.error(
@@ -675,7 +676,7 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                             logger.error(f"Response preview: {context_doc[:200]}...")
                             raise RuntimeError(
                                 "Claude CLI failed to provide comprehensive code analysis. "
-                                f"Expected {MIN_CODE_CONTEXT_LENGTH}+ characters, got {len(context_doc)}. "
+                                f"Expected {min_code_context_length}+ characters, got {len(context_doc)}. "
                                 "This indicates Claude CLI cannot properly examine the repository code."
                             )
                     else:

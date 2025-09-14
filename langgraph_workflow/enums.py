@@ -89,9 +89,38 @@ class ArtifactName(str, Enum):
 
 
 class FileExtension(str, Enum):
-    """File extensions for artifacts."""
+    """File extensions for artifacts and source code files."""
 
+    # Documentation and text files
     MARKDOWN = ".md"
-    PYTHON = ".py"
-    JSON = ".json"
     TEXT = ".txt"
+    JSON = ".json"
+    YAML = ".yml"
+    XML = ".xml"
+
+    # Programming languages
+    PYTHON = ".py"
+    JAVASCRIPT = ".js"
+    TYPESCRIPT = ".ts"
+    JAVA = ".java"
+    CPP = ".cpp"
+    C = ".c"
+    CSHARP = ".cs"
+    SWIFT = ".swift"
+    KOTLIN = ".kt"
+    GO = ".go"
+    RUST = ".rs"
+    PHP = ".php"
+    RUBY = ".rb"
+    SCALA = ".scala"
+
+    # Web technologies
+    HTML = ".html"
+    CSS = ".css"
+    SCSS = ".scss"
+
+    # Shell and config
+    SHELL = ".sh"
+    BASH = ".bash"
+    DOCKERFILE = "Dockerfile"
+    MAKEFILE = "Makefile"

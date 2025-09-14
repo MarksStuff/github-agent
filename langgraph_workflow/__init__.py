@@ -3,7 +3,8 @@
 from .constants import (
     CLAUDE_CLI_TIMEOUT,
     DEFAULT_OLLAMA_MODEL,
-    MIN_CODE_CONTEXT_LENGTH,
+    OLLAMA_LLAMA3_1,
+    OLLAMA_QWEN3_8B,
 )
 from .enums import (
     AgentType,
@@ -28,6 +29,7 @@ __all__ = [
     "ArtifactName",
     "FileExtension",
     "DEFAULT_OLLAMA_MODEL",
+    "OLLAMA_QWEN3_8B",
+    "OLLAMA_LLAMA3_1",
     "CLAUDE_CLI_TIMEOUT",
-    "MIN_CODE_CONTEXT_LENGTH",
 ]

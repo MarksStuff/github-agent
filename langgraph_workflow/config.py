@@ -7,7 +7,8 @@ from typing import Any
 from .constants import (
     CLAUDE_CLI_TIMEOUT,
     DEFAULT_OLLAMA_MODEL,
-    FALLBACK_OLLAMA_MODEL,
+    OLLAMA_LLAMA3_1,
+    OLLAMA_QWEN3_8B,
 )
 
 # Workflow configuration
@@ -132,10 +133,10 @@ MODEL_CONFIG: dict[str, Any] = {
     "ollama": {
         "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         "models": {
-            "default": DEFAULT_OLLAMA_MODEL,
-            "developer": DEFAULT_OLLAMA_MODEL,
-            "tester": FALLBACK_OLLAMA_MODEL,
-            "summarizer": FALLBACK_OLLAMA_MODEL,
+            "default": OLLAMA_QWEN3_8B,
+            "developer": OLLAMA_QWEN3_8B,
+            "tester": OLLAMA_LLAMA3_1,
+            "summarizer": OLLAMA_LLAMA3_1,
         },
         "parameters": {
             "temperature": 0.7,
