@@ -111,8 +111,10 @@ class TestRunWorkflow(unittest.IsolatedAsyncioTestCase):
         """Test workflow resume functionality."""
         # This is a basic test - more comprehensive resume testing would require
         # actual checkpoint data
+        from unittest.mock import AsyncMock
+        
         with patch("langgraph_workflow.run.MultiAgentWorkflow") as mock_workflow:
-            mock_app = MagicMock()
+            mock_app = AsyncMock()
             mock_app.ainvoke.return_value = {
                 "thread_id": self.thread_id,
                 "current_phase": "resumed",

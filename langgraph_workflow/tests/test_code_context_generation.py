@@ -59,10 +59,10 @@ class TestCodeContextGeneration(LLMTestingMixin):
             yield workflow
 
     @pytest.mark.asyncio
-    async def test_intelligent_context_generation_with_claude_cli_mock(
+    async def test_intelligent_context_generation_with_llm_mock(
         self, temp_workflow, mock_analysis
     ):
-        """Test intelligent context generation using mocked Claude CLI."""
+        """Test intelligent context generation using mocked LLM."""
 
         expected_context = """# Code Context Document
 

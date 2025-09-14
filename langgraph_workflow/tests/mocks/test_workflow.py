@@ -80,6 +80,10 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
     def __init__(
         self,
         repo_path: str,
+        agents: dict[AgentType, Any] | None = None,
+        codebase_analyzer: Any = None,
+        ollama_model: Any | None = None,
+        claude_model: Any | None = None,
         thread_id: str | None = None,
         checkpoint_path: str = ":memory:",
     ):
@@ -87,6 +91,10 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
 
         Args:
             repo_path: Path to the repository (can be test directory)
+            agents: Agent implementations (uses test agents if None)
+            codebase_analyzer: Codebase analyzer (uses mock if None)
+            ollama_model: Ollama model (uses mock if None)
+            claude_model: Claude model (uses mock if None)
             thread_id: Thread ID for persistence (uses test ID if None)
             checkpoint_path: Checkpoint path (uses memory by default)
         """
@@ -100,13 +108,13 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
         self.artifacts_dir = self.test_fs.base_path / "artifacts" / self.thread_id
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize with test dependencies
-        self.agents = self._create_test_agents()
-        self.ollama_model = MockModel(["Test Ollama response"])
-        self.claude_model = MockModel(["Test Claude response"])
+        # Initialize with provided or test dependencies
+        self.agents = agents if agents is not None else self._create_test_agents()
+        self.ollama_model = ollama_model if ollama_model is not None else MockModel(["Test Ollama response"])
+        self.claude_model = claude_model if claude_model is not None else MockModel(["Test Claude response"])
 
         # Create test codebase analyzer
-        self.codebase_analyzer = MockCodebaseAnalyzer()  # type: ignore
+        self.codebase_analyzer = codebase_analyzer if codebase_analyzer is not None else MockCodebaseAnalyzer()  # type: ignore
 
         # Create test GitHub integration
         self.github = MockGitHub()
@@ -228,9 +236,13 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
 
         state["code_context_document"] = context_doc
         state["artifacts_index"]["code_context"] = str(context_path)
-        # Skip message handling in test implementation
-
-        # Would normally add message here, but skipping for test
+        
+        # Add message for test expectations
+        state["messages_window"].append({
+            "role": "system",
+            "content": f"Code context extracted and saved to {context_path}",
+            "timestamp": "test_timestamp"
+        })
 
         return state
 

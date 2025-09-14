@@ -102,12 +102,16 @@ class TestWorkflowConfig(unittest.TestCase):
 
     def test_paths_configuration(self):
         """Test paths configuration."""
+        from pathlib import Path
         paths = WORKFLOW_CONFIG["paths"]
 
-        self.assertEqual(paths["artifacts_root"], "agents/artifacts")
-        self.assertEqual(paths["workspaces_root"], "agents/workspaces")
-        self.assertEqual(paths["logs_root"], "agents/logs")
-        self.assertEqual(paths["checkpoints_root"], "agents/checkpoints")
+        # Expected paths are in user's home directory
+        expected_base = Path.home() / ".local" / "share" / "github-agent" / "langgraph"
+        
+        self.assertEqual(paths["artifacts_root"], str(expected_base / "artifacts"))
+        self.assertEqual(paths["workspaces_root"], str(expected_base / "workspaces"))
+        self.assertEqual(paths["logs_root"], str(expected_base / "logs"))
+        self.assertEqual(paths["checkpoints_root"], str(expected_base / "checkpoints"))
 
 
 class TestModelConfig(unittest.TestCase):
@@ -117,8 +121,9 @@ class TestModelConfig(unittest.TestCase):
         """Test Ollama model configuration."""
         ollama_config = MODEL_CONFIG["ollama"]
 
-        # Test default base URL
-        self.assertIn("localhost:11434", ollama_config["base_url"])
+        # Test base URL (could be from env or default)
+        base_url = ollama_config["base_url"]
+        self.assertTrue(base_url.endswith(":11434") or base_url.endswith(":11434/"))
 
         # Test models
         models = ollama_config["models"]
@@ -286,20 +291,28 @@ class TestConfigUtilities(unittest.TestCase):
 
     def test_get_artifacts_path(self):
         """Test artifacts path generation."""
+        from pathlib import Path
         thread_id = "test-thread-123"
 
         path = get_artifacts_path(thread_id)
 
-        self.assertEqual(str(path), f"agents/artifacts/{thread_id}")
+        # Expected path should be based on config + thread_id
+        expected_base = Path.home() / ".local" / "share" / "github-agent" / "langgraph" / "artifacts"
+        expected_path = expected_base / thread_id
+        self.assertEqual(str(path), str(expected_path))
         self.assertIsInstance(path, Path)
 
     def test_get_workspace_path(self):
         """Test workspace path generation."""
+        from pathlib import Path
         thread_id = "test-thread-456"
 
         path = get_workspace_path(thread_id)
 
-        self.assertEqual(str(path), f"agents/workspaces/{thread_id}")
+        # Expected path should be based on config + thread_id
+        expected_base = Path.home() / ".local" / "share" / "github-agent" / "langgraph" / "workspaces"
+        expected_path = expected_base / thread_id
+        self.assertEqual(str(path), str(expected_path))
         self.assertIsInstance(path, Path)
 
 

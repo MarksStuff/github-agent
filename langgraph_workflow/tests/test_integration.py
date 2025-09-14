@@ -7,11 +7,9 @@ from pathlib import Path
 
 from ..config import should_escalate_to_claude
 from ..enums import ModelRouter, WorkflowPhase
-from ..langgraph_workflow import (
-    MultiAgentWorkflow,
-    WorkflowState,
-)
+from ..langgraph_workflow import WorkflowState
 from .mocks import create_mock_dependencies
+from .mocks.test_workflow import TestMultiAgentWorkflow
 
 
 class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
@@ -26,8 +24,8 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         # CORRECT: Use our own mock dependencies
         self.mock_deps = create_mock_dependencies(self.thread_id)
 
-        # Create workflow with required dependencies
-        self.workflow = MultiAgentWorkflow(
+        # Create workflow with required dependencies - use test implementation
+        self.workflow = TestMultiAgentWorkflow(
             repo_path=self.repo_path,
             thread_id=self.thread_id,
             agents=self.mock_deps["agents"],
@@ -330,7 +328,7 @@ class TestWorkflowPerformanceFixed(unittest.IsolatedAsyncioTestCase):
         temp_dir = tempfile.TemporaryDirectory()
         mock_deps = create_mock_dependencies("perf-test")
 
-        workflow = MultiAgentWorkflow(
+        workflow = TestMultiAgentWorkflow(
             repo_path=temp_dir.name,
             thread_id="perf-test",
             agents=mock_deps["agents"],

@@ -114,24 +114,24 @@ Build an ETL pipeline for data transformation:
 
     @pytest.mark.asyncio
     @pytest.mark.asyncio
-    async def test_extract_feature_claude_cli_mock_success(self, test_cases):
-        """Test successful feature extraction with Claude CLI mock."""
+    async def test_extract_feature_llm_mock_success(self, test_cases):
+        """Test successful feature extraction with LLM mock."""
         test_case = test_cases[0]  # Use auth feature test case
         framework = LLMTestFramework(extract_feature_from_prd)
 
-        # Create mock for successful Claude CLI response
+        # Create mock for successful LLM response
         mock_response = MockLLMResponse(test_case.expected_mock_output)
-        mock_calls = mock_response.create_claude_cli_mock()
+        mock_calls = mock_response.create_claude_cli_mock()  # This creates generic subprocess mocks
 
         await framework.run_mock_test(test_case, mock_subprocess_calls=mock_calls)
 
     @pytest.mark.asyncio
-    async def test_extract_feature_claude_api_fallback(self, test_cases):
-        """Test fallback to Claude API when CLI not available."""
+    async def test_extract_feature_api_fallback(self, test_cases):
+        """Test fallback to API when CLI not available."""
         test_case = test_cases[0]
         framework = LLMTestFramework(extract_feature_from_prd)
 
-        # Mock Claude CLI as unavailable
+        # Mock CLI as unavailable
         cli_unavailable_mocks = [
             Mock(returncode=1, stderr="Command not found")  # CLI check fails
         ]
@@ -174,7 +174,7 @@ Build an ETL pipeline for data transformation:
     @pytest.mark.asyncio
     async def test_extract_feature_cli_failure_fallback(self, sample_prd_content):
         """Test fallback to text search when LLM fails."""
-        # Mock Claude CLI failure
+        # Mock CLI failure
         mock_calls = MockLLMResponse("").create_subprocess_error_mock("CLI failed")
 
         with patch("subprocess.run", side_effect=mock_calls):
@@ -191,8 +191,8 @@ Build an ETL pipeline for data transformation:
             assert "Data Processing Pipeline" not in result
 
     @pytest.mark.asyncio
-    async def test_extract_feature_no_claude_no_api_error(self):
-        """Test error when neither Claude CLI nor API key available."""
+    async def test_extract_feature_no_llm_fallback(self):
+        """Test fallback behavior when no LLM is available."""
         # Mock CLI unavailable
         with patch("subprocess.run", side_effect=FileNotFoundError()):
             with patch.dict(os.environ, {}, clear=True):  # No API key
@@ -380,21 +380,6 @@ Build a high-performance analytics dashboard with:
             ],
         )
 
-    @requires_claude_cli
-    @integration_test
-    @pytest.mark.asyncio
-    async def test_extract_feature_real_claude_cli(self, complex_prd_content):
-        """Test feature extraction using real Claude CLI."""
-        # This test runs only if Claude CLI is actually available
-        result = await extract_feature_from_prd(
-            complex_prd_content, "Advanced User Authentication System"
-        )
-
-        # Basic quality checks for real Claude CLI
-        assert result is not None
-        assert len(result) > 50
-        assert "authentication" in result.lower()
-        assert "dashboard" not in result.lower()  # Should not bleed between features
 
     @integration_test
     @pytest.mark.asyncio

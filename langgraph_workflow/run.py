@@ -718,8 +718,8 @@ async def interactive_step_mode():
 
 def main():
     """Main entry point."""
-    # Run startup validation unless in mock mode or just listing steps
-    if "--list-steps" not in sys.argv and not check_mock_mode():
+    # Run startup validation unless in mock mode, listing steps, or showing help
+    if "--list-steps" not in sys.argv and "--help" not in sys.argv and "-h" not in sys.argv and not check_mock_mode():
         print("🔍 Validating startup requirements...")
         validation_results = run_startup_validation(verbose=False)
 
@@ -819,6 +819,11 @@ Examples:
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     args = parser.parse_args()
+
+    # Handle help early - argparse already printed help and called sys.exit
+    # If we're here after --help, it means sys.exit was mocked, so we should return
+    if "--help" in sys.argv or "-h" in sys.argv:
+        return
 
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
