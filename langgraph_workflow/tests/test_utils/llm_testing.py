@@ -23,6 +23,7 @@ class LLMTestingMixin:
     def check_ollama_available() -> bool:
         """Check if Ollama is available for integration testing."""
         import os
+
         ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         try:
             response = requests.get(f"{ollama_url}/api/version", timeout=2)
@@ -154,7 +155,7 @@ class MockLLMResponse:
         version_mock = Mock(returncode=0, stdout="1.0.113 (CLI Tool)")
         response_mock = Mock(returncode=0, stdout=self.response_text)
         return [version_mock, response_mock]
-    
+
     def create_claude_cli_mock(self) -> list[Mock]:
         """Deprecated: Use create_cli_mock() instead."""
         return self.create_cli_mock()
@@ -164,7 +165,7 @@ class MockLLMResponse:
         response_mock = Mock()
         response_mock.content = self.response_text
         return response_mock
-    
+
     def create_claude_api_mock(self) -> Mock:
         """Deprecated: Use create_api_mock() instead."""
         return self.create_api_mock()
@@ -286,6 +287,7 @@ class LLMTestFramework(LLMTestingMixin):
         if use_ollama:
             # Use existing OLLAMA_BASE_URL or default
             import os
+
             ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
             env_patches["OLLAMA_BASE_URL"] = ollama_url
             # Clear Claude CLI availability to force API usage with Ollama

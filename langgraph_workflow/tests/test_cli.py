@@ -7,7 +7,7 @@ This file focuses on CLI-specific functionality.
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 # Import CLI functions directly - dependencies should be available
 from ..run import main, run_workflow
@@ -112,7 +112,7 @@ class TestRunWorkflow(unittest.IsolatedAsyncioTestCase):
         # This is a basic test - more comprehensive resume testing would require
         # actual checkpoint data
         from unittest.mock import AsyncMock
-        
+
         with patch("langgraph_workflow.run.MultiAgentWorkflow") as mock_workflow:
             mock_app = AsyncMock()
             mock_app.ainvoke.return_value = {

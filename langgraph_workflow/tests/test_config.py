@@ -2,7 +2,6 @@
 
 import os
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 from ..config import (
@@ -103,11 +102,12 @@ class TestWorkflowConfig(unittest.TestCase):
     def test_paths_configuration(self):
         """Test paths configuration."""
         from pathlib import Path
+
         paths = WORKFLOW_CONFIG["paths"]
 
         # Expected paths are in user's home directory
         expected_base = Path.home() / ".local" / "share" / "github-agent" / "langgraph"
-        
+
         self.assertEqual(paths["artifacts_root"], str(expected_base / "artifacts"))
         self.assertEqual(paths["workspaces_root"], str(expected_base / "workspaces"))
         self.assertEqual(paths["logs_root"], str(expected_base / "logs"))
@@ -292,12 +292,20 @@ class TestConfigUtilities(unittest.TestCase):
     def test_get_artifacts_path(self):
         """Test artifacts path generation."""
         from pathlib import Path
+
         thread_id = "test-thread-123"
 
         path = get_artifacts_path(thread_id)
 
         # Expected path should be based on config + thread_id
-        expected_base = Path.home() / ".local" / "share" / "github-agent" / "langgraph" / "artifacts"
+        expected_base = (
+            Path.home()
+            / ".local"
+            / "share"
+            / "github-agent"
+            / "langgraph"
+            / "artifacts"
+        )
         expected_path = expected_base / thread_id
         self.assertEqual(str(path), str(expected_path))
         self.assertIsInstance(path, Path)
@@ -305,12 +313,20 @@ class TestConfigUtilities(unittest.TestCase):
     def test_get_workspace_path(self):
         """Test workspace path generation."""
         from pathlib import Path
+
         thread_id = "test-thread-456"
 
         path = get_workspace_path(thread_id)
 
         # Expected path should be based on config + thread_id
-        expected_base = Path.home() / ".local" / "share" / "github-agent" / "langgraph" / "workspaces"
+        expected_base = (
+            Path.home()
+            / ".local"
+            / "share"
+            / "github-agent"
+            / "langgraph"
+            / "workspaces"
+        )
         expected_path = expected_base / thread_id
         self.assertEqual(str(path), str(expected_path))
         self.assertIsInstance(path, Path)

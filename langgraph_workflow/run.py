@@ -719,7 +719,12 @@ async def interactive_step_mode():
 def main():
     """Main entry point."""
     # Run startup validation unless in mock mode, listing steps, or showing help
-    if "--list-steps" not in sys.argv and "--help" not in sys.argv and "-h" not in sys.argv and not check_mock_mode():
+    if (
+        "--list-steps" not in sys.argv
+        and "--help" not in sys.argv
+        and "-h" not in sys.argv
+        and not check_mock_mode()
+    ):
         print("🔍 Validating startup requirements...")
         validation_results = run_startup_validation(verbose=False)
 

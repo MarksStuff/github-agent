@@ -110,11 +110,23 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
 
         # Initialize with provided or test dependencies
         self.agents = agents if agents is not None else self._create_test_agents()
-        self.ollama_model = ollama_model if ollama_model is not None else MockModel(["Test Ollama response"])
-        self.claude_model = claude_model if claude_model is not None else MockModel(["Test Claude response"])
+        self.ollama_model = (
+            ollama_model
+            if ollama_model is not None
+            else MockModel(["Test Ollama response"])
+        )
+        self.claude_model = (
+            claude_model
+            if claude_model is not None
+            else MockModel(["Test Claude response"])
+        )
 
         # Create test codebase analyzer
-        self.codebase_analyzer = codebase_analyzer if codebase_analyzer is not None else MockCodebaseAnalyzer()  # type: ignore
+        self.codebase_analyzer = (
+            codebase_analyzer
+            if codebase_analyzer is not None
+            else MockCodebaseAnalyzer()
+        )  # type: ignore
 
         # Create test GitHub integration
         self.github = MockGitHub()
@@ -236,13 +248,15 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
 
         state["code_context_document"] = context_doc
         state["artifacts_index"]["code_context"] = str(context_path)
-        
+
         # Add message for test expectations
-        state["messages_window"].append({
-            "role": "system",
-            "content": f"Code context extracted and saved to {context_path}",
-            "timestamp": "test_timestamp"
-        })
+        state["messages_window"].append(
+            {
+                "role": "system",
+                "content": f"Code context extracted and saved to {context_path}",
+                "timestamp": "test_timestamp",
+            }
+        )
 
         return state
 

@@ -12,7 +12,6 @@ from langgraph_workflow.tests.test_utils import (
     LLMTestingMixin,
     MockLLMResponse,
     integration_test,
-    requires_claude_cli,
     requires_ollama,
 )
 
@@ -121,7 +120,9 @@ Build an ETL pipeline for data transformation:
 
         # Create mock for successful LLM response
         mock_response = MockLLMResponse(test_case.expected_mock_output)
-        mock_calls = mock_response.create_claude_cli_mock()  # This creates generic subprocess mocks
+        mock_calls = (
+            mock_response.create_claude_cli_mock()
+        )  # This creates generic subprocess mocks
 
         await framework.run_mock_test(test_case, mock_subprocess_calls=mock_calls)
 
@@ -379,7 +380,6 @@ Build a high-performance analytics dashboard with:
                 "social",
             ],
         )
-
 
     @integration_test
     @pytest.mark.asyncio
