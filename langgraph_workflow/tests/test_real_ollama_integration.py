@@ -446,10 +446,10 @@ Keep the response concise and focused on what would be useful for implementing n
         # Check the content makes sense - should mention basic repository concepts
         context_doc = result["code_context_document"]
         assert (
-            "Python" in context_doc or 
-            "repository" in context_doc.lower() or 
-            "system" in context_doc.lower() or
-            "code" in context_doc.lower()
+            "Python" in context_doc
+            or "repository" in context_doc.lower()
+            or "system" in context_doc.lower()
+            or "code" in context_doc.lower()
         )
 
         print(f"📄 Generated {len(context_doc)} characters of code context")

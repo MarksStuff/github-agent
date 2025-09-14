@@ -336,6 +336,7 @@ class MultiAgentWorkflow:
         # Use the proper artifacts directory (in ~/.local/share/github-agent/langgraph/artifacts/)
         # Use thread_id from state to support per-thread artifacts
         from .config import get_artifacts_path
+
         thread_id = state.get("thread_id", self.thread_id)
         artifacts_dir = get_artifacts_path(thread_id)
         feature_artifact_path = artifacts_dir / "feature_description.md"

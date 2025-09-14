@@ -238,8 +238,8 @@ Detailed requirements for authentication..."""
         from unittest.mock import patch
 
         with patch(
-            "langgraph_workflow.config.get_artifacts_path", 
-            side_effect=PermissionError("Permission denied")
+            "langgraph_workflow.config.get_artifacts_path",
+            side_effect=PermissionError("Permission denied"),
         ):
             # Should raise the underlying error
             with pytest.raises(PermissionError):
