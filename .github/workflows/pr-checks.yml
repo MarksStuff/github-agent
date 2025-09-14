@@ -389,8 +389,12 @@ jobs:
 
               # Run pytest with coverage on all tests EXCEPT integration tests
               echo 'Running pytest with coverage (excluding integration tests)...'
+              
+              # Use environment variable to avoid shell escaping issues
+              export PYTEST_MARKERS='not integration'
+              
               pytest \
-                -m "not integration" \
+                -m \"\$PYTEST_MARKERS\" \
                 --cov=. \
                 --cov-report=xml:coverage_reports/coverage.xml \
                 --cov-report=lcov:coverage_reports/coverage.lcov \
