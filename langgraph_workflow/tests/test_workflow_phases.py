@@ -29,7 +29,7 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
             agents=self.mock_deps["agents"],
             codebase_analyzer=self.mock_deps["codebase_analyzer"],
             ollama_model=self.mock_deps["ollama_model"],
-            claude_model=self.mock_deps["claude_model"],
+            claude_model=None,  # No Claude model needed for Ollama-only tests
             thread_id=self.thread_id,
         )
 
@@ -86,7 +86,7 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(
                 result["current_phase"], WorkflowPhase.PHASE_0_CODE_CONTEXT
             )
-            self.assertEqual(result["model_router"], ModelRouter.CLAUDE_CODE)
+            self.assertEqual(result["model_router"], ModelRouter.OLLAMA)
             self.assertIsNotNone(result["code_context_document"])
             self.assertIn("code_context", result["artifacts_index"])
 
@@ -219,38 +219,12 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("Ollama response", ollama_response)
 
-        claude_response = await self.workflow._call_model(
-            "Test prompt", ModelRouter.CLAUDE_CODE
+        # Test additional Ollama routing
+        ollama_response_2 = await self.workflow._call_model(
+            "Test prompt 2", ModelRouter.OLLAMA
         )
-        self.assertIn("Claude response", claude_response)
+        self.assertIn("Ollama response", ollama_response_2)
 
-    async def test_escalation_triggers(self):
-        """Test escalation trigger conditions."""
-        from ..config import should_escalate_to_claude
-
-        # Test diff size escalation
-        self.assertTrue(should_escalate_to_claude(diff_size=500))  # > 300 threshold
-        self.assertFalse(should_escalate_to_claude(diff_size=100))  # < 300 threshold
-
-        # Test files touched escalation
-        self.assertTrue(should_escalate_to_claude(files_touched=15))  # > 10 threshold
-        self.assertFalse(should_escalate_to_claude(files_touched=5))  # < 10 threshold
-
-        # Test consecutive failures escalation
-        self.assertTrue(
-            should_escalate_to_claude(consecutive_failures=3)
-        )  # >= 2 threshold
-        self.assertFalse(
-            should_escalate_to_claude(consecutive_failures=1)
-        )  # < 2 threshold
-
-        # Test complexity score escalation
-        self.assertTrue(
-            should_escalate_to_claude(complexity_score=0.8)
-        )  # > 0.7 threshold
-        self.assertFalse(
-            should_escalate_to_claude(complexity_score=0.5)
-        )  # < 0.7 threshold
 
     async def test_state_persistence(self):
         """Test that state is properly maintained between phases."""

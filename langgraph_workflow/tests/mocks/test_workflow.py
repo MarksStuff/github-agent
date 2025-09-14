@@ -248,7 +248,7 @@ This is a test repository analysis for: {feature_description}
     async def extract_code_context(self, state: WorkflowState) -> WorkflowState:
         """Extract code context using test analyzer and filesystem."""
         # Use real workflow logic but with test dependencies
-        state["model_router"] = ModelRouter.CLAUDE_CODE
+        state["model_router"] = ModelRouter.OLLAMA
         state["current_phase"] = WorkflowPhase.PHASE_0_CODE_CONTEXT
 
         # Use test codebase analyzer

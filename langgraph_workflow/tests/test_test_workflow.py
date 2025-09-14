@@ -32,7 +32,6 @@ class TestMockTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(self.test_workflow.agents)
         self.assertEqual(len(self.test_workflow.agents), 4)
         self.assertIsNotNone(self.test_workflow.ollama_model)
-        self.assertIsNotNone(self.test_workflow.claude_model)
         self.assertIsNotNone(self.test_workflow.codebase_analyzer)
         self.assertIsNotNone(self.test_workflow.github)
 

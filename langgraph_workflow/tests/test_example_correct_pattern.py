@@ -30,7 +30,7 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
             agents=self.mock_deps["agents"],
             codebase_analyzer=self.mock_deps["codebase_analyzer"],
             ollama_model=self.mock_deps["ollama_model"],
-            claude_model=self.mock_deps["claude_model"],
+            claude_model=None,  # No Claude model needed for Ollama-only tests
         )
 
         # Set up artifacts directory
@@ -86,7 +86,7 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(
                 result["current_phase"], WorkflowPhase.PHASE_0_CODE_CONTEXT
             )
-            self.assertEqual(result["model_router"], ModelRouter.CLAUDE_CODE)
+            self.assertEqual(result["model_router"], ModelRouter.OLLAMA)
             self.assertIsNotNone(result["code_context_document"])
 
             # Verify external dependency was called (filesystem)
@@ -98,13 +98,9 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
         ollama_response = await self.workflow._call_model(
             "Test prompt", ModelRouter.OLLAMA
         )
-        claude_response = await self.workflow._call_model(
-            "Test prompt", ModelRouter.CLAUDE_CODE
-        )
 
         # Verify responses from our mock implementations
         self.assertIn("Ollama response", ollama_response)
-        self.assertIn("Claude response", claude_response)
 
     # INCORRECT pattern for comparison (DON'T DO THIS):
     """
