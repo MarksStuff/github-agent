@@ -4,6 +4,12 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .constants import (
+    CLAUDE_CLI_TIMEOUT,
+    DEFAULT_OLLAMA_MODEL,
+    FALLBACK_OLLAMA_MODEL,
+)
+
 # Workflow configuration
 WORKFLOW_CONFIG: dict[str, Any] = {
     # Model routing thresholds
@@ -126,10 +132,10 @@ MODEL_CONFIG: dict[str, Any] = {
     "ollama": {
         "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         "models": {
-            "default": "qwen3:8b",
-            "developer": "qwen3:8b",
-            "tester": "llama3.1",
-            "summarizer": "llama3.1",
+            "default": DEFAULT_OLLAMA_MODEL,
+            "developer": DEFAULT_OLLAMA_MODEL,
+            "tester": FALLBACK_OLLAMA_MODEL,
+            "summarizer": FALLBACK_OLLAMA_MODEL,
         },
         "parameters": {
             "temperature": 0.7,
@@ -151,7 +157,7 @@ MODEL_CONFIG: dict[str, Any] = {
     },
     "claude_code": {
         "cli_path": "claude",  # Assuming 'claude' CLI is in PATH
-        "timeout": 300,
+        "timeout": CLAUDE_CLI_TIMEOUT,
         "max_retries": 2,
     },
 }
@@ -321,3 +327,43 @@ def should_escalate_to_claude(
         return True
 
     return False
+
+
+# Model configuration utility functions
+def get_ollama_base_url() -> str:
+    """Get Ollama base URL from configuration.
+
+    Returns:
+        Ollama base URL (sourced from environment or config)
+    """
+    return MODEL_CONFIG["ollama"]["base_url"]
+
+
+def get_ollama_model(agent_type: str = "default") -> str:
+    """Get Ollama model name for agent type.
+
+    Args:
+        agent_type: Type of agent ("default", "developer", "tester", "summarizer")
+
+    Returns:
+        Model name from configuration
+    """
+    return MODEL_CONFIG["ollama"]["models"].get(agent_type, DEFAULT_OLLAMA_MODEL)
+
+
+def get_claude_cli_timeout() -> int:
+    """Get Claude CLI timeout from configuration.
+
+    Returns:
+        Timeout in seconds
+    """
+    return MODEL_CONFIG["claude_code"]["timeout"]
+
+
+def get_claude_cli_path() -> str:
+    """Get Claude CLI executable path.
+
+    Returns:
+        Path to Claude CLI executable
+    """
+    return MODEL_CONFIG["claude_code"]["cli_path"]

@@ -4,29 +4,31 @@ These agents actually call Ollama models instead of returning mock responses.
 Only used for integration tests to verify GPU activity.
 """
 
-import os
 from typing import Any
 
 from langchain_core.messages import HumanMessage
 from langchain_ollama import ChatOllama
 
+from ..config import get_ollama_base_url, get_ollama_model
+
 
 class RealOllamaPersona:
     """Real persona that makes actual calls to Ollama models."""
 
-    def __init__(self, agent_type: str, model_name: str = "qwen3:8b"):
+    def __init__(self, agent_type: str, model_name: str | None = None):
         """Initialize with agent type and model.
 
         Args:
             agent_type: Type of agent (e.g., "senior-engineer", "test-first")
-            model_name: Ollama model to use
+            model_name: Ollama model to use (defaults to configured model)
         """
         self.agent_type = agent_type
-        self.model_name = model_name
+        self.model_name = model_name or get_ollama_model("default")
 
-        # Create ChatOllama instance
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.model = ChatOllama(model=model_name, base_url=ollama_url, temperature=0.3)
+        # Create ChatOllama instance using configuration
+        self.model = ChatOllama(
+            model=self.model_name, base_url=get_ollama_base_url(), temperature=0.3
+        )
 
     def ask(self, prompt: str) -> str:
         """Ask the persona a question (synchronous interface expected by workflow).
@@ -82,16 +84,16 @@ Keep your response concise but informative (2-3 sentences max).
 class RealOllamaAgent:
     """Real agent that makes actual calls to Ollama models."""
 
-    def __init__(self, agent_type: str, model_name: str = "qwen3:8b"):
+    def __init__(self, agent_type: str, model_name: str | None = None):
         """Initialize with agent type and model.
 
         Args:
             agent_type: Type of agent (e.g., "senior-engineer", "test-first")
-            model_name: Ollama model to use
+            model_name: Ollama model to use (defaults to configured model)
         """
         self.agent_type = agent_type
-        self.model_name = model_name
-        self.persona = RealOllamaPersona(agent_type, model_name)
+        self.model_name = model_name or get_ollama_model("default")
+        self.persona = RealOllamaPersona(agent_type, self.model_name)
 
     async def analyze(self, prompt: str, context: dict[str, Any] | None = None) -> str:
         """Analyze using real Ollama model.

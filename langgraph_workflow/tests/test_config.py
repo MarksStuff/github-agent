@@ -13,6 +13,7 @@ from ..config import (
     get_config,
     get_workspace_path,
 )
+from ..constants import DEFAULT_OLLAMA_MODEL, FALLBACK_OLLAMA_MODEL
 
 
 class TestWorkflowConfig(unittest.TestCase):
@@ -125,10 +126,10 @@ class TestModelConfig(unittest.TestCase):
 
         # Test models
         models = ollama_config["models"]
-        self.assertEqual(models["default"], "qwen3:8b")
-        self.assertEqual(models["developer"], "qwen3:8b")
-        self.assertEqual(models["tester"], "llama3.1")
-        self.assertEqual(models["summarizer"], "llama3.1")
+        self.assertEqual(models["default"], DEFAULT_OLLAMA_MODEL)
+        self.assertEqual(models["developer"], DEFAULT_OLLAMA_MODEL)
+        self.assertEqual(models["tester"], FALLBACK_OLLAMA_MODEL)
+        self.assertEqual(models["summarizer"], FALLBACK_OLLAMA_MODEL)
 
         # Test parameters
         params = ollama_config["parameters"]

@@ -16,7 +16,12 @@ from langgraph_workflow import (
 )
 
 # Set up logging
-from langgraph_workflow.config import WORKFLOW_CONFIG, get_checkpoint_path
+from langgraph_workflow.config import (
+    WORKFLOW_CONFIG,
+    get_checkpoint_path,
+    get_ollama_base_url,
+    get_ollama_model,
+)
 from langgraph_workflow.startup_validation import (
     check_mock_mode,
     run_startup_validation,
@@ -73,9 +78,9 @@ Feature Extract:"""
     try:
         from langchain_ollama import ChatOllama
 
-        # Check for Ollama configuration
-        ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        ollama_model = os.getenv("OLLAMA_MODEL", "qwen3:8b")
+        # Use configuration for Ollama setup
+        ollama_base_url = get_ollama_base_url()
+        ollama_model = os.getenv("OLLAMA_MODEL", get_ollama_model("default"))
 
         logger.info("Attempting feature extraction with Ollama")
         ollama_client = ChatOllama(

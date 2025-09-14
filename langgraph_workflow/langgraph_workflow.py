@@ -18,8 +18,29 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
+# Import config utilities
+from .config import (
+    get_claude_cli_path,
+    get_claude_cli_timeout,
+    get_ollama_base_url,
+    get_ollama_model,
+)
+
+# Import constants
+from .constants import (
+    MIN_CODE_CONTEXT_LENGTH,
+    MODEL_VERSION_CHECK_TIMEOUT,
+)
+
 # Import enums from separate module to avoid circular imports
-from .enums import AgentType, ModelRouter, WorkflowPhase, WorkflowStep
+from .enums import (
+    AgentType,
+    ArtifactName,
+    CLIDetectionString,
+    ModelRouter,
+    WorkflowPhase,
+    WorkflowStep,
+)
 
 # Import agent personas and interfaces
 from .interfaces import CodebaseAnalyzerInterface
@@ -144,8 +165,8 @@ class MultiAgentWorkflow:
             self.ollama_model = ollama_model
         else:
             self.ollama_model = ChatOllama(
-                model="qwen3:8b",
-                base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+                model=get_ollama_model("default"),
+                base_url=get_ollama_base_url(),
             )
 
         if claude_model is not None:
@@ -349,7 +370,9 @@ class MultiAgentWorkflow:
         # Update artifacts index
         if "artifacts_index" not in state:
             state["artifacts_index"] = {}
-        state["artifacts_index"]["feature_description"] = str(feature_artifact_path)
+        state["artifacts_index"][ArtifactName.FEATURE_DESCRIPTION] = str(
+            feature_artifact_path
+        )
 
         # Store the final feature description
         state["feature_description"] = feature_to_use or ""
@@ -379,7 +402,7 @@ class MultiAgentWorkflow:
         context_path.write_text(context_doc)
 
         state["code_context_document"] = context_doc
-        state["artifacts_index"]["code_context"] = str(context_path)
+        state["artifacts_index"][ArtifactName.CODE_CONTEXT] = str(context_path)
         state["messages_window"].append(
             AIMessage(
                 content=f"Extracted comprehensive code context document (saved to {context_path})"
@@ -606,10 +629,14 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
 
             # Check if Claude CLI is available
             claude_result = subprocess.run(
-                ["claude", "--version"], capture_output=True, text=True, timeout=5
+                [get_claude_cli_path(), "--version"],
+                capture_output=True,
+                text=True,
+                timeout=MODEL_VERSION_CHECK_TIMEOUT,
             )
             use_claude_cli = (
-                claude_result.returncode == 0 and "Claude Code" in claude_result.stdout
+                claude_result.returncode == 0
+                and CLIDetectionString.CLAUDE_CODE in claude_result.stdout
             )
 
             if use_claude_cli:
@@ -617,11 +644,11 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                     "Using Claude CLI for code context generation (has file access)"
                 )
                 claude_result = subprocess.run(
-                    ["claude"],
+                    [get_claude_cli_path()],
                     input=analysis_prompt,
                     capture_output=True,
                     text=True,
-                    timeout=600,  # 10 minutes - optimize for quality, not speed
+                    timeout=get_claude_cli_timeout(),  # Configured timeout - optimize for quality, not speed
                 )
 
                 if claude_result.returncode == 0:
@@ -635,8 +662,8 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                             f"Claude CLI response preview: {context_doc[:500]}..."
                         )
 
-                        # Expect comprehensive analysis (should be 2000+ chars for detailed code context)
-                        if len(context_doc.strip()) > 2000:
+                        # Expect comprehensive analysis (configured minimum length for detailed code context)
+                        if len(context_doc.strip()) > MIN_CODE_CONTEXT_LENGTH:
                             return context_doc
                         else:
                             logger.error(
@@ -648,7 +675,7 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                             logger.error(f"Response preview: {context_doc[:200]}...")
                             raise RuntimeError(
                                 "Claude CLI failed to provide comprehensive code analysis. "
-                                f"Expected 2000+ characters, got {len(context_doc)}. "
+                                f"Expected {MIN_CODE_CONTEXT_LENGTH}+ characters, got {len(context_doc)}. "
                                 "This indicates Claude CLI cannot properly examine the repository code."
                             )
                     else:

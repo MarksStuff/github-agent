@@ -68,3 +68,30 @@ class WorkflowStep(str, Enum):
     PUSH_TO_GITHUB = "push_to_github"
     WAIT_FOR_CI = "wait_for_ci"
     APPLY_PATCHES = "apply_patches"
+
+
+class CLIDetectionString(str, Enum):
+    """Strings used to detect CLI availability."""
+
+    CLAUDE_CODE = "Claude Code"
+
+
+class ArtifactName(str, Enum):
+    """Standard artifact names for artifacts_index."""
+
+    FEATURE_DESCRIPTION = "feature_description"
+    CODE_CONTEXT = "code_context"
+    DESIGN_DOCUMENT = "design_document"
+    SYNTHESIS = "synthesis"
+    SKELETON = "skeleton"
+    TESTS_INITIAL = "tests_initial"
+    IMPLEMENTATION_INITIAL = "implementation_initial"
+
+
+class FileExtension(str, Enum):
+    """File extensions for artifacts."""
+
+    MARKDOWN = ".md"
+    PYTHON = ".py"
+    JSON = ".json"
+    TEXT = ".txt"
