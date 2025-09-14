@@ -144,7 +144,7 @@ class MultiAgentWorkflow:
             self.ollama_model = ollama_model
         else:
             self.ollama_model = ChatOllama(
-                model="qwen3-coder:8b",
+                model="qwen3:8b",
                 base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
             )
 
@@ -404,267 +404,272 @@ class MultiAgentWorkflow:
         # Import json for formatting analysis data
         import json
 
-        # Create optimized prompt that uses pre-analyzed data instead of asking for full re-analysis
-        analysis_json = json.dumps(analysis, indent=2)
+        # Use comprehensive prompt that examines actual code to find architectural patterns
+        analysis_prompt = f"""You are a Senior Software Engineer conducting a comprehensive codebase analysis.
+You have FULL ACCESS to the repository code. Analyze it thoroughly to create a Code Context Document.
 
-        analysis_prompt = f"""You are a Senior Software Engineer creating a comprehensive Code Context Document.
+## Repository to Analyze:
+{repo_path}
 
-I have already analyzed the repository structure and extracted key information. Please synthesize this data into a well-formatted, actionable Code Context Document.
+## ANALYSIS METHODOLOGY:
 
-## Repository: {repo_path}
+### Phase 1: Code Examination (DO THIS FIRST)
+Before making any claims, examine:
 
-## PRE-ANALYZED REPOSITORY DATA:
-```json
-{analysis_json}
+1. **Entry Points & Main Files**
+   - Locate main.py, index.js, app.py, main.go, or equivalent
+   - Identify how the application starts and initializes
+   - Trace the execution flow from entry point
+
+2. **Core Business Logic**
+   - Find the primary domain models/entities
+   - Identify key business operations and workflows
+   - Look for service/controller/handler layers
+
+3. **Actual Dependencies Used**
+   - Check import statements in source files (not just package.json/requirements.txt)
+   - Identify which frameworks are actually instantiated and used
+   - Distinguish between installed vs. actually utilized dependencies
+
+4. **Architecture Verification**
+   - Examine actual class hierarchies and module dependencies
+   - Look at how components communicate (direct calls, events, queues, etc.)
+   - Identify real design patterns in the code (not just file naming)
+
+5. **Data Layer Analysis**
+   - Find actual database connections and queries
+   - Identify ORM usage or raw SQL
+   - Look for data models and schemas
+
+### Phase 2: Document Creation
+
+Based on your ACTUAL CODE EXAMINATION, create a Code Context Document with:
+
+## 1. SYSTEM IDENTITY
+**What This System Actually Does:**
+- Primary purpose (based on core business logic found)
+- Problem domain (based on domain models and operations)
+- System type (web app/API/CLI tool/library based on entry points)
+
+*Evidence: Quote specific files/classes that prove this*
+
+## 2. ARCHITECTURE REALITY CHECK
+
+**Actual Architecture Pattern:**
+Look at the code structure and answer:
+- Is this actually MVC? (Show me the Models, Views, Controllers)
+- Is this actually microservices? (Show me service boundaries and communication)
+- Is this actually event-driven? (Show me event publishers/subscribers)
+- Is this actually layered? (Show me the layer boundaries and dependencies)
+
+*Evidence: Reference specific code structures*
+
+**Real Design Patterns Found:**
+For each pattern claimed:
+- Pattern name
+- Where it's implemented (specific files/classes)
+- Code example showing the pattern
+
+## 3. TECHNOLOGY STACK - VERIFIED USAGE
+
+**Primary Language(s):**
+- Language: [language]
+- Actual usage: List 3-5 core files written in this language
+- Purpose: What aspects of the system use this language
+
+**Frameworks ACTUALLY IN USE:**
+For each framework:
+- Framework name
+- Initialization/configuration location (specific file:line)
+- How it's used (with code example)
+- Why it's essential (what breaks if removed)
+
+**Database/Storage:**
+- Type (found in connection strings/configs)
+- Access method (ORM/driver found in code)
+- Schema location or model definitions
+
+## 4. CODE ORGANIZATION ANALYSIS
+
+**Directory Structure Meaning:**
+```
+src/
+├── [directory]/ - {{what you found this contains after examining files}}
+├── [directory]/ - {{actual purpose based on code inspection}}
 ```
 
-## TASK:
-Create a comprehensive, UNBIASED Code Context Document using ONLY the pre-analyzed data above.
+**Module Communication Patterns:**
+- How do modules actually reference each other?
+- What are the dependency directions?
+- Are there circular dependencies?
 
-IMPORTANT RULES:
-1. This is an OBJECTIVE analysis - do NOT reference any specific features or implementation targets
-2. Only list languages found in ACTUAL SOURCE CODE files (not libraries, dependencies, or .venv)
-3. Be factual and accurate - only describe what's actually in the analysis data
-4. Focus on understanding the current system AS IT IS
+## 5. KEY COMPONENTS AND THEIR ROLES
 
-Structure the document as follows:
+For each major component found:
+- **Component**: [Name]
+- **Location**: [Path]
+- **Responsibility**: [What it actually does based on its code]
+- **Dependencies**: [What it imports/uses]
+- **Dependents**: [What uses it]
 
-### 1. SYSTEM OVERVIEW
-- What this system actually does (based on the analyzed structure)
-- Primary architecture patterns found in the code
-- Key entry points and main components
+## 6. INTEGRATION POINTS - VERIFIED
 
-### 2. TECHNOLOGY STACK
-- **Languages**: ONLY languages used in source code files (exclude .venv/, node_modules/, etc.)
-- **Frameworks**: Actually imported and used in the code
-- **Development Tools**: Testing, linting, deployment tools
+**External Systems:**
+- API clients found (with initialization code locations)
+- External services called (with example calls)
+- Message queues/event buses (with connection code)
 
-### 3. CODEBASE STRUCTURE
-- Directory organization and actual purpose
-- Key modules and what they do
-- Testing structure and conventions
+**Exposed Interfaces:**
+- REST endpoints (with route definitions)
+- GraphQL schemas (with resolver locations)
+- CLI commands (with command definitions)
+- Library exports (with public API surface)
 
-### 4. DEVELOPMENT CONTEXT
-- Current git branch and recent work
-- Dependencies and how they're managed
-- Design patterns and conventions observed
+## 7. DATA FLOW ANALYSIS
 
-### 5. ARCHITECTURE INSIGHTS
-- How components interact
-- Key abstractions and interfaces
-- Extension points and modularity
+Trace a typical operation through the system:
+1. Entry point: [file:function]
+2. Validation: [file:function]
+3. Business logic: [file:function]
+4. Data access: [file:function]
+5. Response: [file:function]
 
-Base everything on the provided analysis data. Be precise and factual.
+## 8. TESTING REALITY
+
+**Test Coverage:**
+- Test files location
+- Testing framework (based on imports in test files)
+- Types of tests found (unit/integration/e2e)
+- Key test examples
+
+## 9. DEVELOPMENT PRACTICES - OBSERVED
+
+Based on code examination:
+- **Code Style**: Observed conventions (not just linter configs)
+- **Error Handling**: Patterns actually used in code
+- **Logging**: Framework and patterns found
+- **Configuration**: How config is actually loaded and used
+
+## 10. CRITICAL FINDINGS
+
+**Code Smells/Issues Found:**
+- [Issue] in [location]
+- [Technical debt] in [component]
+
+**Inconsistencies:**
+- Different patterns in [location] vs [location]
+- Mixed conventions between [module] and [module]
+
+## VALIDATION CHECKLIST
+
+Before finalizing, verify:
+- [ ] Every framework listed is actually imported and used in source code
+- [ ] Every pattern claimed has a concrete code example
+- [ ] Every component described exists in the repository
+- [ ] Architecture description matches actual code structure
+- [ ] No languages listed that only appear in config/data files
+- [ ] Integration points have actual code implementing them
+
+## IMPORTANT RULES:
+
+1. **NO HALLUCINATION**: Only describe what you can point to in the code
+2. **SHOW EVIDENCE**: Every claim must reference specific files/code
+3. **ACKNOWLEDGE UNKNOWNS**: If something isn't clear from the code, say so
+4. **VERIFY CLAIMS**: Cross-check findings across multiple files
+5. **ACTUAL vs INTENDED**: Describe what the code DOES, not what comments say it should do
+
+Remember: You have the actual code. Read it. Don't guess based on file names or metadata.
 """
 
+        # Log prompt metadata for visibility
+        prompt_length = len(analysis_prompt)
+        logger.info(
+            f"Using comprehensive code examination prompt ({prompt_length} chars)"
+        )
+        logger.info(f"Repository path: {repo_path}")
+
+        # Log the full prompt for debugging
+        logger.debug("Code context analysis prompt:")
+        logger.debug("=" * 80)
+        logger.debug(analysis_prompt)
+        logger.debug("=" * 80)
+
+        # Use Ollama first if available, then fall back to Claude
+        import os
+
+        context_doc = None
+
+        # Code context generation requires file system access - only Claude Code CLI can do this
+        # Ollama and Claude API cannot read files, they just generate generic fictional content
+
+        # Try Claude CLI first since it has file access
         try:
-            # Log prompt metadata for visibility
-            prompt_length = len(analysis_prompt)
-            logger.info(
-                f"Using evidence-based code analysis prompt ({prompt_length} chars)"
+            import subprocess
+
+            # Check if Claude CLI is available
+            claude_result = subprocess.run(
+                ["claude", "--version"], capture_output=True, text=True, timeout=5
             )
-            logger.info(f"Repository path: {repo_path}")
+            use_claude_cli = (
+                claude_result.returncode == 0
+                and "Claude Code" in claude_result.stdout
+            )
 
-            # Log the full prompt for debugging
-            logger.debug("Code context analysis prompt:")
-            logger.debug("=" * 80)
-            logger.debug(analysis_prompt)
-            logger.debug("=" * 80)
-
-            # Use Ollama first if available, then fall back to Claude
-            import os
-
-            context_doc = None
-
-            # Code context generation requires file system access - only Claude Code CLI can do this
-            # Ollama and Claude API cannot read files, they just generate generic fictional content
-
-            # Try Claude CLI first since it has file access
-            try:
-                import subprocess
-
-                # Check if Claude CLI is available
+            if use_claude_cli:
+                logger.info(
+                    "Using Claude CLI for code context generation (has file access)"
+                )
                 claude_result = subprocess.run(
-                    ["claude", "--version"], capture_output=True, text=True, timeout=5
-                )
-                use_claude_cli = (
-                    claude_result.returncode == 0
-                    and "Claude Code" in claude_result.stdout
+                    ["claude"],
+                    input=analysis_prompt,
+                    capture_output=True,
+                    text=True,
+                    timeout=600,  # 10 minutes - optimize for quality, not speed
                 )
 
-                if use_claude_cli:
+                if claude_result.returncode == 0:
+                    context_doc = claude_result.stdout.strip()
                     logger.info(
-                        "Using Claude CLI for code context generation (has file access)"
+                        "Successfully generated code context using Claude CLI"
                     )
-                    claude_result = subprocess.run(
-                        ["claude"],
-                        input=analysis_prompt,
-                        capture_output=True,
-                        text=True,
-                        timeout=600,  # 10 minutes - optimize for quality, not speed
+                    logger.info(
+                        f"Generated context length: {len(context_doc)} chars"
                     )
 
-                    if claude_result.returncode == 0:
-                        context_doc = claude_result.stdout.strip()
+                    # Log the actual response for debugging
+                    if len(context_doc) > 0:
                         logger.info(
-                            "Successfully generated code context using Claude CLI"
-                        )
-                        logger.info(
-                            f"Generated context length: {len(context_doc)} chars"
+                            f"Claude CLI response preview: {context_doc[:500]}..."
                         )
 
-                        # Log the actual response for debugging
-                        if len(context_doc) > 0:
-                            logger.info(
-                                f"Claude CLI response preview: {context_doc[:500]}..."
-                            )
-
-                            # Lower threshold since we're using pre-analyzed data now
-                            if len(context_doc.strip()) > 50:
-                                return context_doc
-                            else:
-                                logger.warning(
-                                    f"Claude CLI returned very short response ({len(context_doc)} chars): {context_doc}"
-                                )
+                        # Expect comprehensive analysis (should be 2000+ chars for detailed code context)
+                        if len(context_doc.strip()) > 2000:
+                            return context_doc
                         else:
-                            logger.warning("Claude CLI returned empty response")
+                            logger.error(f"Claude CLI returned insufficient response ({len(context_doc)} chars)")
+                            logger.error("Comprehensive code analysis should produce detailed multi-section document")
+                            logger.error(f"Response preview: {context_doc[:200]}...")
+                            raise RuntimeError(
+                                "Claude CLI failed to provide comprehensive code analysis. "
+                                f"Expected 2000+ characters, got {len(context_doc)}. "
+                                "This indicates Claude CLI cannot properly examine the repository code."
+                            )
                     else:
-                        logger.warning(f"Claude CLI failed: {claude_result.stderr}")
+                        logger.warning("Claude CLI returned empty response")
                 else:
-                    logger.warning(
-                        "Claude Code CLI not available - cannot access repository files"
-                    )
-
-            except Exception as e:
-                logger.warning(f"Claude CLI failed: {e}")
-
-            # Fall back to Claude API if available (but warn it can't read files)
-            if self.claude_model is not None:
+                    logger.warning(f"Claude CLI failed: {claude_result.stderr}")
+            else:
                 logger.warning(
-                    "Falling back to Claude API - but it cannot read your actual files!"
+                    "Claude Code CLI not available - cannot access repository files"
                 )
-                logger.warning(
-                    "This will generate generic content, not analyze your real codebase"
-                )
-                try:
-                    logger.info(
-                        "Using Claude API for code context generation (no file access)"
-                    )
-                    response = await self._call_model(
-                        analysis_prompt, ModelRouter.CLAUDE_CODE
-                    )
-                    context_doc = str(response).strip() if response else ""
-
-                    if context_doc and len(context_doc.strip()) > 100:
-                        logger.warning(
-                            "Generated generic context using Claude API (not real codebase)"
-                        )
-                        return context_doc
-                    else:
-                        logger.warning(
-                            "Claude API returned empty or very short response"
-                        )
-
-                except Exception as e:
-                    logger.warning(f"Claude API failed: {e}")
-
-            # If no methods worked, generate a helpful error message
-            logger.error("CRITICAL: Code context generation failed!")
-
-            error_msg = """Code context generation failed - Claude Code CLI required for file access!
-
-ISSUE: Code context generation needs to read your actual repository files, but:
-- Ollama cannot read files (generates generic fictional content)
-- Claude API cannot read files (generates generic fictional content)
-- Only Claude Code CLI can access and analyze your real codebase
-
-SOLUTIONS:
-1. Install Claude Code CLI: https://docs.anthropic.com/en/docs/claude-code
-2. Or set ANTHROPIC_API_KEY (but this will generate generic content, not analyze real files)
-3. Make sure you're running from the correct repository directory
-
-REQUIRED: Claude Code CLI with file system access for accurate codebase analysis."""
-
-            raise RuntimeError(error_msg)
-
-            # This old fallback code is no longer needed
-            if False:
-                # Fall back to API key
-                from langchain_anthropic import ChatAnthropic
-                from langchain_core.messages import HumanMessage
-
-                api_key = os.getenv("ANTHROPIC_API_KEY")
-                if not api_key:
-                    raise ValueError(
-                        "Neither Claude CLI nor ANTHROPIC_API_KEY available"
-                    )
-
-                claude_model = ChatAnthropic()  # type: ignore
-                response = await claude_model.ainvoke(
-                    [HumanMessage(content=analysis_prompt)]
-                )
-                context_doc = str(response.content).strip() if response.content else ""
-                logger.info("Successfully generated code context using Anthropic API")
-                logger.debug(f"Generated context length: {len(context_doc)} chars")
-                logger.debug("LLM Response (first 1000 chars):")
-                logger.debug("=" * 60)
-                logger.debug(context_doc[:1000])
-                logger.debug("=" * 60)
-                if len(context_doc) > 1000:
-                    logger.debug(
-                        f"... (truncated, full response is {len(context_doc)} chars)"
-                    )
-
-                # Validate API response
-                if not context_doc or len(context_doc.strip()) == 0:
-                    raise ValueError(
-                        "Anthropic API returned empty response - no content generated"
-                    )
-                if len(context_doc.strip()) < 100:
-                    logger.warning(
-                        f"API response suspiciously short: {len(context_doc.strip())} chars"
-                    )
-                    logger.warning("Response content:")
-                    logger.warning(repr(context_doc))
-
-            return context_doc
 
         except Exception as e:
-            logger.error("CRITICAL: Code context generation failed!")
-            logger.error(f"Error details: {e}")
-            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Claude CLI failed: {e}")
+            raise RuntimeError(
+                "Code context generation requires Claude CLI with file system access. "
+                f"Claude CLI error: {e}"
+            )
 
-            # Don't fallback - fail clearly with detailed error information
-            error_details = str(e)
-            if "ANTHROPIC_API_KEY" in error_details:
-                error_msg = (
-                    f"Code context generation failed - No API access available!\n\n"
-                    f"ISSUE: {error_details}\n\n"
-                    f"SOLUTIONS:\n"
-                    f"1. Set ANTHROPIC_API_KEY environment variable\n"
-                    f"2. Ensure Claude CLI is working: 'claude --version'\n"
-                    f"3. Check Claude CLI permissions if using file-based prompts\n\n"
-                    f"Cannot proceed without LLM access for code analysis."
-                )
-            elif "timeout" in error_details.lower():
-                error_msg = (
-                    f"Code context generation failed - LLM call timed out!\n\n"
-                    f"ISSUE: {error_details}\n\n"
-                    f"POSSIBLE CAUSES:\n"
-                    f"1. Large repository taking too long to analyze\n"
-                    f"2. Network connectivity issues\n"
-                    f"3. LLM service overloaded\n\n"
-                    f"Try again or check your connection."
-                )
-            else:
-                error_msg = (
-                    f"Code context generation failed with unexpected error!\n\n"
-                    f"ERROR: {error_details}\n"
-                    f"TYPE: {type(e).__name__}\n\n"
-                    f"Please check logs for more details and ensure LLM access is configured."
-                )
-
-            raise RuntimeError(error_msg) from e
 
     async def parallel_design_exploration(self, state: WorkflowState) -> WorkflowState:
         """Phase 1 Step 1: All agents analyze in parallel using Ollama."""
