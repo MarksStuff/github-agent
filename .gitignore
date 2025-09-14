@@ -31,6 +31,3 @@ repositories.json
 # Claude CLI may create stray artifacts in current directory
 artifacts/code_context_document.md
 artifacts/.*.swp
-
-# Transient test artifacts
-artifacts/test-thread/
