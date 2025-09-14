@@ -198,7 +198,9 @@ async def get_profile():
 
         try:
             # Create ChatOllama instance - use qwen2.5-coder model which should be available
-            model = ChatOllama(model="qwen2.5-coder:7b", base_url=ollama_url, temperature=0.1)
+            model = ChatOllama(
+                model="qwen2.5-coder:7b", base_url=ollama_url, temperature=0.1
+            )
 
             # Make a simple inference call
             print("📡 Sending inference request to model...")
@@ -361,7 +363,9 @@ Keep the response concise and focused on what would be useful for implementing n
 
         try:
             # Create Ollama model
-            model = ChatOllama(model="qwen2.5-coder:7b", base_url=ollama_url, temperature=0.3)
+            model = ChatOllama(
+                model="qwen2.5-coder:7b", base_url=ollama_url, temperature=0.3
+            )
 
             print("📡 Sending code analysis request to Ollama...")
             response = await model.ainvoke([HumanMessage(content=prompt)])
