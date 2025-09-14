@@ -72,7 +72,7 @@ Context:
 Provide your feedback focusing on your area of expertise."""
 
 
-class TestFirstAgent(LangGraphAgent):
+class TestFirstDrivenAgent(LangGraphAgent):
     """Test-first agent for LangGraph workflow."""
 
     def __init__(self, base_agent: BaseAgentInterface):
@@ -411,7 +411,7 @@ def create_agents(
         Dict of agent_type -> agent instance
     """
     return {
-        "test-first": TestFirstAgent(base_agents["test-first"]),
+        "test-first": TestFirstDrivenAgent(base_agents["test-first"]),
         "fast-coder": FastCoderAgent(base_agents["fast-coder"]),
         "senior-engineer": SeniorEngineerAgent(base_agents["senior-engineer"]),
         "architect": ArchitectAgent(base_agents["architect"]),

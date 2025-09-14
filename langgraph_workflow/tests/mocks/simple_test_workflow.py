@@ -8,7 +8,7 @@ from uuid import uuid4
 from .mock_agent import MockAgent
 
 
-class TestMultiAgentWorkflow:
+class SimpleTestMultiAgentWorkflow:
     """Simplified test implementation for CLI testing."""
 
     def __init__(

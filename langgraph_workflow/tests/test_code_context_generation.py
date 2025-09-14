@@ -9,6 +9,7 @@ import pytest
 from langgraph_workflow.langgraph_workflow import MultiAgentWorkflow
 from langgraph_workflow.real_codebase_analyzer import RealCodebaseAnalyzer
 from langgraph_workflow.tests.mocks import create_mock_agents
+from langgraph_workflow.tests.mocks.test_workflow import MockTestMultiAgentWorkflow
 from langgraph_workflow.tests.test_utils import LLMTestingMixin, MockLLMResponse
 
 
@@ -40,7 +41,27 @@ class TestCodeContextGeneration(LLMTestingMixin):
 
     @pytest.fixture
     def temp_workflow(self):
-        """Create workflow instance for testing."""
+        """Create mock workflow instance for testing."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create a test repository structure
+            repo_path = Path(temp_dir)
+            (repo_path / "main.py").write_text("# Main application")
+            (repo_path / "README.md").write_text("# Test Project")
+
+            analyzer = RealCodebaseAnalyzer(str(repo_path))
+            agents = create_mock_agents()
+
+            workflow = MockTestMultiAgentWorkflow(
+                repo_path=str(repo_path),
+                thread_id="test-context",
+                agents=agents,  # type: ignore  # Mock agents for testing
+                codebase_analyzer=analyzer,
+            )
+            yield workflow
+
+    @pytest.fixture
+    def real_workflow(self):
+        """Create real workflow instance for error testing."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create a test repository structure
             repo_path = Path(temp_dir)
@@ -136,13 +157,13 @@ This architecture is well-suited for implementing new features through the estab
 
     @pytest.mark.asyncio
     async def test_context_generation_fails_with_clear_error(
-        self, temp_workflow, mock_analysis
+        self, real_workflow, mock_analysis
     ):
         """Test that LLM failures raise clear errors instead of falling back."""
 
         # Mock the codebase analyzer
         with patch.object(
-            temp_workflow.codebase_analyzer, "analyze", return_value=mock_analysis
+            real_workflow.codebase_analyzer, "analyze", return_value=mock_analysis
         ):
             # Mock CLI failure and no API key
             with patch(
@@ -151,7 +172,7 @@ This architecture is well-suited for implementing new features through the estab
                 with patch.dict("os.environ", {}, clear=True):  # No API key
                     # Should raise RuntimeError with clear error message
                     with pytest.raises(RuntimeError) as exc_info:
-                        await temp_workflow._generate_intelligent_code_context(
+                        await real_workflow._generate_intelligent_code_context(
                             mock_analysis, "Add user authentication system"
                         )
 
@@ -165,14 +186,14 @@ This architecture is well-suited for implementing new features through the estab
 
     @pytest.mark.asyncio
     async def test_context_generation_with_feature_context(
-        self, temp_workflow, mock_analysis
+        self, real_workflow, mock_analysis
     ):
         """Test that feature context is properly included."""
 
         feature_description = "Implement OAuth2 authentication with JWT tokens and user profile management"
 
         with patch.object(
-            temp_workflow.codebase_analyzer, "analyze", return_value=mock_analysis
+            real_workflow.codebase_analyzer, "analyze", return_value=mock_analysis
         ):
             # Mock successful response that includes feature context
             mock_context = """# Code Context Document
@@ -194,10 +215,12 @@ Key integration considerations:
             mock_response = MockLLMResponse(mock_context)
             mock_calls = mock_response.create_claude_cli_mock()
 
-            with patch("subprocess.run", side_effect=mock_calls):
-                result = await temp_workflow._generate_intelligent_code_context(
-                    mock_analysis, feature_description
-                )
+            # Make sure environment doesn't interfere
+            with patch.dict("os.environ", {"ANTHROPIC_API_KEY": ""}, clear=False):
+                with patch("subprocess.run", side_effect=mock_calls):
+                    result = await real_workflow._generate_intelligent_code_context(
+                        mock_analysis, feature_description
+                    )
 
                 # Should mention the specific feature
                 result_lower = result.lower()
@@ -208,12 +231,12 @@ Key integration considerations:
                 assert "implementation" in result_lower or "integrate" in result_lower
 
     @pytest.mark.asyncio
-    async def test_empty_response_validation(self, temp_workflow, mock_analysis):
+    async def test_empty_response_validation(self, real_workflow, mock_analysis):
         """Test that empty LLM responses are caught and cause failures."""
 
         # Mock the codebase analyzer
         with patch.object(
-            temp_workflow.codebase_analyzer, "analyze", return_value=mock_analysis
+            real_workflow.codebase_analyzer, "analyze", return_value=mock_analysis
         ):
             # Mock Claude CLI to return empty response
             version_mock = Mock(returncode=0, stdout="1.0.113 (Claude Code)")
@@ -224,7 +247,7 @@ Key integration considerations:
             ):
                 # Should raise ValueError for empty response
                 with pytest.raises(RuntimeError) as exc_info:
-                    await temp_workflow._generate_intelligent_code_context(
+                    await real_workflow._generate_intelligent_code_context(
                         mock_analysis, "Add user authentication system"
                     )
 
@@ -240,12 +263,12 @@ Key integration considerations:
                 # (The actual exception depends on whether API fallback is available)
 
     @pytest.mark.asyncio
-    async def test_short_response_warning(self, temp_workflow, mock_analysis):
+    async def test_short_response_warning(self, real_workflow, mock_analysis):
         """Test that suspiciously short responses generate warnings."""
 
         # Mock the codebase analyzer
         with patch.object(
-            temp_workflow.codebase_analyzer, "analyze", return_value=mock_analysis
+            real_workflow.codebase_analyzer, "analyze", return_value=mock_analysis
         ):
             # Mock Claude CLI to return very short response
             version_mock = Mock(returncode=0, stdout="1.0.113 (Claude Code)")
@@ -257,7 +280,7 @@ Key integration considerations:
                 with patch(
                     "langgraph_workflow.langgraph_workflow.logger"
                 ) as mock_logger:
-                    result = await temp_workflow._generate_intelligent_code_context(
+                    result = await real_workflow._generate_intelligent_code_context(
                         mock_analysis, "Add user authentication system"
                     )
 

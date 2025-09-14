@@ -8,7 +8,7 @@ from unittest.mock import patch  # Only for external dependencies
 from ..enums import ModelRouter, WorkflowPhase
 from ..langgraph_workflow import WorkflowState
 from .mocks import create_mock_dependencies
-from .mocks.test_workflow import TestMultiAgentWorkflow
+from .mocks.test_workflow import MockTestMultiAgentWorkflow
 
 
 class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
@@ -24,7 +24,7 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
         self.mock_deps = create_mock_dependencies(self.thread_id)
 
         # Create workflow with dependency injection - use test implementation
-        self.workflow = TestMultiAgentWorkflow(
+        self.workflow = MockTestMultiAgentWorkflow(
             repo_path=self.repo_path,
             agents=self.mock_deps["agents"],
             codebase_analyzer=self.mock_deps["codebase_analyzer"],

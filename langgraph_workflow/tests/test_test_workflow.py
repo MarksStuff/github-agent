@@ -4,17 +4,17 @@ import tempfile
 import unittest
 
 from ..enums import AgentType, WorkflowPhase
-from .mocks.test_workflow import TestMultiAgentWorkflow
+from .mocks.test_workflow import MockTestMultiAgentWorkflow
 
 
-class TestTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
+class TestMockTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
     """Test the TestMultiAgentWorkflow implementation."""
 
     def setUp(self):
         """Set up test fixtures."""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.repo_path = self.temp_dir.name
-        self.test_workflow = TestMultiAgentWorkflow(repo_path=self.repo_path)
+        self.test_workflow = MockTestMultiAgentWorkflow(repo_path=self.repo_path)
 
     def tearDown(self):
         """Clean up test fixtures."""

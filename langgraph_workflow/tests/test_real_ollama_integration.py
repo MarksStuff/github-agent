@@ -168,17 +168,19 @@ async def get_profile():
                     print(f"   - {model.get('name', 'Unknown')}")
 
                 if len(models) == 0:
-                    assert False, (
+                    raise AssertionError(
                         f"❌ No models found in Ollama at {ollama_url}\n"
                         f"   Install a model first: ollama pull qwen3:8b\n"
                         f"   Or any other model, then update the test configuration"
                     )
                 print("✅ Ollama has available models")
             else:
-                assert False, f"Ollama returned status {response.status_code}"
+                raise AssertionError(f"Ollama returned status {response.status_code}")
 
         except requests.exceptions.RequestException as e:
-            assert False, f"Failed to connect to Ollama at {ollama_url}: {e}"
+            raise AssertionError(
+                f"Failed to connect to Ollama at {ollama_url}: {e}"
+            ) from e
 
     @pytest.mark.integration
     @pytest.mark.slow
@@ -210,13 +212,13 @@ async def get_profile():
 
             print(f"✅ Model response: {response.content}")
             assert (
-                "GPU test successful" in response.content
-                or "successful" in response.content.lower()
+                "GPU test successful" in str(response.content)
+                or "successful" in str(response.content).lower()
             )
             print("🎉 Actual model inference completed!")
 
         except Exception as e:
-            assert False, f"Failed to make inference call to Ollama: {e}"
+            raise AssertionError(f"Failed to make inference call to Ollama: {e}") from e
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -372,13 +374,16 @@ Keep the response concise and focused on what would be useful for implementing n
             # Verify we got a substantial response
             assert len(analysis) > 100, "Analysis should be substantial"
             assert (
-                "application" in analysis.lower() or "code" in analysis.lower()
+                "application" in str(analysis).lower()
+                or "code" in str(analysis).lower()
             ), "Should mention code/application"
 
             return analysis
 
         except Exception as e:
-            assert False, f"Failed to generate code context with Ollama: {e}"
+            raise AssertionError(
+                f"Failed to generate code context with Ollama: {e}"
+            ) from e
 
     @pytest.mark.integration
     @pytest.mark.slow
@@ -523,7 +528,7 @@ def is_ollama_available():
         ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         response = requests.get(f"{ollama_url}/api/tags", timeout=2)
         return response.status_code == 200
-    except:
+    except Exception:
         return False
 
 

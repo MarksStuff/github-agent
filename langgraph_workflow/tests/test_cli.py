@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 # Import CLI functions directly - dependencies should be available
 from ..run import main, run_workflow
-from .mocks.simple_test_workflow import TestMultiAgentWorkflow
+from .mocks.simple_test_workflow import SimpleTestMultiAgentWorkflow
 
 
 class TestCLIBasicFunctionality(unittest.TestCase):
@@ -69,13 +69,13 @@ class TestRunWorkflow(unittest.IsolatedAsyncioTestCase):
         self.temp_dir.cleanup()
 
     async def test_run_workflow_basic(self):
-        """Test basic workflow execution using TestMultiAgentWorkflow."""
+        """Test basic workflow execution using SimpleTestMultiAgentWorkflow."""
         # Execute workflow with test implementation injected
         result = await run_workflow(
             repo_path=self.repo_path,
             feature_description="Test feature",
             thread_id=self.thread_id,
-            workflow_class=TestMultiAgentWorkflow,
+            workflow_class=SimpleTestMultiAgentWorkflow,
         )
 
         # Verify result structure and basic functionality
@@ -97,7 +97,7 @@ class TestRunWorkflow(unittest.IsolatedAsyncioTestCase):
                 feature_description="",
                 thread_id=self.thread_id,
                 feature_file=feature_file,
-                workflow_class=TestMultiAgentWorkflow,
+                workflow_class=SimpleTestMultiAgentWorkflow,
             )
 
             # Should successfully load from file

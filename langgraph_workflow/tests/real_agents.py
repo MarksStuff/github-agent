@@ -69,7 +69,12 @@ Keep your response concise but informative (2-3 sentences max).
             print(f"🔥 {self.agent_type} calling Ollama model {self.model_name}...")
             response = await self.model.ainvoke([HumanMessage(content=agent_prompt)])
             print(f"✅ {self.agent_type} got response from Ollama!")
-            return response.content
+            # Ensure we return a string
+            if isinstance(response.content, str):
+                return response.content
+            else:
+                # Handle list of content blocks
+                return str(response.content)
         except Exception as e:
             return f"Error calling Ollama: {e}"
 
@@ -112,9 +117,16 @@ Keep your response concise but informative (2-3 sentences max).
 
         try:
             print(f"🔥 {self.agent_type} calling Ollama model {self.model_name}...")
-            response = await self.model.ainvoke([HumanMessage(content=agent_prompt)])
+            response = await self.persona.model.ainvoke(
+                [HumanMessage(content=agent_prompt)]
+            )
             print(f"✅ {self.agent_type} got response from Ollama!")
-            return response.content
+            # Ensure we return a string
+            if isinstance(response.content, str):
+                return response.content
+            else:
+                # Handle list of content blocks
+                return str(response.content)
         except Exception as e:
             return f"Error calling Ollama: {e}"
 
@@ -143,9 +155,16 @@ Keep it concise (2-3 sentences).
             print(
                 f"🔥 {self.agent_type} reviewing with Ollama model {self.model_name}..."
             )
-            response = await self.model.ainvoke([HumanMessage(content=review_prompt)])
+            response = await self.persona.model.ainvoke(
+                [HumanMessage(content=review_prompt)]
+            )
             print(f"✅ {self.agent_type} completed review with Ollama!")
-            return response.content
+            # Ensure we return a string
+            if isinstance(response.content, str):
+                return response.content
+            else:
+                # Handle list of content blocks
+                return str(response.content)
         except Exception as e:
             return f"Error during review: {e}"
 
