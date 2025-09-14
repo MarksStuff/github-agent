@@ -652,13 +652,14 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                                 "This indicates Claude CLI cannot properly examine the repository code."
                             )
                     else:
-                        logger.warning("Claude CLI returned empty response")
+                        logger.error("Claude CLI returned empty response")
+                        raise RuntimeError("Claude CLI returned empty response for code context generation")
                 else:
-                    logger.warning(f"Claude CLI failed: {claude_result.stderr}")
+                    logger.error(f"Claude CLI failed: {claude_result.stderr}")
+                    raise RuntimeError(f"Claude CLI failed with stderr: {claude_result.stderr}")
             else:
-                logger.warning(
-                    "Claude Code CLI not available - cannot access repository files"
-                )
+                logger.error("Claude Code CLI not available - cannot access repository files")
+                raise RuntimeError("Claude Code CLI not available - code context generation requires file access")
 
         except Exception as e:
             logger.error(f"Claude CLI failed: {e}")
