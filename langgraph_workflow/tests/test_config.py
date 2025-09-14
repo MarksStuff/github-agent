@@ -2,7 +2,6 @@
 
 import os
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 from ..config import (
@@ -13,7 +12,6 @@ from ..config import (
     get_artifacts_path,
     get_config,
     get_workspace_path,
-    should_escalate_to_claude,
 )
 
 
@@ -92,7 +90,6 @@ class TestWorkflowConfig(unittest.TestCase):
         self.assertEqual(labels["conflict"], "conflict")
         self.assertEqual(labels["arbitrated"], "arbitrated")
         self.assertEqual(labels["ollama_task"], "ollama-task")
-        self.assertEqual(labels["claude_task"], "claude-code-task")
 
         # Test PR template exists and contains placeholders
         template = github_config["pr_template"]
@@ -102,12 +99,17 @@ class TestWorkflowConfig(unittest.TestCase):
 
     def test_paths_configuration(self):
         """Test paths configuration."""
+        from pathlib import Path
+
         paths = WORKFLOW_CONFIG["paths"]
 
-        self.assertEqual(paths["artifacts_root"], "agents/artifacts")
-        self.assertEqual(paths["workspaces_root"], "agents/workspaces")
-        self.assertEqual(paths["logs_root"], "agents/logs")
-        self.assertEqual(paths["checkpoints_root"], "agents/checkpoints")
+        # Expected paths are in user's home directory
+        expected_base = Path.home() / ".local" / "share" / "github-agent" / "langgraph"
+
+        self.assertEqual(paths["artifacts_root"], str(expected_base / "artifacts"))
+        self.assertEqual(paths["workspaces_root"], str(expected_base / "workspaces"))
+        self.assertEqual(paths["logs_root"], str(expected_base / "logs"))
+        self.assertEqual(paths["checkpoints_root"], str(expected_base / "checkpoints"))
 
 
 class TestModelConfig(unittest.TestCase):
@@ -117,13 +119,14 @@ class TestModelConfig(unittest.TestCase):
         """Test Ollama model configuration."""
         ollama_config = MODEL_CONFIG["ollama"]
 
-        # Test default base URL
-        self.assertIn("localhost:11434", ollama_config["base_url"])
+        # Test base URL (could be from env or default)
+        base_url = ollama_config["base_url"]
+        self.assertTrue(base_url.endswith(":11434") or base_url.endswith(":11434/"))
 
         # Test models
         models = ollama_config["models"]
-        self.assertEqual(models["default"], "qwen2.5-coder:7b")
-        self.assertEqual(models["developer"], "qwen2.5-coder:7b")
+        self.assertEqual(models["default"], "qwen3:8b")
+        self.assertEqual(models["developer"], "qwen3:8b")
         self.assertEqual(models["tester"], "llama3.1")
         self.assertEqual(models["summarizer"], "llama3.1")
 
@@ -133,29 +136,6 @@ class TestModelConfig(unittest.TestCase):
         self.assertEqual(params["max_tokens"], 4000)
         self.assertEqual(params["top_p"], 0.9)
 
-    def test_claude_configuration(self):
-        """Test Claude model configuration."""
-        claude_config = MODEL_CONFIG["claude"]
-
-        # Test models
-        models = claude_config["models"]
-        self.assertEqual(models["default"], "claude-3-sonnet-20240229")
-        self.assertEqual(models["architect"], "claude-3-opus-20240229")
-        self.assertEqual(models["reviewer"], "claude-3-sonnet-20240229")
-
-        # Test parameters
-        params = claude_config["parameters"]
-        self.assertEqual(params["temperature"], 0.3)
-        self.assertEqual(params["max_tokens"], 8000)
-
-    def test_claude_code_configuration(self):
-        """Test Claude Code CLI configuration."""
-        claude_code_config = MODEL_CONFIG["claude_code"]
-
-        self.assertEqual(claude_code_config["cli_path"], "claude")
-        self.assertEqual(claude_code_config["timeout"], 300)
-        self.assertEqual(claude_code_config["max_retries"], 2)
-
     @patch.dict(os.environ, {"OLLAMA_BASE_URL": "http://custom:8080"})
     def test_ollama_environment_override(self):
         """Test Ollama base URL from environment."""
@@ -164,13 +144,6 @@ class TestModelConfig(unittest.TestCase):
         # Note: In actual implementation, this would require reloading the module
         # For this test, we verify the environment variable is used in initialization
         self.assertTrue(True)  # Placeholder - actual test would check dynamic loading
-
-    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"})
-    def test_claude_api_key_from_environment(self):
-        """Test Claude API key from environment."""
-
-        # Note: Similar to above, this would test dynamic configuration loading
-        self.assertTrue(True)  # Placeholder
 
 
 class TestMCPConfig(unittest.TestCase):
@@ -286,125 +259,45 @@ class TestConfigUtilities(unittest.TestCase):
 
     def test_get_artifacts_path(self):
         """Test artifacts path generation."""
+        from pathlib import Path
+
         thread_id = "test-thread-123"
 
         path = get_artifacts_path(thread_id)
 
-        self.assertEqual(str(path), f"agents/artifacts/{thread_id}")
+        # Expected path should be based on config + thread_id
+        expected_base = (
+            Path.home()
+            / ".local"
+            / "share"
+            / "github-agent"
+            / "langgraph"
+            / "artifacts"
+        )
+        expected_path = expected_base / thread_id
+        self.assertEqual(str(path), str(expected_path))
         self.assertIsInstance(path, Path)
 
     def test_get_workspace_path(self):
         """Test workspace path generation."""
+        from pathlib import Path
+
         thread_id = "test-thread-456"
 
         path = get_workspace_path(thread_id)
 
-        self.assertEqual(str(path), f"agents/workspaces/{thread_id}")
+        # Expected path should be based on config + thread_id
+        expected_base = (
+            Path.home()
+            / ".local"
+            / "share"
+            / "github-agent"
+            / "langgraph"
+            / "workspaces"
+        )
+        expected_path = expected_base / thread_id
+        self.assertEqual(str(path), str(expected_path))
         self.assertIsInstance(path, Path)
-
-
-class TestEscalationLogic(unittest.TestCase):
-    """Test escalation decision logic."""
-
-    def test_escalate_on_diff_size(self):
-        """Test escalation based on diff size."""
-        # Should escalate for large diffs
-        self.assertTrue(should_escalate_to_claude(diff_size=500))
-        self.assertTrue(should_escalate_to_claude(diff_size=300))  # At threshold
-
-        # Should not escalate for small diffs
-        self.assertFalse(should_escalate_to_claude(diff_size=299))
-        self.assertFalse(should_escalate_to_claude(diff_size=100))
-
-    def test_escalate_on_files_touched(self):
-        """Test escalation based on number of files."""
-        # Should escalate for many files
-        self.assertTrue(should_escalate_to_claude(files_touched=15))
-        self.assertTrue(should_escalate_to_claude(files_touched=10))  # At threshold
-
-        # Should not escalate for few files
-        self.assertFalse(should_escalate_to_claude(files_touched=9))
-        self.assertFalse(should_escalate_to_claude(files_touched=5))
-
-    def test_escalate_on_consecutive_failures(self):
-        """Test escalation based on consecutive failures."""
-        # Should escalate for multiple failures
-        self.assertTrue(should_escalate_to_claude(consecutive_failures=3))
-        self.assertTrue(
-            should_escalate_to_claude(consecutive_failures=2)
-        )  # At threshold
-
-        # Should not escalate for single failure
-        self.assertFalse(should_escalate_to_claude(consecutive_failures=1))
-        self.assertFalse(should_escalate_to_claude(consecutive_failures=0))
-
-    def test_escalate_on_complexity_score(self):
-        """Test escalation based on complexity score."""
-        # Should escalate for high complexity
-        self.assertTrue(should_escalate_to_claude(complexity_score=0.9))
-        self.assertTrue(should_escalate_to_claude(complexity_score=0.8))
-
-        # Should not escalate for low complexity
-        self.assertFalse(
-            should_escalate_to_claude(complexity_score=0.7)
-        )  # At threshold
-        self.assertFalse(should_escalate_to_claude(complexity_score=0.5))
-
-    def test_escalate_multiple_criteria(self):
-        """Test escalation with multiple criteria."""
-        # Any single criterion should trigger escalation
-        self.assertTrue(
-            should_escalate_to_claude(
-                diff_size=400,  # High
-                files_touched=5,  # Low
-                consecutive_failures=1,  # Low
-                complexity_score=0.3,  # Low
-            )
-        )
-
-        # No criteria met should not escalate
-        self.assertFalse(
-            should_escalate_to_claude(
-                diff_size=100,  # Low
-                files_touched=5,  # Low
-                consecutive_failures=1,  # Low
-                complexity_score=0.3,  # Low
-            )
-        )
-
-    def test_escalate_with_none_values(self):
-        """Test escalation with None values."""
-        # None values should be ignored
-        self.assertFalse(
-            should_escalate_to_claude(
-                diff_size=None,
-                files_touched=None,
-                consecutive_failures=None,
-                complexity_score=None,
-            )
-        )
-
-        # Mix of None and valid values
-        self.assertTrue(
-            should_escalate_to_claude(
-                diff_size=None,
-                files_touched=15,  # High - should trigger
-                consecutive_failures=None,
-                complexity_score=None,
-            )
-        )
-
-    def test_escalation_edge_cases(self):
-        """Test escalation edge cases."""
-        # Zero values
-        self.assertFalse(should_escalate_to_claude(diff_size=0))
-        self.assertFalse(should_escalate_to_claude(files_touched=0))
-        self.assertFalse(should_escalate_to_claude(consecutive_failures=0))
-        self.assertFalse(should_escalate_to_claude(complexity_score=0.0))
-
-        # Negative values (shouldn't occur in practice)
-        self.assertFalse(should_escalate_to_claude(diff_size=-1))
-        self.assertFalse(should_escalate_to_claude(complexity_score=-0.1))
 
 
 class TestConfigurationValidation(unittest.TestCase):

@@ -7,9 +7,14 @@ and environment variables.
 """
 
 import os
+import sys
+from pathlib import Path
 from unittest.mock import Mock, patch
 
-from amp_cli_wrapper import AmpCLI
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from amp_cli_wrapper import AmpCLI  # noqa: E402
 
 
 class TestAmpCLIIsolation:
@@ -147,7 +152,7 @@ class TestAmpCLIIsolation:
 
         # Working directory should have changed
         assert os.getcwd() != original_cwd
-        assert os.getcwd() == str(amp.work_dir)
+        assert os.path.realpath(os.getcwd()) == os.path.realpath(str(amp.work_dir))
 
         # Cleanup should restore original directory
         amp._cleanup()
@@ -162,7 +167,7 @@ class TestAmpCLIIsolation:
             work_dir = amp.work_dir
             assert work_dir is not None
             assert work_dir.exists()
-            assert os.getcwd() == str(work_dir)
+            assert os.path.realpath(os.getcwd()) == os.path.realpath(str(work_dir))
 
         # After context exit, should be cleaned up
         assert not work_dir.exists()

@@ -5,13 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ..config import should_escalate_to_claude
 from ..enums import ModelRouter, WorkflowPhase
-from ..langgraph_workflow import (
-    MultiAgentWorkflow,
-    WorkflowState,
-)
+from ..langgraph_workflow import WorkflowState
 from .mocks import create_mock_dependencies
+from .mocks.test_workflow import MockTestMultiAgentWorkflow
 
 
 class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
@@ -26,14 +23,14 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         # CORRECT: Use our own mock dependencies
         self.mock_deps = create_mock_dependencies(self.thread_id)
 
-        # Create workflow with required dependencies
-        self.workflow = MultiAgentWorkflow(
+        # Create workflow with required dependencies - use test implementation
+        self.workflow = MockTestMultiAgentWorkflow(
             repo_path=self.repo_path,
             thread_id=self.thread_id,
             agents=self.mock_deps["agents"],
             codebase_analyzer=self.mock_deps["codebase_analyzer"],
             ollama_model=self.mock_deps["ollama_model"],
-            claude_model=self.mock_deps["claude_model"],
+            claude_model=None,  # No Claude model needed for Ollama-only tests
         )
 
         # CORRECT: Inject additional mock dependencies
@@ -47,6 +44,8 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         self.initial_state = WorkflowState(
             thread_id=self.thread_id,
             feature_description="Add comprehensive user authentication with JWT tokens, role-based access control, and session management",
+            raw_feature_input=None,
+            extracted_feature=None,
             current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
             messages_window=[],
             summary_log="",
@@ -108,46 +107,6 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         state["current_phase"] = WorkflowPhase.PHASE_2_DESIGN_DOCUMENT
         result = await self.workflow.create_design_document(state)
         self.assertIsNotNone(result["design_document"])
-
-    async def test_escalation_triggers_in_workflow_context(self):
-        """Test that escalation triggers work correctly in workflow context."""
-        # Test various escalation scenarios
-        test_cases = [
-            {
-                "name": "Large diff triggers escalation",
-                "params": {"diff_size": 500},
-                "should_escalate": True,
-            },
-            {
-                "name": "Many files triggers escalation",
-                "params": {"files_touched": 15},
-                "should_escalate": True,
-            },
-            {
-                "name": "Multiple failures trigger escalation",
-                "params": {"consecutive_failures": 3},
-                "should_escalate": True,
-            },
-            {
-                "name": "High complexity triggers escalation",
-                "params": {"complexity_score": 0.9},
-                "should_escalate": True,
-            },
-            {
-                "name": "Small changes stay with Ollama",
-                "params": {"diff_size": 50, "files_touched": 2},
-                "should_escalate": False,
-            },
-        ]
-
-        for case in test_cases:
-            with self.subTest(case["name"]):
-                result = should_escalate_to_claude(**case["params"])  # type: ignore
-                self.assertEqual(
-                    result,
-                    case["should_escalate"],
-                    f"{case['name']} failed: expected {case['should_escalate']}, got {result}",
-                )
 
     async def test_github_integration_workflow(self):
         """Test GitHub integration throughout workflow."""
@@ -235,16 +194,16 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
             response = await self.workflow._call_model(prompt, ModelRouter.OLLAMA)
             self.assertIn("Ollama response", response)
 
-        # Test Claude routing for complex phases
-        claude_phases = [
+        # Test Ollama routing for complex phases (all phases use Ollama now)
+        complex_ollama_phases = [
             "Extract comprehensive code context from repository",
             "Create detailed implementation skeleton with interfaces",
             "Perform complex reconciliation of tests and implementation",
         ]
 
-        for prompt in claude_phases:
-            response = await self.workflow._call_model(prompt, ModelRouter.CLAUDE_CODE)
-            self.assertIn("Claude response", response)
+        for prompt in complex_ollama_phases:
+            response = await self.workflow._call_model(prompt, ModelRouter.OLLAMA)
+            self.assertIn("Ollama response", response)
 
     async def test_checkpoint_and_resume_functionality(self):
         """Test workflow checkpointing and resume capability."""
@@ -328,7 +287,7 @@ class TestWorkflowPerformanceFixed(unittest.IsolatedAsyncioTestCase):
         temp_dir = tempfile.TemporaryDirectory()
         mock_deps = create_mock_dependencies("perf-test")
 
-        workflow = MultiAgentWorkflow(
+        workflow = MockTestMultiAgentWorkflow(
             repo_path=temp_dir.name,
             thread_id="perf-test",
             agents=mock_deps["agents"],

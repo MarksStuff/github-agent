@@ -28,11 +28,21 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
         # Initialize git repo
         self.git_repo = git.Repo.init(self.repo_path)
 
-        # Create initial commit
+        # Create initial commit on main branch
         test_file = self.repo_path / "README.md"
         test_file.write_text("# Test Repo")
         self.git_repo.index.add(["README.md"])  # Use relative path
         self.git_repo.index.commit("Initial commit")
+
+        # Ensure we have a 'main' branch for consistent test behavior
+        current_branch = self.git_repo.active_branch.name
+        if current_branch != "main":
+            try:
+                # Rename current branch to main
+                self.git_repo.git.branch("-m", current_branch, "main")
+            except git.exc.GitCommandError:
+                # If that fails, create main branch
+                self.git_repo.git.checkout("-b", "main")
 
         # Add remote origin (mock)
         self.git_repo.create_remote(
@@ -115,10 +125,15 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
             repo_path=str(self.repo_path), github_token="fake_token", tool_function=None
         )
 
-        # Execute
-        pr_number = await integration.create_pull_request(
-            title="Test PR", body="Test description", branch="feature/test"
-        )
+        # Create branch first since push_changes is called
+        await integration.create_branch("feature/test")
+
+        # Mock remote push to avoid actual network call
+        with patch("git.Remote.push"):
+            # Execute
+            pr_number = await integration.create_pull_request(
+                title="Test PR", body="Test description", branch="feature/test"
+            )
 
         # Verify returns dummy number when github_tools unavailable
         self.assertEqual(pr_number, 9999)
@@ -205,32 +220,43 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
                 return json.dumps(mock_response)
             return json.dumps({})
 
-        with patch(
-            "langgraph_workflow.github_integration.execute_tool",
-            side_effect=mock_execute_tool,
-        ):
-            # Execute with since filter
-            cutoff_time = now - timedelta(hours=1)
-            comments = await self.github_integration.get_pr_comments(
-                123, since=cutoff_time
-            )
+        # Use dependency injection to provide mock tool function
+        integration = GitHubIntegration(
+            repo_path=str(self.repo_path),
+            github_token="fake_token",
+            tool_function=mock_execute_tool,
+        )
 
-            # Verify only new comment returned (time filtering logic)
-            self.assertEqual(len(comments), 1)
-            self.assertEqual(comments[0]["body"], "New comment")
+        # Execute with since filter
+        cutoff_time = now - timedelta(hours=1)
+        comments = await integration.get_pr_comments(123, since=cutoff_time)
+
+        # Verify only new comment returned (time filtering logic)
+        self.assertEqual(len(comments), 1)
+        self.assertEqual(comments[0]["body"], "New comment")
 
     async def test_add_pr_comment_with_github_tools(self):
         """Test adding a comment to a PR using github_tools integration."""
 
-        # Mock github_tools execute_tool to return success
-        async def mock_execute_tool(tool_name, **kwargs):
-            if tool_name == "github_post_pr_reply":
-                return json.dumps({"success": True})
-            return json.dumps({})
+        # Mock GitHub context and PR
+        class MockPR:
+            def create_issue_comment(self, comment):
+                pass
+
+        class MockRepo:
+            def get_pull(self, pr_number):
+                return MockPR()
+
+        class MockContext:
+            def __init__(self):
+                self.repo = MockRepo()
+
+        def mock_get_context(repo_name):
+            return MockContext()
 
         with patch(
-            "langgraph_workflow.github_integration.execute_tool",
-            side_effect=mock_execute_tool,
+            "langgraph_workflow.github_integration.get_github_context",
+            side_effect=mock_get_context,
         ):
             # Execute
             result = await self.github_integration.add_pr_comment(123, "Test comment")
@@ -255,26 +281,29 @@ class TestGitHubIntegration(unittest.IsolatedAsyncioTestCase):
                 return json.dumps(mock_response)
             return json.dumps({})
 
-        with patch(
-            "langgraph_workflow.github_integration.execute_tool",
-            side_effect=mock_execute_tool,
-        ):
-            # Execute
-            status = await self.github_integration.get_ci_status(123)
+        # Use dependency injection to provide mock tool function
+        integration = GitHubIntegration(
+            repo_path=str(self.repo_path),
+            github_token="fake_token",
+            tool_function=mock_execute_tool,
+        )
 
-            # Verify
-            self.assertEqual(status["status"], "failure")  # One check failed
-            self.assertEqual(len(status["checks"]), 2)
-            self.assertEqual(status["commit_sha"], "abc123")
-            self.assertEqual(status["pr_number"], 123)
+        # Execute
+        status = await integration.get_ci_status(123)
 
-            # Check individual check details
-            checks = status["checks"]
-            test_check = next(c for c in checks if c["name"] == "test")
-            lint_check = next(c for c in checks if c["name"] == "lint")
+        # Verify
+        self.assertEqual(status["status"], "failure")  # One check failed
+        self.assertEqual(len(status["checks"]), 2)
+        self.assertEqual(status["commit_sha"], "abc123")
+        self.assertEqual(status["pr_number"], 123)
 
-            self.assertEqual(test_check["conclusion"], "success")
-            self.assertEqual(lint_check["conclusion"], "failure")
+        # Check individual check details
+        checks = status["checks"]
+        test_check = next(c for c in checks if c["name"] == "test")
+        lint_check = next(c for c in checks if c["name"] == "lint")
+
+        self.assertEqual(test_check["conclusion"], "success")
+        self.assertEqual(lint_check["conclusion"], "failure")
 
     async def test_push_changes(self):
         """Test pushing changes to GitHub."""
@@ -467,11 +496,21 @@ class TestGitHubIntegrationEdgeCases(unittest.IsolatedAsyncioTestCase):
         # Initialize git repo
         self.git_repo = git.Repo.init(self.repo_path)
 
-        # Create initial commit
+        # Create initial commit on main branch
         test_file = self.repo_path / "README.md"
         test_file.write_text("# Test Repo")
         self.git_repo.index.add(["README.md"])  # Use relative path
         self.git_repo.index.commit("Initial commit")
+
+        # Ensure we have a 'main' branch for consistent test behavior
+        current_branch = self.git_repo.active_branch.name
+        if current_branch != "main":
+            try:
+                # Rename current branch to main
+                self.git_repo.git.branch("-m", current_branch, "main")
+            except git.exc.GitCommandError:
+                # If that fails, create main branch
+                self.git_repo.git.checkout("-b", "main")
 
         # Add remote origin (mock)
         self.git_repo.create_remote(
@@ -489,20 +528,20 @@ class TestGitHubIntegrationEdgeCases(unittest.IsolatedAsyncioTestCase):
     async def test_github_tools_unavailable_fallback(self):
         """Test fallback behavior when github_tools is not available."""
         # Test get_pr_comments fallback
-        with patch("langgraph_workflow.github_integration.execute_tool", None):
-            comments = await self.github_integration.get_pr_comments(123)
-            self.assertEqual(comments, [])
+        integration = GitHubIntegration(
+            repo_path=str(self.repo_path), github_token="fake_token", tool_function=None
+        )
+        comments = await integration.get_pr_comments(123)
+        self.assertEqual(comments, [])
 
         # Test add_pr_comment fallback
-        with patch("langgraph_workflow.github_integration.execute_tool", None):
-            result = await self.github_integration.add_pr_comment(123, "Test comment")
-            self.assertFalse(result)
+        result = await integration.add_pr_comment(123, "Test comment")
+        self.assertFalse(result)
 
         # Test get_ci_status fallback
-        with patch("langgraph_workflow.github_integration.execute_tool", None):
-            status = await self.github_integration.get_ci_status(123)
-            self.assertEqual(status["status"], "success")
-            self.assertEqual(status["pr_number"], 123)
+        status = await integration.get_ci_status(123)
+        self.assertEqual(status["status"], "success")
+        self.assertEqual(status["pr_number"], 123)
 
     async def test_github_tools_error_handling(self):
         """Test error handling when github_tools returns errors."""
@@ -511,21 +550,28 @@ class TestGitHubIntegrationEdgeCases(unittest.IsolatedAsyncioTestCase):
         async def mock_execute_tool_with_error(tool_name, **kwargs):
             return json.dumps({"error": "API rate limit exceeded"})
 
-        with patch(
-            "langgraph_workflow.github_integration.execute_tool",
-            side_effect=mock_execute_tool_with_error,
-        ):
-            # Test error handling for get_pr_comments
-            comments = await self.github_integration.get_pr_comments(123)
-            self.assertEqual(comments, [])
+        # Use dependency injection to provide mock tool function
+        integration = GitHubIntegration(
+            repo_path=str(self.repo_path),
+            github_token="fake_token",
+            tool_function=mock_execute_tool_with_error,
+        )
 
-            # Test error handling for add_pr_comment
-            result = await self.github_integration.add_pr_comment(123, "Test")
+        # Test error handling for get_pr_comments
+        comments = await integration.get_pr_comments(123)
+        self.assertEqual(comments, [])
+
+        # Test error handling for add_pr_comment (need to mock get_github_context for this)
+        with patch(
+            "langgraph_workflow.github_integration.get_github_context",
+            return_value=None,
+        ):
+            result = await integration.add_pr_comment(123, "Test")
             self.assertFalse(result)
 
-            # Test error handling for get_ci_status
-            status = await self.github_integration.get_ci_status(123)
-            self.assertEqual(status["status"], "error")
+        # Test error handling for get_ci_status
+        status = await integration.get_ci_status(123)
+        self.assertEqual(status["status"], "error")
 
     async def test_repo_name_extraction(self):
         """Test repository name extraction logic."""

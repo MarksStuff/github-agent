@@ -51,18 +51,6 @@ async def extract_feature_from_prd(prd_content: str, feature_name: str) -> str |
     import os
     import subprocess
 
-    # Try Claude CLI first, then fall back to API key
-    try:
-        # Check if Claude CLI is available
-        claude_result = subprocess.run(
-            ["claude", "--version"], capture_output=True, text=True, timeout=5
-        )
-        use_claude_cli = (
-            claude_result.returncode == 0 and "Claude Code" in claude_result.stdout
-        )
-    except Exception:
-        use_claude_cli = False
-
     # Create prompt for feature extraction
     extraction_prompt = f"""You are a technical document analyzer. Extract the specific feature information from this PRD document.
 
@@ -79,36 +67,84 @@ Instructions:
 
 Feature Extract:"""
 
+    extracted_content = None
+
+    # Try Ollama first if available
     try:
+        from langchain_ollama import ChatOllama
+
+        # Check for Ollama configuration
+        ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama_model = os.getenv("OLLAMA_MODEL", "qwen3:8b")
+
+        logger.info("Attempting feature extraction with Ollama")
+        ollama_client = ChatOllama(
+            base_url=ollama_base_url,
+            model=ollama_model,
+        )
+
+        from langchain_core.messages import HumanMessage
+
+        response = await ollama_client.ainvoke(
+            [HumanMessage(content=extraction_prompt)]
+        )
+        extracted_content = str(response.content).strip() if response.content else ""
+
+        if extracted_content and len(extracted_content) > 10:
+            logger.info("Successfully extracted feature using Ollama")
+
+            # Check if feature was not found
+            if extracted_content == "FEATURE_NOT_FOUND":
+                return None
+            return extracted_content
+        else:
+            logger.warning("Ollama returned empty or very short response")
+
+    except Exception as e:
+        logger.warning(f"Ollama feature extraction failed: {e}")
+
+    # Fall back to Claude CLI if available
+    try:
+        # Check if Claude CLI is available
+        claude_result = subprocess.run(
+            ["claude", "--version"], capture_output=True, text=True, timeout=5
+        )
+        use_claude_cli = (
+            claude_result.returncode == 0 and "Claude Code" in claude_result.stdout
+        )
+
         if use_claude_cli:
-            # Use Claude CLI with stdin to avoid file permission issues
-            try:
-                claude_result = subprocess.run(
-                    ["claude"],
-                    input=extraction_prompt,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
+            logger.info("Attempting feature extraction with Claude CLI")
+            claude_result = subprocess.run(
+                ["claude"],
+                input=extraction_prompt,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
 
-                if claude_result.returncode == 0:
-                    extracted_content = claude_result.stdout.strip()
-                else:
-                    raise Exception(f"Claude CLI failed: {claude_result.stderr}")
-            except Exception as e:
-                # If CLI fails, fall back to API
-                logger.warning(f"Claude CLI failed, falling back to API: {e}")
-                use_claude_cli = False
+            if claude_result.returncode == 0:
+                extracted_content = claude_result.stdout.strip()
+                logger.info("Successfully extracted feature using Claude CLI")
 
-        if not use_claude_cli:
-            # Fall back to API key
-            from langchain_anthropic import ChatAnthropic
-            from langchain_core.messages import HumanMessage
+                # Check if feature was not found
+                if extracted_content == "FEATURE_NOT_FOUND":
+                    return None
+                return extracted_content
+            else:
+                logger.warning(f"Claude CLI failed: {claude_result.stderr}")
 
-            api_key = os.getenv("ANTHROPIC_API_KEY")
-            if not api_key:
-                raise ValueError("Neither Claude CLI nor ANTHROPIC_API_KEY available")
+    except Exception as e:
+        logger.warning(f"Claude CLI failed: {e}")
 
+    # Fall back to Claude API if available
+    try:
+        from langchain_anthropic import ChatAnthropic
+        from langchain_core.messages import HumanMessage
+
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if api_key:
+            logger.info("Attempting feature extraction with Claude API")
             claude_model = ChatAnthropic()  # type: ignore
             response = await claude_model.ainvoke(
                 [HumanMessage(content=extraction_prompt)]
@@ -117,39 +153,45 @@ Feature Extract:"""
                 str(response.content).strip() if response.content else ""
             )
 
-        # Check if feature was not found
-        if extracted_content == "FEATURE_NOT_FOUND":
-            return None
+            if extracted_content:
+                logger.info("Successfully extracted feature using Claude API")
 
-        return extracted_content
+                # Check if feature was not found
+                if extracted_content == "FEATURE_NOT_FOUND":
+                    return None
+                return extracted_content
+        else:
+            logger.warning("ANTHROPIC_API_KEY not available")
 
     except Exception as e:
-        logger.error(f"Error extracting feature with LLM: {e}")
-        # Fallback to simple text search as backup
-        logger.warning("Falling back to simple text extraction")
+        logger.warning(f"Claude API failed: {e}")
 
-        lines = prd_content.split("\n")
-        feature_lines = []
-        in_feature = False
+    # If all LLM methods failed, fall back to simple text search
+    logger.error("All LLM methods failed for feature extraction")
+    logger.warning("Falling back to simple text extraction")
 
-        for line in lines:
-            # Look for feature headers (markdown headers or numbered items)
-            if feature_name.lower() in line.lower():
-                # Found the feature
-                in_feature = True
-                feature_lines.append(line)
-            elif in_feature:
-                # Check if we've hit the next feature/section
-                if (
-                    line.startswith("#")
-                    or line.startswith("##")
-                    or (line.strip() and line[0].isdigit() and "." in line[:5])
-                ):
-                    # This looks like a new section
-                    break
-                feature_lines.append(line)
+    lines = prd_content.split("\n")
+    feature_lines = []
+    in_feature = False
 
-        return "\n".join(feature_lines).strip() if feature_lines else None
+    for line in lines:
+        # Look for feature headers (markdown headers or numbered items)
+        if feature_name.lower() in line.lower():
+            # Found the feature
+            in_feature = True
+            feature_lines.append(line)
+        elif in_feature:
+            # Check if we've hit the next feature/section
+            if (
+                line.startswith("#")
+                or line.startswith("##")
+                or (line.strip() and line[0].isdigit() and "." in line[:5])
+            ):
+                # This looks like a new section
+                break
+            feature_lines.append(line)
+
+    return "\n".join(feature_lines).strip() if feature_lines else None
 
 
 async def run_workflow_until_step(workflow, initial_state, config, stop_after):
@@ -245,6 +287,9 @@ async def run_workflow(
     """
 
     # Handle feature input variations
+    raw_feature_input = None
+    extracted_feature = None
+
     if feature_file:
         # Load feature from file
         feature_path = Path(feature_file)
@@ -252,6 +297,7 @@ async def run_workflow(
             raise FileNotFoundError(f"Feature file not found: {feature_file}")
 
         prd_content = feature_path.read_text()
+        raw_feature_input = prd_content  # Store the raw PRD
 
         if feature_name:
             # Extract specific feature from PRD using LLM
@@ -306,6 +352,8 @@ async def run_workflow(
         initial_state = WorkflowState(
             thread_id=workflow.thread_id,
             feature_description=feature_description,
+            raw_feature_input=raw_feature_input,
+            extracted_feature=extracted_feature,
             current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
             messages_window=[],
             summary_log="",
@@ -491,7 +539,7 @@ async def execute_single_step(
     Returns:
         Updated state after step execution
     """
-    from .enums import ModelRouter, WorkflowPhase
+    from .enums import ModelRouter, WorkflowPhase, WorkflowStep
     from .real_codebase_analyzer import RealCodebaseAnalyzer
     from .tests.mocks import create_mock_agents
 
@@ -521,6 +569,8 @@ async def execute_single_step(
         initial_state = {
             "thread_id": workflow.thread_id,
             "feature_description": feature_description,
+            "raw_feature_input": None,
+            "extracted_feature": None,
             "current_phase": WorkflowPhase.PHASE_0_CODE_CONTEXT,
             "messages_window": [],
             "summary_log": "",
@@ -551,22 +601,23 @@ async def execute_single_step(
     else:
         initial_state = input_state.copy()
 
-    # Get the step method
+    # Get the step method - map step names to workflow methods
     step_methods = {
-        "extract_code_context": workflow.extract_code_context,
-        "parallel_design_exploration": workflow.parallel_design_exploration,
-        "architect_synthesis": workflow.architect_synthesis,
-        "code_investigation": workflow.code_investigation,
-        "human_review": workflow.human_review,
-        "create_design_document": workflow.create_design_document,
-        "iterate_design_document": workflow.iterate_design_document,
-        "finalize_design_document": workflow.finalize_design_document,
-        "create_skeleton": workflow.create_skeleton,
-        "parallel_development": workflow.parallel_development,
-        "reconciliation": workflow.reconciliation,
-        "component_tests": workflow.component_tests,
-        "integration_tests": workflow.integration_tests,
-        "refinement": workflow.refinement,
+        WorkflowStep.EXTRACT_FEATURE.value: workflow.extract_feature,
+        WorkflowStep.EXTRACT_CODE_CONTEXT.value: workflow.extract_code_context,
+        WorkflowStep.PARALLEL_DESIGN_EXPLORATION.value: workflow.parallel_design_exploration,
+        WorkflowStep.ARCHITECT_SYNTHESIS.value: workflow.architect_synthesis,
+        WorkflowStep.CODE_INVESTIGATION.value: workflow.code_investigation,
+        WorkflowStep.HUMAN_REVIEW.value: workflow.human_review,
+        WorkflowStep.CREATE_DESIGN_DOCUMENT.value: workflow.create_design_document,
+        WorkflowStep.ITERATE_DESIGN_DOCUMENT.value: workflow.iterate_design_document,
+        WorkflowStep.FINALIZE_DESIGN_DOCUMENT.value: workflow.finalize_design_document,
+        WorkflowStep.CREATE_SKELETON.value: workflow.create_skeleton,
+        WorkflowStep.PARALLEL_DEVELOPMENT.value: workflow.parallel_development,
+        WorkflowStep.RECONCILIATION.value: workflow.reconciliation,
+        WorkflowStep.COMPONENT_TESTS.value: workflow.component_tests,
+        WorkflowStep.INTEGRATION_TESTS.value: workflow.integration_tests,
+        WorkflowStep.REFINEMENT.value: workflow.refinement,
     }
 
     if step_name not in step_methods:
@@ -595,21 +646,25 @@ async def execute_single_step(
 
 async def list_available_steps() -> list[str]:
     """List all available workflow steps."""
+    from .enums import WorkflowStep
+
+    # Return steps in execution order (excluding deployment steps)
     steps = [
-        "extract_code_context",
-        "parallel_design_exploration",
-        "architect_synthesis",
-        "code_investigation",
-        "human_review",
-        "create_design_document",
-        "iterate_design_document",
-        "finalize_design_document",
-        "create_skeleton",
-        "parallel_development",
-        "reconciliation",
-        "component_tests",
-        "integration_tests",
-        "refinement",
+        WorkflowStep.EXTRACT_FEATURE.value,
+        WorkflowStep.EXTRACT_CODE_CONTEXT.value,
+        WorkflowStep.PARALLEL_DESIGN_EXPLORATION.value,
+        WorkflowStep.ARCHITECT_SYNTHESIS.value,
+        WorkflowStep.CODE_INVESTIGATION.value,
+        WorkflowStep.HUMAN_REVIEW.value,
+        WorkflowStep.CREATE_DESIGN_DOCUMENT.value,
+        WorkflowStep.ITERATE_DESIGN_DOCUMENT.value,
+        WorkflowStep.FINALIZE_DESIGN_DOCUMENT.value,
+        WorkflowStep.CREATE_SKELETON.value,
+        WorkflowStep.PARALLEL_DEVELOPMENT.value,
+        WorkflowStep.RECONCILIATION.value,
+        WorkflowStep.COMPONENT_TESTS.value,
+        WorkflowStep.INTEGRATION_TESTS.value,
+        WorkflowStep.REFINEMENT.value,
     ]
     return steps
 
@@ -705,8 +760,13 @@ async def interactive_step_mode():
 
 def main():
     """Main entry point."""
-    # Run startup validation unless in mock mode or just listing steps
-    if "--list-steps" not in sys.argv and not check_mock_mode():
+    # Run startup validation unless in mock mode, listing steps, or showing help
+    if (
+        "--list-steps" not in sys.argv
+        and "--help" not in sys.argv
+        and "-h" not in sys.argv
+        and not check_mock_mode()
+    ):
         print("🔍 Validating startup requirements...")
         validation_results = run_startup_validation(verbose=False)
 
@@ -806,6 +866,11 @@ Examples:
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     args = parser.parse_args()
+
+    # Handle help early - argparse already printed help and called sys.exit
+    # If we're here after --help, it means sys.exit was mocked, so we should return
+    if "--help" in sys.argv or "-h" in sys.argv:
+        return
 
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)

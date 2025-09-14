@@ -5,6 +5,16 @@ on:
     branches: [ main ]
   push:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      skip_integration_on_failure:
+        description: 'Skip integration tests if Ollama is unavailable (emergency use only)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 permissions:
   contents: write  # Need write permission to push auto-fix commits
@@ -29,18 +39,33 @@ jobs:
             echo "DEBUG: Running pre-checkout cleanup..."
           fi
           if [ -d "$GITHUB_WORKSPACE" ]; then
-            sudo find "$GITHUB_WORKSPACE" -type d -name ".build" -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name ".coverage" -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+            echo "Cleaning workspace directory: $GITHUB_WORKSPACE"
+            
+            # Best-effort cleanup without sudo (runner doesn't have passwordless sudo)
+            # Remove files we can delete, ignore permission errors
+            echo "Removing files that can be deleted without elevated privileges..."
+            
+            # Remove common cache directories that we can delete
+            rm -rf "$GITHUB_WORKSPACE/__pycache__" 2>/dev/null || true
+            rm -rf "$GITHUB_WORKSPACE"/.pytest_cache 2>/dev/null || true
+            rm -rf "$GITHUB_WORKSPACE"/.mypy_cache 2>/dev/null || true
+            rm -rf "$GITHUB_WORKSPACE"/.coverage 2>/dev/null || true
+            rm -rf "$GITHUB_WORKSPACE"/coverage_reports 2>/dev/null || true
+            rm -rf "$GITHUB_WORKSPACE"/build_output 2>/dev/null || true
+            rm -rf "$GITHUB_WORKSPACE"/artifacts 2>/dev/null || true
+            
+            # Try to remove other content we can
+            find "$GITHUB_WORKSPACE" -name "__pycache__" -type d -exec rm -rf {} \; 2>/dev/null || true
+            find "$GITHUB_WORKSPACE" -name ".pytest_cache" -type d -exec rm -rf {} \; 2>/dev/null || true
+            
             if [ "$DEBUG_OUTPUT" = "true" ]; then
-              echo "DEBUG: Pre-checkout cleanup completed"
+              echo "DEBUG: Best-effort cleanup completed"
+              echo "DEBUG: Remaining files (if any) will be handled by checkout action"
+              ls -la "$GITHUB_WORKSPACE" || true
             fi
           else
             if [ "$DEBUG_OUTPUT" = "true" ]; then
-              echo "DEBUG: Workspace doesn't exist yet, skipping cleanup"
+              echo "DEBUG: Workspace doesn't exist yet, nothing to clean"
             fi
           fi
 
@@ -49,7 +74,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.head_ref || github.ref }}
-          clean: true
+          clean: false
           fetch-depth: 0
 
       - name: Make scripts executable
@@ -85,10 +110,10 @@ jobs:
           if [ "$DEBUG_OUTPUT" = "true" ]; then
             echo "DEBUG: Cleaning up after setup..."
           fi
-          sudo find "$GITHUB_WORKSPACE" -type d -name ".build" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name ".build" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          # chown not needed - files created with correct ownership via docker -u flag
 
   ruff-autofix:
     name: Ruff Auto-fix
@@ -104,9 +129,22 @@ jobs:
             echo "DEBUG: Running pre-checkout cleanup..."
           fi
           if [ -d "$GITHUB_WORKSPACE" ]; then
-            sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+            echo "Cleaning workspace directory: $GITHUB_WORKSPACE"
+            
+            # Nuclear option: if there are permission issues, remove the entire workspace
+            if ! rm -rf "$GITHUB_WORKSPACE"/* 2>/dev/null; then
+              echo "Standard cleanup failed, using nuclear option..."
+              # Set permissions on everything
+              # chmod not needed - files created with correct ownership via docker -u flag
+              # chown not needed - files created with correct ownership via docker -u flag
+              # Try again with force
+              rm -rf "$GITHUB_WORKSPACE"/* 2>/dev/null || true
+              rm -rf "$GITHUB_WORKSPACE"/.* 2>/dev/null || true
+            fi
+            
+            # Ensure workspace directory exists and has correct permissions
+            mkdir -p "$GITHUB_WORKSPACE"
+            # chown not needed - files created with correct ownership via docker -u flag
           fi
 
       - name: Checkout code
@@ -114,7 +152,7 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_TOKEN || secrets.GITHUB_TOKEN }}
           ref: ${{ github.head_ref || github.ref }}
-          clean: true
+          clean: false
           fetch-depth: 0
 
       - name: Configure Git
@@ -199,9 +237,9 @@ jobs:
           if [ "$DEBUG_OUTPUT" = "true" ]; then
             echo "DEBUG: Cleaning up after ruff auto-fix..."
           fi
-          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          # chown not needed - files created with correct ownership via docker -u flag
 
   code-checks:
     name: Code Checks (Ruff, mypy, Bandit)
@@ -215,10 +253,12 @@ jobs:
             echo "DEBUG: Running pre-checkout cleanup..."
           fi
           if [ -d "$GITHUB_WORKSPACE" ]; then
-            sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name ".mypy_cache" -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+            echo "Cleaning workspace directory: $GITHUB_WORKSPACE"
+            # Fix permissions first to allow cleanup
+            # chmod not needed - files created with correct ownership via docker -u flag
+            # chown not needed - files created with correct ownership via docker -u flag
+            # Clean cache and build directories
+            find "$GITHUB_WORKSPACE" -type d \( -name "__pycache__" -o -name ".pytest_cache" -o -name ".mypy_cache" -o -name "artifacts" \) -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
           fi
 
       - name: Checkout code
@@ -226,7 +266,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.head_ref || github.ref }}
-          clean: true
+          clean: false
           fetch-depth: 0
 
       - name: Make scripts executable
@@ -282,10 +322,10 @@ jobs:
           if [ "$DEBUG_OUTPUT" = "true" ]; then
             echo "DEBUG: Cleaning up after code checks..."
           fi
-          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name ".mypy_cache" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name ".mypy_cache" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          # chown not needed - files created with correct ownership via docker -u flag
 
   python-tests-and-coverage:
     name: Python Tests & Coverage
@@ -301,11 +341,12 @@ jobs:
             echo "DEBUG: Running pre-checkout cleanup..."
           fi
           if [ -d "$GITHUB_WORKSPACE" ]; then
-            sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name ".coverage" -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+            echo "Cleaning workspace directory: $GITHUB_WORKSPACE"
+            # Fix permissions first to allow cleanup
+            # chmod not needed - files created with correct ownership via docker -u flag
+            # chown not needed - files created with correct ownership via docker -u flag
+            # Clean cache and build directories
+            find "$GITHUB_WORKSPACE" -type d \( -name "__pycache__" -o -name ".pytest_cache" -o -name ".coverage" -o -name "artifacts" \) -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
           fi
 
       - name: Checkout code
@@ -313,7 +354,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.head_ref || github.ref }}
-          clean: true
+          clean: false
           fetch-depth: 0
 
       - name: Create coverage directory
@@ -377,9 +418,14 @@ jobs:
 
               # Dependencies are pre-installed in the Docker image via setup script
 
-              # Run pytest with coverage on all tests and capture output for build logs
-              echo 'Running pytest with coverage on all tests...'
+              # Run pytest with coverage on all tests EXCEPT integration tests
+              echo 'Running pytest with coverage (excluding integration tests)...'
+              
+              # Use environment variable to avoid shell escaping issues
+              export PYTEST_MARKERS='not integration'
+              
               pytest \
+                -m \"\$PYTEST_MARKERS\" \
                 --cov=. \
                 --cov-report=xml:coverage_reports/coverage.xml \
                 --cov-report=lcov:coverage_reports/coverage.lcov \
@@ -387,7 +433,7 @@ jobs:
                 --cov-report=html:coverage_reports/html \
                 --junit-xml=coverage_reports/pytest-results.xml \
                 --verbose \
-                tests/ 2>&1 | tee build_output/python_test_output.txt
+                2>&1 | tee build_output/python_test_output.txt
               
 
 
@@ -492,10 +538,10 @@ jobs:
           if [ "$DEBUG_OUTPUT" = "true" ]; then
             echo "DEBUG: Cleaning up after Python tests..."
           fi
-          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          # chown not needed - files created with correct ownership via docker -u flag
 
 
 
@@ -510,7 +556,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.head_ref || github.ref }}
-          clean: true
+          clean: false
           fetch-depth: 0
       
       - name: Download coverage reports
@@ -548,9 +594,114 @@ jobs:
           fail_ci_if_error: false
         continue-on-error: true
 
+  integration-tests:
+    name: Integration Tests (Ollama)
+    needs: [setup, code-checks, python-tests-and-coverage]
+    # Only run if all previous jobs succeeded
+    if: success()
+    runs-on: [self-hosted, multi-lang-ci]
+    # Allow manual bypass in case Ollama is temporarily unavailable
+    continue-on-error: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.skip_integration_on_failure == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref }}
+          clean: false
+          fetch-depth: 0
+
+      - name: Check Ollama availability
+        id: ollama_check
+        run: |
+          # Extract Ollama URL from pytest.ini to avoid duplication
+          OLLAMA_URL=$(grep "OLLAMA_BASE_URL" pytest.ini | cut -d'=' -f2 | xargs)
+          echo "Checking Ollama availability at: $OLLAMA_URL"
+          
+          # Test connection from Docker container - same way integration tests will connect
+          if docker run --rm \
+            --network host \
+            curlimages/curl:latest \
+            curl -s --connect-timeout 10 "$OLLAMA_URL/api/version" > /dev/null 2>&1; then
+            echo "ollama_available=true" >> $GITHUB_OUTPUT
+            echo "✅ Ollama is available at $OLLAMA_URL"
+          else
+            echo "ollama_available=false" >> $GITHUB_OUTPUT  
+            echo "⚠️ Ollama not accessible at $OLLAMA_URL"
+            echo "This means integration tests will be skipped"
+          fi
+
+      - name: Run integration tests
+        if: steps.ollama_check.outputs.ollama_available == 'true'
+        run: |
+          # Extract Ollama URL from pytest.ini (single source of truth)
+          OLLAMA_URL=$(grep "OLLAMA_BASE_URL" pytest.ini | cut -d'=' -f2 | xargs)
+          echo "=== Running Integration Tests with Ollama ==="
+          echo "Using Ollama server at: $OLLAMA_URL (from pytest.ini)"
+          
+          # Use the same Docker container for consistency with network access
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE":/workspace \
+            -w /workspace \
+            -e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
+            --network host \
+            -u $(id -u):$(id -g) \
+            mstriebeck/multi-lang-ci-runner:${{ needs.setup.outputs.swift-version }}-python${{ needs.setup.outputs.python-version }} \
+            /bin/bash -c '
+              echo "Running integration tests..."
+              echo "Testing connectivity to Ollama..."
+              # Extract URL from pytest.ini for connectivity test
+              OLLAMA_URL=$(grep "OLLAMA_BASE_URL" pytest.ini | cut -d"=" -f2 | xargs)
+              echo "Ollama URL: $OLLAMA_URL"
+              curl -s --connect-timeout 5 "$OLLAMA_URL/api/version" || echo "Warning: Could not reach Ollama"
+              
+              # Run only integration tests (pytest.ini will set OLLAMA_BASE_URL env var)
+              pytest -m integration \
+                --verbose \
+                --tb=short \
+                --junit-xml=integration_test_results.xml \
+                2>&1 | tee integration_test_output.txt
+              
+              test_exit_code=${PIPESTATUS[0]}
+              
+              echo "=== Integration Test Results ===" 
+              if [ $test_exit_code -eq 0 ]; then
+                echo "✅ All integration tests passed"
+              else
+                echo "❌ Some integration tests failed"
+                echo "See integration_test_output.txt for details"
+              fi
+              
+              exit $test_exit_code
+            '
+
+      - name: Fail if Ollama unavailable
+        if: steps.ollama_check.outputs.ollama_available != 'true'
+        run: |
+          echo "❌ Integration tests FAILED - Ollama not available"
+          echo "Integration tests require Ollama to be installed and running."
+          echo ""
+          echo "To fix this:"
+          echo "1. Ensure Ollama is installed on the CI runner"
+          echo "2. Ensure Ollama service is running (ollama serve)"
+          echo "3. Ensure required models are pulled (e.g., ollama pull qwen3:8b)"
+          echo ""
+          echo "For emergency bypass (use with caution):"
+          echo "- Re-run workflow with manual trigger and skip_integration_on_failure=true"
+          exit 1
+
+      - name: Upload integration test results
+        if: steps.ollama_check.outputs.ollama_available == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: |
+            integration_test_results.xml
+            integration_test_output.txt
+
   cleanup:
     name: Final Cleanup
-    needs: [setup, ruff-autofix, code-checks, python-tests-and-coverage, upload-coverage]
+    needs: [setup, ruff-autofix, code-checks, python-tests-and-coverage, upload-coverage, integration-tests]
     if: always()
     runs-on: [self-hosted, multi-lang-ci]
     steps:
@@ -559,13 +710,13 @@ jobs:
           if [ "$DEBUG_OUTPUT" = "true" ]; then
             echo "DEBUG: Running final workspace cleanup..."
           fi
-          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name ".mypy_cache" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name ".coverage" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "coverage_reports" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "code_check_output" -exec rm -rf {} \; 2>/dev/null || true
-          sudo find "$GITHUB_WORKSPACE" -type d -name "ruff_autofix_output" -exec rm -rf {} \; 2>/dev/null || true
-          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name ".mypy_cache" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name ".coverage" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "coverage_reports" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "code_check_output" -exec rm -rf {} \; 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d -name "ruff_autofix_output" -exec rm -rf {} \; 2>/dev/null || true
+          # chown not needed - files created with correct ownership via docker -u flag
           echo "Final cleanup completed"

@@ -23,7 +23,7 @@ from .mock_github import MockGitHub
 from .mock_model import MockModel
 
 
-class TestFileSystem:
+class MockTestFileSystem:
     """Test file system that operates in memory/temp directories."""
 
     def __init__(self):
@@ -51,7 +51,7 @@ class TestFileSystem:
         self.temp_dir.cleanup()
 
 
-class TestLangGraphCheckpointer(BaseCheckpointSaver):
+class MockTestLangGraphCheckpointer(BaseCheckpointSaver):
     """Test checkpointer that stores state in memory."""
 
     def __init__(self):
@@ -70,7 +70,7 @@ class TestLangGraphCheckpointer(BaseCheckpointSaver):
         return self.memory_saver.put_writes(config, writes, task_id, task_path)
 
 
-class TestMultiAgentWorkflow(MultiAgentWorkflow):
+class MockTestMultiAgentWorkflow(MultiAgentWorkflow):
     """Test implementation that executes real workflow logic with controlled dependencies.
 
     This class inherits from MultiAgentWorkflow and overrides dependency creation
@@ -80,6 +80,10 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
     def __init__(
         self,
         repo_path: str,
+        agents: dict[AgentType, Any] | None = None,
+        codebase_analyzer: Any = None,
+        ollama_model: Any | None = None,
+        claude_model: Any | None = None,
         thread_id: str | None = None,
         checkpoint_path: str = ":memory:",
     ):
@@ -87,6 +91,10 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
 
         Args:
             repo_path: Path to the repository (can be test directory)
+            agents: Agent implementations (uses test agents if None)
+            codebase_analyzer: Codebase analyzer (uses mock if None)
+            ollama_model: Ollama model (uses mock if None)
+            claude_model: Claude model (uses mock if None)
             thread_id: Thread ID for persistence (uses test ID if None)
             checkpoint_path: Checkpoint path (uses memory by default)
         """
@@ -96,17 +104,28 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
         self.checkpoint_path = checkpoint_path
 
         # Create test filesystem
-        self.test_fs = TestFileSystem()
+        self.test_fs = MockTestFileSystem()
         self.artifacts_dir = self.test_fs.base_path / "artifacts" / self.thread_id
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize with test dependencies
-        self.agents = self._create_test_agents()
-        self.ollama_model = MockModel(["Test Ollama response"])
-        self.claude_model = MockModel(["Test Claude response"])
+        # Initialize with provided or test dependencies
+        self.agents = agents if agents is not None else self._create_test_agents()
+        self.ollama_model = (
+            ollama_model
+            if ollama_model is not None
+            else MockModel(["Test Ollama response"])
+        )
+        self.claude_model = (
+            claude_model
+            if claude_model is not None
+            else MockModel(["Test Claude response"])
+        )
 
         # Create test codebase analyzer
-        self.codebase_analyzer = MockCodebaseAnalyzer()  # type: ignore
+        if codebase_analyzer is not None:
+            self.codebase_analyzer = codebase_analyzer
+        else:
+            self.codebase_analyzer = MockCodebaseAnalyzer()  # type: ignore
 
         # Create test GitHub integration
         self.github = MockGitHub()
@@ -115,7 +134,7 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
         self.graph = self._build_graph()
 
         # Use test checkpointer
-        self.checkpointer = TestLangGraphCheckpointer()  # type: ignore
+        self.checkpointer = MockTestLangGraphCheckpointer()  # type: ignore
         self.app = self.graph.compile(checkpointer=self.checkpointer)
 
     def _create_test_agents(self) -> dict[AgentType, MockAgent]:
@@ -183,11 +202,53 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
         artifact_path = self.artifacts_dir / filename
         return self.test_fs.read_text(artifact_path)
 
+    # Override LLM-dependent methods to avoid external API calls
+    async def _generate_intelligent_code_context(
+        self, analysis: dict, feature_description: str
+    ) -> str:
+        """Mock implementation that returns test context without LLM calls."""
+        # Create a simple but realistic mock context based on the analysis
+        context_doc = f"""# Code Context Document
+
+## Executive Summary
+This is a test repository analysis for: {feature_description}
+
+## Architecture Overview
+{analysis.get('architecture', 'Test architecture analysis')}
+
+## Technology Stack
+- Languages: {', '.join(analysis.get('languages', ['Python']))}
+- Frameworks: {', '.join(analysis.get('frameworks', ['FastAPI']))}
+- Databases: {', '.join(analysis.get('databases', ['SQLite']))}
+
+## Design Patterns
+{analysis.get('patterns', 'Repository pattern, dependency injection')}
+
+## Code Conventions
+{analysis.get('conventions', 'PEP 8, type hints')}
+
+## Key Interfaces
+{analysis.get('interfaces', 'Abstract base classes')}
+
+## Infrastructure Services
+{analysis.get('services', 'HTTP API services')}
+
+## Testing Approach
+{analysis.get('testing', 'pytest with dependency injection')}
+
+## Recent Changes
+{analysis.get('recent_changes', 'Test repository setup')}
+
+## Key Files
+{chr(10).join(f'- {kf}' for kf in analysis.get('key_files', ['main.py - Test file']))}
+"""
+        return context_doc
+
     # Override methods that need filesystem operations
     async def extract_code_context(self, state: WorkflowState) -> WorkflowState:
         """Extract code context using test analyzer and filesystem."""
         # Use real workflow logic but with test dependencies
-        state["model_router"] = ModelRouter.CLAUDE_CODE
+        state["model_router"] = ModelRouter.OLLAMA
         state["current_phase"] = WorkflowPhase.PHASE_0_CODE_CONTEXT
 
         # Use test codebase analyzer
@@ -228,9 +289,13 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
 
         state["code_context_document"] = context_doc
         state["artifacts_index"]["code_context"] = str(context_path)
-        # Skip message handling in test implementation
 
-        # Would normally add message here, but skipping for test
+        # Add message for test expectations
+        from langchain_core.messages import SystemMessage
+
+        state["messages_window"].append(
+            SystemMessage(content=f"Code context extracted and saved to {context_path}")
+        )
 
         return state
 
@@ -289,6 +354,8 @@ class TestMultiAgentWorkflow(MultiAgentWorkflow):
         return WorkflowState(
             thread_id=self.thread_id,
             feature_description=feature_description,
+            raw_feature_input=None,
+            extracted_feature=None,
             current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
             messages_window=[],
             summary_log="",

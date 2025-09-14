@@ -19,7 +19,7 @@ from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
 # Import enums from separate module to avoid circular imports
-from .enums import AgentType, ModelRouter, WorkflowPhase
+from .enums import AgentType, ModelRouter, WorkflowPhase, WorkflowStep
 
 # Import agent personas and interfaces
 from .interfaces import CodebaseAnalyzerInterface
@@ -61,6 +61,8 @@ class WorkflowState(TypedDict):
     # Core workflow info
     thread_id: str
     feature_description: str
+    raw_feature_input: str | None  # Original PRD or feature file content
+    extracted_feature: str | None  # Extracted feature from PRD
     current_phase: WorkflowPhase
 
     # Messages and summary
@@ -142,7 +144,7 @@ class MultiAgentWorkflow:
             self.ollama_model = ollama_model
         else:
             self.ollama_model = ChatOllama(
-                model="qwen2.5-coder:7b",
+                model="qwen3:8b",
                 base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
             )
 
@@ -177,79 +179,184 @@ class MultiAgentWorkflow:
         """Build the LangGraph state graph."""
         workflow = StateGraph(WorkflowState)
 
-        # Phase 0: Code Context Extraction
-        workflow.add_node("extract_code_context", self.extract_code_context)
+        # Phase 0: Feature and Code Context Extraction
+        workflow.add_node(WorkflowStep.EXTRACT_FEATURE.value, self.extract_feature)
+        workflow.add_node(
+            WorkflowStep.EXTRACT_CODE_CONTEXT.value, self.extract_code_context
+        )
 
         # Phase 1: Design Exploration
         workflow.add_node(
-            "parallel_design_exploration", self.parallel_design_exploration
+            WorkflowStep.PARALLEL_DESIGN_EXPLORATION.value,
+            self.parallel_design_exploration,
         )
-        workflow.add_node("architect_synthesis", self.architect_synthesis)
-        workflow.add_node("code_investigation", self.code_investigation)
-        workflow.add_node("human_review", self.human_review)
+        workflow.add_node(
+            WorkflowStep.ARCHITECT_SYNTHESIS.value, self.architect_synthesis
+        )
+        workflow.add_node(
+            WorkflowStep.CODE_INVESTIGATION.value, self.code_investigation
+        )
+        workflow.add_node(WorkflowStep.HUMAN_REVIEW.value, self.human_review)
 
         # Phase 2: Design Document
-        workflow.add_node("create_design_document", self.create_design_document)
-        workflow.add_node("iterate_design_document", self.iterate_design_document)
-        workflow.add_node("finalize_design_document", self.finalize_design_document)
+        workflow.add_node(
+            WorkflowStep.CREATE_DESIGN_DOCUMENT.value, self.create_design_document
+        )
+        workflow.add_node(
+            WorkflowStep.ITERATE_DESIGN_DOCUMENT.value, self.iterate_design_document
+        )
+        workflow.add_node(
+            WorkflowStep.FINALIZE_DESIGN_DOCUMENT.value, self.finalize_design_document
+        )
 
         # Phase 3: Implementation
-        workflow.add_node("create_skeleton", self.create_skeleton)
-        workflow.add_node("parallel_development", self.parallel_development)
-        workflow.add_node("reconciliation", self.reconciliation)
-        workflow.add_node("component_tests", self.component_tests)
-        workflow.add_node("integration_tests", self.integration_tests)
-        workflow.add_node("refinement", self.refinement)
+        workflow.add_node(WorkflowStep.CREATE_SKELETON.value, self.create_skeleton)
+        workflow.add_node(
+            WorkflowStep.PARALLEL_DEVELOPMENT.value, self.parallel_development
+        )
+        workflow.add_node(WorkflowStep.RECONCILIATION.value, self.reconciliation)
+        workflow.add_node(WorkflowStep.COMPONENT_TESTS.value, self.component_tests)
+        workflow.add_node(WorkflowStep.INTEGRATION_TESTS.value, self.integration_tests)
+        workflow.add_node(WorkflowStep.REFINEMENT.value, self.refinement)
 
         # Helper nodes
         workflow.add_node("update_summary", self.update_summary)
-        workflow.add_node("push_to_github", self.push_to_github)
-        workflow.add_node("wait_for_ci", self.wait_for_ci)
-        workflow.add_node("apply_patches", self.apply_patches)
+        workflow.add_node(WorkflowStep.PUSH_TO_GITHUB.value, self.push_to_github)
+        workflow.add_node(WorkflowStep.WAIT_FOR_CI.value, self.wait_for_ci)
+        workflow.add_node(WorkflowStep.APPLY_PATCHES.value, self.apply_patches)
 
         # Set entry point
-        workflow.set_entry_point("extract_code_context")
+        workflow.set_entry_point(WorkflowStep.EXTRACT_FEATURE.value)
 
-        # Add edges for Phase 0 -> Phase 1
-        workflow.add_edge("extract_code_context", "parallel_design_exploration")
+        # Add edges for Phase 0
+        workflow.add_edge(
+            WorkflowStep.EXTRACT_FEATURE.value, WorkflowStep.EXTRACT_CODE_CONTEXT.value
+        )
+        workflow.add_edge(
+            WorkflowStep.EXTRACT_CODE_CONTEXT.value,
+            WorkflowStep.PARALLEL_DESIGN_EXPLORATION.value,
+        )
 
         # Phase 1 flow
-        workflow.add_edge("parallel_design_exploration", "architect_synthesis")
-        workflow.add_conditional_edges(
-            "architect_synthesis",
-            self.needs_code_investigation,
-            {True: "code_investigation", False: "human_review"},
+        workflow.add_edge(
+            WorkflowStep.PARALLEL_DESIGN_EXPLORATION.value,
+            WorkflowStep.ARCHITECT_SYNTHESIS.value,
         )
-        workflow.add_edge("code_investigation", "human_review")
-        workflow.add_edge("human_review", "create_design_document")
+        workflow.add_conditional_edges(
+            WorkflowStep.ARCHITECT_SYNTHESIS.value,
+            self.needs_code_investigation,
+            {
+                True: WorkflowStep.CODE_INVESTIGATION.value,
+                False: WorkflowStep.HUMAN_REVIEW.value,
+            },
+        )
+        workflow.add_edge(
+            WorkflowStep.CODE_INVESTIGATION.value, WorkflowStep.HUMAN_REVIEW.value
+        )
+        workflow.add_edge(
+            WorkflowStep.HUMAN_REVIEW.value, WorkflowStep.CREATE_DESIGN_DOCUMENT.value
+        )
 
         # Phase 2 flow
-        workflow.add_edge("create_design_document", "iterate_design_document")
-        workflow.add_conditional_edges(
-            "iterate_design_document",
-            self.design_document_complete,
-            {True: "finalize_design_document", False: "iterate_design_document"},
+        workflow.add_edge(
+            WorkflowStep.CREATE_DESIGN_DOCUMENT.value,
+            WorkflowStep.ITERATE_DESIGN_DOCUMENT.value,
         )
-        workflow.add_edge("finalize_design_document", "create_skeleton")
+        workflow.add_conditional_edges(
+            WorkflowStep.ITERATE_DESIGN_DOCUMENT.value,
+            self.design_document_complete,
+            {
+                True: WorkflowStep.FINALIZE_DESIGN_DOCUMENT.value,
+                False: WorkflowStep.ITERATE_DESIGN_DOCUMENT.value,
+            },
+        )
+        workflow.add_edge(
+            WorkflowStep.FINALIZE_DESIGN_DOCUMENT.value,
+            WorkflowStep.CREATE_SKELETON.value,
+        )
 
         # Phase 3 flow
-        workflow.add_edge("create_skeleton", "parallel_development")
-        workflow.add_edge("parallel_development", "reconciliation")
+        workflow.add_edge(
+            WorkflowStep.CREATE_SKELETON.value, WorkflowStep.PARALLEL_DEVELOPMENT.value
+        )
+        workflow.add_edge(
+            WorkflowStep.PARALLEL_DEVELOPMENT.value, WorkflowStep.RECONCILIATION.value
+        )
         workflow.add_conditional_edges(
-            "reconciliation",
+            WorkflowStep.RECONCILIATION.value,
             self.needs_human_arbitration,
-            {True: "human_review", False: "component_tests"},
+            {
+                True: WorkflowStep.HUMAN_REVIEW.value,
+                False: WorkflowStep.COMPONENT_TESTS.value,
+            },
         )
-        workflow.add_edge("component_tests", "integration_tests")
-        workflow.add_edge("integration_tests", "refinement")
-        workflow.add_edge("refinement", "push_to_github")
-        workflow.add_edge("push_to_github", "wait_for_ci")
+        workflow.add_edge(
+            WorkflowStep.COMPONENT_TESTS.value, WorkflowStep.INTEGRATION_TESTS.value
+        )
+        workflow.add_edge(
+            WorkflowStep.INTEGRATION_TESTS.value, WorkflowStep.REFINEMENT.value
+        )
+        workflow.add_edge(
+            WorkflowStep.REFINEMENT.value, WorkflowStep.PUSH_TO_GITHUB.value
+        )
+        workflow.add_edge(
+            WorkflowStep.PUSH_TO_GITHUB.value, WorkflowStep.WAIT_FOR_CI.value
+        )
         workflow.add_conditional_edges(
-            "wait_for_ci", self.ci_passed, {True: END, False: "apply_patches"}
+            WorkflowStep.WAIT_FOR_CI.value,
+            self.ci_passed,
+            {True: END, False: WorkflowStep.APPLY_PATCHES.value},
         )
-        workflow.add_edge("apply_patches", "push_to_github")
+        workflow.add_edge(
+            WorkflowStep.APPLY_PATCHES.value, WorkflowStep.PUSH_TO_GITHUB.value
+        )
 
         return workflow
+
+    async def extract_feature(self, state: WorkflowState) -> WorkflowState:
+        """Extract specific feature from PRD if needed and store as artifact."""
+        logger.info("Phase 0: Extracting feature from input")
+
+        # If raw_feature_input is provided (PRD file), we may need to extract
+        if state.get("raw_feature_input") and state.get("extracted_feature"):
+            # Feature was already extracted from PRD
+            feature_to_use = state["extracted_feature"]
+            logger.info("Using pre-extracted feature from PRD")
+        elif state.get("raw_feature_input"):
+            # We have a PRD but no extraction - use the whole thing
+            feature_to_use = state["raw_feature_input"]
+            logger.info("Using entire PRD as feature description")
+        else:
+            # Simple feature description provided directly
+            feature_to_use = state["feature_description"]
+            logger.info("Using direct feature description")
+
+        # Store the feature as an artifact
+
+        # Use the proper artifacts directory (in ~/.local/share/github-agent/langgraph/artifacts/)
+        # Use thread_id from state to support per-thread artifacts
+        from .config import get_artifacts_path
+
+        thread_id = state.get("thread_id", self.thread_id)
+        artifacts_dir = get_artifacts_path(thread_id)
+        feature_artifact_path = artifacts_dir / "feature_description.md"
+        if feature_to_use:
+            feature_artifact_path.write_text(feature_to_use)
+        else:
+            # Should not happen, but handle gracefully
+            feature_artifact_path.write_text("")
+
+        # Update artifacts index
+        if "artifacts_index" not in state:
+            state["artifacts_index"] = {}
+        state["artifacts_index"]["feature_description"] = str(feature_artifact_path)
+
+        # Store the final feature description
+        state["feature_description"] = feature_to_use or ""
+
+        logger.info(f"Feature description stored as artifact: {feature_artifact_path}")
+
+        return state
 
     async def extract_code_context(self, state: WorkflowState) -> WorkflowState:
         """Phase 0: Extract code context using Senior Engineer (Claude Code)."""
@@ -294,6 +401,9 @@ class MultiAgentWorkflow:
         repo_path = self.codebase_analyzer.repo_path
 
         # Create structured prompt for comprehensive analysis
+        # Import json for formatting analysis data
+
+        # Use comprehensive prompt that examines actual code to find architectural patterns
         analysis_prompt = f"""You are a Senior Software Engineer conducting a comprehensive codebase analysis.
 You have FULL ACCESS to the repository code. Analyze it thoroughly to create a Code Context Document.
 
@@ -470,162 +580,101 @@ Before finalizing, verify:
 Remember: You have the actual code. Read it. Don't guess based on file names or metadata.
 """
 
+        # Log prompt metadata for visibility
+        prompt_length = len(analysis_prompt)
+        logger.info(
+            f"Using comprehensive code examination prompt ({prompt_length} chars)"
+        )
+        logger.info(f"Repository path: {repo_path}")
+
+        # Log the full prompt for debugging
+        logger.debug("Code context analysis prompt:")
+        logger.debug("=" * 80)
+        logger.debug(analysis_prompt)
+        logger.debug("=" * 80)
+
+        # Use Ollama first if available, then fall back to Claude
+
+        context_doc = None
+
+        # Code context generation requires file system access - only Claude Code CLI can do this
+        # Ollama and Claude API cannot read files, they just generate generic fictional content
+
+        # Try Claude CLI first since it has file access
         try:
-            # Log prompt metadata for visibility
-            prompt_length = len(analysis_prompt)
-            logger.info(
-                f"Using evidence-based code analysis prompt ({prompt_length} chars)"
-            )
-            logger.info(f"Repository path: {repo_path}")
-
-            # Log the full prompt for debugging
-            logger.debug("Code context analysis prompt:")
-            logger.debug("=" * 80)
-            logger.debug(analysis_prompt)
-            logger.debug("=" * 80)
-
-            # Try Claude CLI first, then fall back to API
-            import os
             import subprocess
 
             # Check if Claude CLI is available
-            try:
-                claude_result = subprocess.run(
-                    ["claude", "--version"], capture_output=True, text=True, timeout=5
-                )
-                use_claude_cli = (
-                    claude_result.returncode == 0
-                    and "Claude Code" in claude_result.stdout
-                )
-            except Exception:
-                use_claude_cli = False
+            claude_result = subprocess.run(
+                ["claude", "--version"], capture_output=True, text=True, timeout=5
+            )
+            use_claude_cli = (
+                claude_result.returncode == 0 and "Claude Code" in claude_result.stdout
+            )
 
             if use_claude_cli:
-                # Use Claude CLI with stdin to avoid file permission issues
-                try:
-                    claude_result = subprocess.run(
-                        ["claude"],
-                        input=analysis_prompt,
-                        capture_output=True,
-                        text=True,
-                        # No timeout - let Claude take as long as needed for thorough analysis
-                    )
-
-                    if claude_result.returncode == 0:
-                        context_doc = claude_result.stdout.strip()
-                        logger.info(
-                            "Successfully generated code context using Claude CLI"
-                        )
-                        logger.debug(
-                            f"Generated context length: {len(context_doc)} chars"
-                        )
-                        logger.debug("LLM Response (first 1000 chars):")
-                        logger.debug("=" * 60)
-                        logger.debug(context_doc[:1000])
-                        logger.debug("=" * 60)
-                        if len(context_doc) > 1000:
-                            logger.debug(
-                                f"... (truncated, full response is {len(context_doc)} chars)"
-                            )
-
-                        # Validate CLI response
-                        if not context_doc or len(context_doc.strip()) == 0:
-                            raise ValueError(
-                                "Claude CLI returned empty response - no content generated"
-                            )
-                        if len(context_doc.strip()) < 100:
-                            logger.warning(
-                                f"Claude CLI response suspiciously short: {len(context_doc.strip())} chars"
-                            )
-                            logger.warning("Response content:")
-                            logger.warning(repr(context_doc))
-
-                        return context_doc  # Success with CLI
-                    else:
-                        raise Exception(f"Claude CLI failed: {claude_result.stderr}")
-
-                except Exception as e:
-                    # If CLI fails, fall back to API
-                    logger.warning(f"Claude CLI failed, falling back to API: {e}")
-                    use_claude_cli = False
-
-            if not use_claude_cli:
-                # Fall back to API key
-                from langchain_anthropic import ChatAnthropic
-                from langchain_core.messages import HumanMessage
-
-                api_key = os.getenv("ANTHROPIC_API_KEY")
-                if not api_key:
-                    raise ValueError(
-                        "Neither Claude CLI nor ANTHROPIC_API_KEY available"
-                    )
-
-                claude_model = ChatAnthropic()  # type: ignore
-                response = await claude_model.ainvoke(
-                    [HumanMessage(content=analysis_prompt)]
+                logger.info(
+                    "Using Claude CLI for code context generation (has file access)"
                 )
-                context_doc = str(response.content).strip() if response.content else ""
-                logger.info("Successfully generated code context using Anthropic API")
-                logger.debug(f"Generated context length: {len(context_doc)} chars")
-                logger.debug("LLM Response (first 1000 chars):")
-                logger.debug("=" * 60)
-                logger.debug(context_doc[:1000])
-                logger.debug("=" * 60)
-                if len(context_doc) > 1000:
-                    logger.debug(
-                        f"... (truncated, full response is {len(context_doc)} chars)"
-                    )
+                claude_result = subprocess.run(
+                    ["claude"],
+                    input=analysis_prompt,
+                    capture_output=True,
+                    text=True,
+                    timeout=600,  # 10 minutes - optimize for quality, not speed
+                )
 
-                # Validate API response
-                if not context_doc or len(context_doc.strip()) == 0:
-                    raise ValueError(
-                        "Anthropic API returned empty response - no content generated"
-                    )
-                if len(context_doc.strip()) < 100:
-                    logger.warning(
-                        f"API response suspiciously short: {len(context_doc.strip())} chars"
-                    )
-                    logger.warning("Response content:")
-                    logger.warning(repr(context_doc))
+                if claude_result.returncode == 0:
+                    context_doc = claude_result.stdout.strip()
+                    logger.info("Successfully generated code context using Claude CLI")
+                    logger.info(f"Generated context length: {len(context_doc)} chars")
 
-            return context_doc
+                    # Log the actual response for debugging
+                    if len(context_doc) > 0:
+                        logger.info(
+                            f"Claude CLI response preview: {context_doc[:500]}..."
+                        )
+
+                        # Expect comprehensive analysis (should be 2000+ chars for detailed code context)
+                        if len(context_doc.strip()) > 2000:
+                            return context_doc
+                        else:
+                            logger.error(
+                                f"Claude CLI returned insufficient response ({len(context_doc)} chars)"
+                            )
+                            logger.error(
+                                "Comprehensive code analysis should produce detailed multi-section document"
+                            )
+                            logger.error(f"Response preview: {context_doc[:200]}...")
+                            raise RuntimeError(
+                                "Claude CLI failed to provide comprehensive code analysis. "
+                                f"Expected 2000+ characters, got {len(context_doc)}. "
+                                "This indicates Claude CLI cannot properly examine the repository code."
+                            )
+                    else:
+                        logger.error("Claude CLI returned empty response")
+                        raise RuntimeError(
+                            "Claude CLI returned empty response for code context generation"
+                        )
+                else:
+                    logger.error(f"Claude CLI failed: {claude_result.stderr}")
+                    raise RuntimeError(
+                        f"Claude CLI failed with stderr: {claude_result.stderr}"
+                    )
+            else:
+                logger.error(
+                    "Claude Code CLI not available - cannot access repository files"
+                )
+                raise RuntimeError(
+                    "Claude Code CLI not available - code context generation requires file access"
+                )
 
         except Exception as e:
-            logger.error("CRITICAL: Code context generation failed!")
-            logger.error(f"Error details: {e}")
-            logger.error(f"Error type: {type(e).__name__}")
-
-            # Don't fallback - fail clearly with detailed error information
-            error_details = str(e)
-            if "ANTHROPIC_API_KEY" in error_details:
-                error_msg = (
-                    f"Code context generation failed - No API access available!\n\n"
-                    f"ISSUE: {error_details}\n\n"
-                    f"SOLUTIONS:\n"
-                    f"1. Set ANTHROPIC_API_KEY environment variable\n"
-                    f"2. Ensure Claude CLI is working: 'claude --version'\n"
-                    f"3. Check Claude CLI permissions if using file-based prompts\n\n"
-                    f"Cannot proceed without LLM access for code analysis."
-                )
-            elif "timeout" in error_details.lower():
-                error_msg = (
-                    f"Code context generation failed - LLM call timed out!\n\n"
-                    f"ISSUE: {error_details}\n\n"
-                    f"POSSIBLE CAUSES:\n"
-                    f"1. Large repository taking too long to analyze\n"
-                    f"2. Network connectivity issues\n"
-                    f"3. LLM service overloaded\n\n"
-                    f"Try again or check your connection."
-                )
-            else:
-                error_msg = (
-                    f"Code context generation failed with unexpected error!\n\n"
-                    f"ERROR: {error_details}\n"
-                    f"TYPE: {type(e).__name__}\n\n"
-                    f"Please check logs for more details and ensure LLM access is configured."
-                )
-
-            raise RuntimeError(error_msg) from e
+            logger.error(f"Claude CLI failed: {e}")
+            raise RuntimeError(
+                "Code context generation requires Claude CLI with file system access. "
+                f"Claude CLI error: {e}"
+            ) from e
 
     async def parallel_design_exploration(self, state: WorkflowState) -> WorkflowState:
         """Phase 1 Step 1: All agents analyze in parallel using Ollama."""
@@ -1433,6 +1482,8 @@ async def main():
     initial_state = WorkflowState(
         thread_id=workflow.thread_id,
         feature_description=args.feature,
+        raw_feature_input=None,
+        extracted_feature=None,
         current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
         messages_window=[],
         summary_log="",

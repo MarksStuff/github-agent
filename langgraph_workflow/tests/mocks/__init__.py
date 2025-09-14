@@ -70,7 +70,7 @@ def create_mock_dependencies(thread_id: str = "test-thread") -> dict[str, Any]:
     """Create all mock dependencies for testing."""
     return {
         "ollama_model": MockModel(["Ollama response 1", "Ollama response 2"]),
-        "claude_model": MockModel(["Claude response 1", "Claude response 2"]),
+        "claude_model": None,  # Claude model removed - all functionality uses Ollama
         "github": MockGitHub(),
         "agents": create_mock_agents(),
         "codebase_analyzer": MockCodebaseAnalyzer(),

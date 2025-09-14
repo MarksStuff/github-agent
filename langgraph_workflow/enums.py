@@ -34,3 +34,37 @@ class WorkflowPhase(str, Enum):
     PHASE_3_COMPONENT_TESTS = "phase_3_component_tests"
     PHASE_3_INTEGRATION_TESTS = "phase_3_integration_tests"
     PHASE_3_REFINEMENT = "phase_3_refinement"
+
+
+class WorkflowStep(str, Enum):
+    """Individual workflow steps/nodes."""
+
+    # Phase 0: Feature and Code Context
+    EXTRACT_FEATURE = "extract_feature"
+    EXTRACT_CODE_CONTEXT = "extract_code_context"
+
+    # Phase 1: Design
+    PARALLEL_DESIGN_EXPLORATION = "parallel_design_exploration"
+    ARCHITECT_SYNTHESIS = "architect_synthesis"
+    CODE_INVESTIGATION = "code_investigation"
+    HUMAN_REVIEW = "human_review"
+
+    # Phase 2: Design Document
+    CREATE_DESIGN_DOCUMENT = "create_design_document"
+    ITERATE_DESIGN_DOCUMENT = "iterate_design_document"
+    FINALIZE_DESIGN_DOCUMENT = "finalize_design_document"
+
+    # Phase 3: Implementation
+    CREATE_SKELETON = "create_skeleton"
+    PARALLEL_DEVELOPMENT = "parallel_development"
+    RECONCILIATION = "reconciliation"
+
+    # Phase 4: Verification
+    COMPONENT_TESTS = "component_tests"
+    INTEGRATION_TESTS = "integration_tests"
+    REFINEMENT = "refinement"
+
+    # Phase 5: Deployment (not in step list but in graph)
+    PUSH_TO_GITHUB = "push_to_github"
+    WAIT_FOR_CI = "wait_for_ci"
+    APPLY_PATCHES = "apply_patches"

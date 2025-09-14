@@ -43,7 +43,11 @@ class GitHubIntegration:
         self.token = github_token or os.getenv("GITHUB_TOKEN")
 
         # Use injected tool function for dependency injection in tests
-        self.execute_tool = tool_function if tool_function is not None else execute_tool
+        # Note: tool_function=None means github_tools is explicitly unavailable
+        if tool_function is None:
+            self.execute_tool = None
+        else:
+            self.execute_tool = tool_function or execute_tool
 
         if not self.token:
             logger.warning("No GitHub token provided. PR operations will be limited.")
@@ -182,6 +186,10 @@ class GitHubIntegration:
             logger.warning("Repository name not available. Returning empty comments.")
             return []
 
+        if not self.execute_tool:
+            logger.warning("GitHub tools not available. Returning empty comments.")
+            return []
+
         try:
             result = await self.execute_tool(
                 "github_get_pr_comments", repo_name=self.repo_name, pr_number=pr_number
@@ -228,19 +236,23 @@ class GitHubIntegration:
             return False
 
         try:
-            result = await self.execute_tool(
-                "github_post_pr_reply",
-                repo_name=self.repo_name,
-                comment_id=pr_number,  # This is incorrect but github_tools expects comment_id
-                message=comment,
-            )
-
-            data = json.loads(result)
-            if "error" in data:
-                logger.error(f"Error adding PR comment: {data['error']}")
+            # Use GitHub API directly since github_post_pr_reply is for replying to existing comments
+            # Get the GitHub context to access the repo
+            if get_github_context is None:
+                logger.warning("GitHub context not available. Cannot add comment.")
                 return False
 
-            return data.get("success", False)
+            context = get_github_context(self.repo_name)
+            if not context or not context.repo:
+                logger.warning("GitHub repository not configured. Cannot add comment.")
+                return False
+
+            # Get the PR and add a comment
+            pr = context.repo.get_pull(pr_number)
+            pr.create_issue_comment(comment)
+
+            logger.info(f"Added comment to PR #{pr_number}")
+            return True
 
         except Exception as e:
             logger.error(f"Failed to add PR comment: {e}")
@@ -257,6 +269,15 @@ class GitHubIntegration:
         """
         if not self.repo_name:
             logger.warning("Repository name not available. Returning dummy status.")
+            return {
+                "status": "success",
+                "checks": [],
+                "commit_sha": "unknown",
+                "pr_number": pr_number,
+            }
+
+        if not self.execute_tool:
+            logger.warning("GitHub tools not available. Returning dummy status.")
             return {
                 "status": "success",
                 "checks": [],

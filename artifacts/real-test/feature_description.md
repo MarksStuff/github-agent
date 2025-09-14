@@ -1,0 +1,1 @@
+Add OAuth2 authentication with role-based access control

@@ -22,8 +22,11 @@ class LLMTestingMixin:
     @staticmethod
     def check_ollama_available() -> bool:
         """Check if Ollama is available for integration testing."""
+        import os
+
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         try:
-            response = requests.get("http://localhost:11434/api/version", timeout=2)
+            response = requests.get(f"{ollama_url}/api/version", timeout=2)
             return response.status_code == 200
         except Exception:
             return False
@@ -147,23 +150,33 @@ class MockLLMResponse:
     def __init__(self, response_text: str):
         self.response_text = response_text
 
+    def create_cli_mock(self) -> list[Mock]:
+        """Create mocks for CLI calls using stdin."""
+        version_mock = Mock(returncode=0, stdout="1.0.113 (CLI Tool)")
+        response_mock = Mock(returncode=0, stdout=self.response_text)
+        return [version_mock, response_mock]
+
     def create_claude_cli_mock(self) -> list[Mock]:
-        """Create mocks for Claude CLI calls using stdin."""
+        """Create mocks for Claude CLI calls specifically."""
         version_mock = Mock(returncode=0, stdout="1.0.113 (Claude Code)")
         response_mock = Mock(returncode=0, stdout=self.response_text)
         return [version_mock, response_mock]
 
-    def create_claude_api_mock(self) -> Mock:
-        """Create mock for Claude API response."""
+    def create_api_mock(self) -> Mock:
+        """Create mock for API response."""
         response_mock = Mock()
         response_mock.content = self.response_text
         return response_mock
+
+    def create_claude_api_mock(self) -> Mock:
+        """Deprecated: Use create_api_mock() instead."""
+        return self.create_api_mock()
 
     def create_subprocess_error_mock(
         self, error_message: str = "CLI failed"
     ) -> list[Mock]:
         """Create mocks for CLI failure scenarios."""
-        version_mock = Mock(returncode=0, stdout="1.0.113 (Claude Code)")
+        version_mock = Mock(returncode=0, stdout="1.0.113 (CLI Tool)")
         error_mock = Mock(returncode=1, stderr=error_message)
         return [version_mock, error_mock]
 
@@ -274,7 +287,11 @@ class LLMTestFramework(LLMTestingMixin):
         # Configure environment for Ollama if requested
         env_patches = {}
         if use_ollama:
-            env_patches["OLLAMA_BASE_URL"] = "http://localhost:11434"
+            # Use existing OLLAMA_BASE_URL or default
+            import os
+
+            ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+            env_patches["OLLAMA_BASE_URL"] = ollama_url
             # Clear Claude CLI availability to force API usage with Ollama
             env_patches["PATH"] = ""
 

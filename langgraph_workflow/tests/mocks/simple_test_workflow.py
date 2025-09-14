@@ -2,17 +2,22 @@
 
 import tempfile
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from .mock_agent import MockAgent
 
 
-class TestMultiAgentWorkflow:
+class SimpleTestMultiAgentWorkflow:
     """Simplified test implementation for CLI testing."""
 
     def __init__(
         self,
         repo_path: str,
+        agents: dict[str, Any] | None = None,
+        codebase_analyzer: Any = None,
+        ollama_model: Any | None = None,
+        claude_model: Any | None = None,
         thread_id: str | None = None,
         checkpoint_path: str = ":memory:",
     ):
@@ -21,28 +26,36 @@ class TestMultiAgentWorkflow:
         self.thread_id = thread_id or f"test-{uuid4().hex[:8]}"
         self.checkpoint_path = checkpoint_path
 
+        # Store provided dependencies or create defaults
+        self.codebase_analyzer = codebase_analyzer
+        self.ollama_model = ollama_model
+        self.claude_model = claude_model
+
         # Create test filesystem
         self.temp_dir = tempfile.TemporaryDirectory()
         self.artifacts_dir = Path(self.temp_dir.name) / "artifacts" / self.thread_id
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-        # Test dependencies
-        self.agents = {
-            "test-first": MockAgent(
-                "test-first",
-                response_patterns={
-                    "authentication": "Authentication tests needed",
-                    "default": "Comprehensive tests needed",
-                },
-            ),
-            "fast-coder": MockAgent(
-                "fast-coder",
-                response_patterns={
-                    "authentication": "Quick JWT implementation",
-                    "default": "Rapid implementation",
-                },
-            ),
-        }
+        # Use provided agents or create test defaults
+        if agents:
+            self.agents = agents
+        else:
+            self.agents = {
+                "test-first": MockAgent(
+                    "test-first",
+                    response_patterns={
+                        "authentication": "Authentication tests needed",
+                        "default": "Comprehensive tests needed",
+                    },
+                ),
+                "fast-coder": MockAgent(
+                    "fast-coder",
+                    response_patterns={
+                        "authentication": "Quick JWT implementation",
+                        "default": "Rapid implementation",
+                    },
+                ),
+            }
 
         # Mock app that returns a simple state
         self.app = self

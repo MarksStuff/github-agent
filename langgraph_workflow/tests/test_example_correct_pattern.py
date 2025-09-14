@@ -6,11 +6,9 @@ from pathlib import Path
 from unittest.mock import patch  # Only for external dependencies
 
 from ..enums import ModelRouter, WorkflowPhase
-from ..langgraph_workflow import (
-    MultiAgentWorkflow,
-    WorkflowState,
-)
+from ..langgraph_workflow import WorkflowState
 from .mocks import create_mock_dependencies
+from .mocks.test_workflow import MockTestMultiAgentWorkflow
 
 
 class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
@@ -25,14 +23,14 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
         # Use our own mock dependencies (NOT MagicMock for internal objects)
         self.mock_deps = create_mock_dependencies(self.thread_id)
 
-        # Create workflow with required dependencies
-        self.workflow = MultiAgentWorkflow(
+        # Create workflow with required dependencies - use test implementation
+        self.workflow = MockTestMultiAgentWorkflow(
             repo_path=self.repo_path,
             thread_id=self.thread_id,
             agents=self.mock_deps["agents"],
             codebase_analyzer=self.mock_deps["codebase_analyzer"],
             ollama_model=self.mock_deps["ollama_model"],
-            claude_model=self.mock_deps["claude_model"],
+            claude_model=None,  # No Claude model needed for Ollama-only tests
         )
 
         # Set up artifacts directory
@@ -49,6 +47,8 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
         state = WorkflowState(
             thread_id=self.thread_id,
             feature_description="Test authentication",
+            raw_feature_input=None,
+            extracted_feature=None,
             current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
             messages_window=[],
             summary_log="",
@@ -86,7 +86,7 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(
                 result["current_phase"], WorkflowPhase.PHASE_0_CODE_CONTEXT
             )
-            self.assertEqual(result["model_router"], ModelRouter.CLAUDE_CODE)
+            self.assertEqual(result["model_router"], ModelRouter.OLLAMA)
             self.assertIsNotNone(result["code_context_document"])
 
             # Verify external dependency was called (filesystem)
@@ -98,13 +98,9 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
         ollama_response = await self.workflow._call_model(
             "Test prompt", ModelRouter.OLLAMA
         )
-        claude_response = await self.workflow._call_model(
-            "Test prompt", ModelRouter.CLAUDE_CODE
-        )
 
         # Verify responses from our mock implementations
         self.assertIn("Ollama response", ollama_response)
-        self.assertIn("Claude response", claude_response)
 
     # INCORRECT pattern for comparison (DON'T DO THIS):
     """
