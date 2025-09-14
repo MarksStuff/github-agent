@@ -315,7 +315,7 @@ class MultiAgentWorkflow:
 
     async def extract_feature(self, state: WorkflowState) -> WorkflowState:
         """Extract specific feature from PRD if needed and store as artifact."""
-        logger.info("Extracting feature from input")
+        logger.info("Phase 0: Extracting feature from input")
 
         # If raw_feature_input is provided (PRD file), we may need to extract
         if state.get("raw_feature_input") and state.get("extracted_feature"):
@@ -334,12 +334,8 @@ class MultiAgentWorkflow:
         # Store the feature as an artifact
         from pathlib import Path
 
-        # Use thread_id from state for proper artifact organization
-        thread_id = state.get("thread_id", self.thread_id)
-        artifacts_dir = Path(self.checkpoint_path).parent / "artifacts" / thread_id
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
-
-        feature_artifact_path = artifacts_dir / "feature_description.md"
+        # Use the proper artifacts directory (in ~/.local/share/github-agent/langgraph/artifacts/)
+        feature_artifact_path = self.artifacts_dir / "feature_description.md"
         if feature_to_use:
             feature_artifact_path.write_text(feature_to_use)
         else:
@@ -401,180 +397,60 @@ class MultiAgentWorkflow:
         repo_path = self.codebase_analyzer.repo_path
 
         # Create structured prompt for comprehensive analysis
-        analysis_prompt = f"""You are a Senior Software Engineer conducting a comprehensive codebase analysis.
-You have FULL ACCESS to the repository code. Analyze it thoroughly to create a Code Context Document.
+        # Import json for formatting analysis data
+        import json
+        
+        # Create optimized prompt that uses pre-analyzed data instead of asking for full re-analysis
+        analysis_json = json.dumps(analysis, indent=2)
+        
+        analysis_prompt = f"""You are a Senior Software Engineer creating a comprehensive Code Context Document.
 
-## Repository to Analyze:
-{repo_path}
+I have already analyzed the repository structure and extracted key information. Please synthesize this data into a well-formatted, actionable Code Context Document.
 
-## ANALYSIS METHODOLOGY:
+## Repository: {repo_path}
 
-### Phase 1: Code Examination (DO THIS FIRST)
-Before making any claims, examine:
-
-1. **Entry Points & Main Files**
-   - Locate main.py, index.js, app.py, main.go, or equivalent
-   - Identify how the application starts and initializes
-   - Trace the execution flow from entry point
-
-2. **Core Business Logic**
-   - Find the primary domain models/entities
-   - Identify key business operations and workflows
-   - Look for service/controller/handler layers
-
-3. **Actual Dependencies Used**
-   - Check import statements in source files (not just package.json/requirements.txt)
-   - Identify which frameworks are actually instantiated and used
-   - Distinguish between installed vs. actually utilized dependencies
-
-4. **Architecture Verification**
-   - Examine actual class hierarchies and module dependencies
-   - Look at how components communicate (direct calls, events, queues, etc.)
-   - Identify real design patterns in the code (not just file naming)
-
-5. **Data Layer Analysis**
-   - Find actual database connections and queries
-   - Identify ORM usage or raw SQL
-   - Look for data models and schemas
-
-### Phase 2: Document Creation
-
-Based on your ACTUAL CODE EXAMINATION, create a Code Context Document with:
-
-## 1. SYSTEM IDENTITY
-**What This System Actually Does:**
-- Primary purpose (based on core business logic found)
-- Problem domain (based on domain models and operations)
-- System type (web app/API/CLI tool/library based on entry points)
-
-*Evidence: Quote specific files/classes that prove this*
-
-## 2. ARCHITECTURE REALITY CHECK
-
-**Actual Architecture Pattern:**
-Look at the code structure and answer:
-- Is this actually MVC? (Show me the Models, Views, Controllers)
-- Is this actually microservices? (Show me service boundaries and communication)
-- Is this actually event-driven? (Show me event publishers/subscribers)
-- Is this actually layered? (Show me the layer boundaries and dependencies)
-
-*Evidence: Reference specific code structures*
-
-**Real Design Patterns Found:**
-For each pattern claimed:
-- Pattern name
-- Where it's implemented (specific files/classes)
-- Code example showing the pattern
-
-## 3. TECHNOLOGY STACK - VERIFIED USAGE
-
-**Primary Language(s):**
-- Language: [language]
-- Actual usage: List 3-5 core files written in this language
-- Purpose: What aspects of the system use this language
-
-**Frameworks ACTUALLY IN USE:**
-For each framework:
-- Framework name
-- Initialization/configuration location (specific file:line)
-- How it's used (with code example)
-- Why it's essential (what breaks if removed)
-
-**Database/Storage:**
-- Type (found in connection strings/configs)
-- Access method (ORM/driver found in code)
-- Schema location or model definitions
-
-## 4. CODE ORGANIZATION ANALYSIS
-
-**Directory Structure Meaning:**
-```
-src/
-├── [directory]/ - {{what you found this contains after examining files}}
-├── [directory]/ - {{actual purpose based on code inspection}}
+## PRE-ANALYZED REPOSITORY DATA:
+```json
+{analysis_json}
 ```
 
-**Module Communication Patterns:**
-- How do modules actually reference each other?
-- What are the dependency directions?
-- Are there circular dependencies?
+## TASK: 
+Create a comprehensive, UNBIASED Code Context Document using ONLY the pre-analyzed data above. 
 
-## 5. KEY COMPONENTS AND THEIR ROLES
+IMPORTANT RULES:
+1. This is an OBJECTIVE analysis - do NOT reference any specific features or implementation targets
+2. Only list languages found in ACTUAL SOURCE CODE files (not libraries, dependencies, or .venv)
+3. Be factual and accurate - only describe what's actually in the analysis data
+4. Focus on understanding the current system AS IT IS
 
-For each major component found:
-- **Component**: [Name]
-- **Location**: [Path]
-- **Responsibility**: [What it actually does based on its code]
-- **Dependencies**: [What it imports/uses]
-- **Dependents**: [What uses it]
+Structure the document as follows:
 
-## 6. INTEGRATION POINTS - VERIFIED
+### 1. SYSTEM OVERVIEW
+- What this system actually does (based on the analyzed structure)
+- Primary architecture patterns found in the code
+- Key entry points and main components
 
-**External Systems:**
-- API clients found (with initialization code locations)
-- External services called (with example calls)
-- Message queues/event buses (with connection code)
+### 2. TECHNOLOGY STACK
+- **Languages**: ONLY languages used in source code files (exclude .venv/, node_modules/, etc.)
+- **Frameworks**: Actually imported and used in the code
+- **Development Tools**: Testing, linting, deployment tools
 
-**Exposed Interfaces:**
-- REST endpoints (with route definitions)
-- GraphQL schemas (with resolver locations)
-- CLI commands (with command definitions)
-- Library exports (with public API surface)
+### 3. CODEBASE STRUCTURE  
+- Directory organization and actual purpose
+- Key modules and what they do
+- Testing structure and conventions
 
-## 7. DATA FLOW ANALYSIS
+### 4. DEVELOPMENT CONTEXT
+- Current git branch and recent work
+- Dependencies and how they're managed
+- Design patterns and conventions observed
 
-Trace a typical operation through the system:
-1. Entry point: [file:function]
-2. Validation: [file:function]
-3. Business logic: [file:function]
-4. Data access: [file:function]
-5. Response: [file:function]
+### 5. ARCHITECTURE INSIGHTS
+- How components interact
+- Key abstractions and interfaces
+- Extension points and modularity
 
-## 8. TESTING REALITY
-
-**Test Coverage:**
-- Test files location
-- Testing framework (based on imports in test files)
-- Types of tests found (unit/integration/e2e)
-- Key test examples
-
-## 9. DEVELOPMENT PRACTICES - OBSERVED
-
-Based on code examination:
-- **Code Style**: Observed conventions (not just linter configs)
-- **Error Handling**: Patterns actually used in code
-- **Logging**: Framework and patterns found
-- **Configuration**: How config is actually loaded and used
-
-## 10. CRITICAL FINDINGS
-
-**Code Smells/Issues Found:**
-- [Issue] in [location]
-- [Technical debt] in [component]
-
-**Inconsistencies:**
-- Different patterns in [location] vs [location]
-- Mixed conventions between [module] and [module]
-
-## VALIDATION CHECKLIST
-
-Before finalizing, verify:
-- [ ] Every framework listed is actually imported and used in source code
-- [ ] Every pattern claimed has a concrete code example
-- [ ] Every component described exists in the repository
-- [ ] Architecture description matches actual code structure
-- [ ] No languages listed that only appear in config/data files
-- [ ] Integration points have actual code implementing them
-
-## IMPORTANT RULES:
-
-1. **NO HALLUCINATION**: Only describe what you can point to in the code
-2. **SHOW EVIDENCE**: Every claim must reference specific files/code
-3. **ACKNOWLEDGE UNKNOWNS**: If something isn't clear from the code, say so
-4. **VERIFY CLAIMS**: Cross-check findings across multiple files
-5. **ACTUAL vs INTENDED**: Describe what the code DOES, not what comments say it should do
-
-Remember: You have the actual code. Read it. Don't guess based on file names or metadata.
+Base everything on the provided analysis data. Be precise and factual.
 """
 
         try:
@@ -621,22 +497,25 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                         input=analysis_prompt,
                         capture_output=True,
                         text=True,
-                        timeout=120,  # Longer timeout for code analysis
+                        timeout=600,  # 10 minutes - optimize for quality, not speed
                     )
 
                     if claude_result.returncode == 0:
                         context_doc = claude_result.stdout.strip()
-                        logger.info(
-                            "Successfully generated code context using Claude CLI"
-                        )
-                        logger.debug(
-                            f"Generated context length: {len(context_doc)} chars"
-                        )
-
-                        if len(context_doc.strip()) > 100:
-                            return context_doc
+                        logger.info("Successfully generated code context using Claude CLI")
+                        logger.info(f"Generated context length: {len(context_doc)} chars")
+                        
+                        # Log the actual response for debugging
+                        if len(context_doc) > 0:
+                            logger.info(f"Claude CLI response preview: {context_doc[:500]}...")
+                            
+                            # Lower threshold since we're using pre-analyzed data now
+                            if len(context_doc.strip()) > 50:
+                                return context_doc
+                            else:
+                                logger.warning(f"Claude CLI returned very short response ({len(context_doc)} chars): {context_doc}")
                         else:
-                            logger.warning("Claude CLI returned very short response")
+                            logger.warning("Claude CLI returned empty response")
                     else:
                         logger.warning(f"Claude CLI failed: {claude_result.stderr}")
                 else:
