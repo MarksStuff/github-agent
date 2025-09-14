@@ -41,29 +41,45 @@ jobs:
           if [ -d "$GITHUB_WORKSPACE" ]; then
             echo "Cleaning workspace directory: $GITHUB_WORKSPACE"
             
-            # First, try to fix permissions recursively
-            sudo chmod -R 755 "$GITHUB_WORKSPACE" 2>/dev/null || true
-            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+            # Nuclear approach: completely wipe the workspace
+            echo "Attempting complete workspace cleanup..."
             
-            # Remove cache and build directories that can cause permission issues
-            sudo find "$GITHUB_WORKSPACE" -type d -name ".build" -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name ".coverage" -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name ".mypy_cache" -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name "coverage_reports" -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
-            sudo find "$GITHUB_WORKSPACE" -type d -name "build_output" -exec chmod -R 755 {} \; -exec rm -rf {} \; 2>/dev/null || true
+            # Try multiple strategies to ensure complete cleanup
+            sudo chmod -R 777 "$GITHUB_WORKSPACE" 2>/dev/null || true
+            sudo chattr -R -i "$GITHUB_WORKSPACE" 2>/dev/null || true  # Remove immutable flags if any
             
-            # Final permission fix
-            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+            # Remove .git directory first to avoid git state issues
+            if [ -d "$GITHUB_WORKSPACE/.git" ]; then
+              echo "Removing .git directory..."
+              sudo rm -rf "$GITHUB_WORKSPACE/.git" 2>/dev/null || true
+            fi
+            
+            # Remove everything else
+            sudo rm -rf "$GITHUB_WORKSPACE"/* 2>/dev/null || true
+            sudo rm -rf "$GITHUB_WORKSPACE"/.[!.]* 2>/dev/null || true  # Remove hidden files/dirs except . and ..
+            
+            # If still having issues, try lsof and kill processes using files
+            if [ -d "$GITHUB_WORKSPACE/.pytest_cache" ]; then
+              echo "Pytest cache still exists, trying to kill processes..."
+              sudo lsof +D "$GITHUB_WORKSPACE" 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r sudo kill -9 2>/dev/null || true
+              sleep 1
+              sudo rm -rf "$GITHUB_WORKSPACE/.pytest_cache" 2>/dev/null || true
+            fi
+            
+            # Recreate clean workspace
+            sudo rm -rf "$GITHUB_WORKSPACE" 2>/dev/null || true
+            mkdir -p "$GITHUB_WORKSPACE"
+            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE"
+            chmod 755 "$GITHUB_WORKSPACE"
             
             if [ "$DEBUG_OUTPUT" = "true" ]; then
-              echo "DEBUG: Pre-checkout cleanup completed"
+              echo "DEBUG: Nuclear cleanup completed, workspace recreated"
             fi
           else
+            mkdir -p "$GITHUB_WORKSPACE"
+            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE"
             if [ "$DEBUG_OUTPUT" = "true" ]; then
-              echo "DEBUG: Workspace doesn't exist yet, skipping cleanup"
+              echo "DEBUG: Workspace created fresh"
             fi
           fi
 
