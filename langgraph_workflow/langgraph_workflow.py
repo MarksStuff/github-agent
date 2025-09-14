@@ -674,7 +674,7 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
             raise RuntimeError(
                 "Code context generation requires Claude CLI with file system access. "
                 f"Claude CLI error: {e}"
-            )
+            ) from e
 
     async def parallel_design_exploration(self, state: WorkflowState) -> WorkflowState:
         """Phase 1 Step 1: All agents analyze in parallel using Ollama."""
