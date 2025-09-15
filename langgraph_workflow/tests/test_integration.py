@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ..enums import ModelRouter, WorkflowPhase
-from ..langgraph_workflow import WorkflowState
+from ..enums import AgentType, ModelRouter, WorkflowPhase
+from ..langgraph_workflow import FeedbackGateStatus, QualityLevel, WorkflowState
 from .mocks import create_mock_dependencies
 from .mocks.test_workflow import MockTestMultiAgentWorkflow
 
@@ -68,8 +68,8 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
             test_report={},
             ci_status={},
             lint_status={},
-            quality="draft",
-            feedback_gate="open",
+            quality=QualityLevel.DRAFT,
+            feedback_gate=FeedbackGateStatus.OPEN,
             model_router=ModelRouter.OLLAMA,
             escalation_count=0,
         )
@@ -212,10 +212,10 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         # Create state with some progress
         state_with_progress = self.initial_state.copy()
         state_with_progress["agent_analyses"] = {
-            "test-first": "Focus on comprehensive test coverage",
-            "fast-coder": "Implement JWT-based auth quickly",
-            "senior-engineer": "Use established patterns",
-            "architect": "Scalable auth service design",
+            AgentType.TEST_FIRST: "Focus on comprehensive test coverage",
+            AgentType.FAST_CODER: "Implement JWT-based auth quickly",
+            AgentType.SENIOR_ENGINEER: "Use established patterns",
+            AgentType.ARCHITECT: "Scalable auth service design",
         }
         state_with_progress["current_phase"] = WorkflowPhase.PHASE_1_DESIGN_EXPLORATION
 
@@ -252,7 +252,12 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
 
         # Verify all agents participated (via our mocks)
         self.assertEqual(len(result["agent_analyses"]), 4)
-        for agent_type in ["test-first", "fast-coder", "senior-engineer", "architect"]:
+        for agent_type in [
+            AgentType.TEST_FIRST,
+            AgentType.FAST_CODER,
+            AgentType.SENIOR_ENGINEER,
+            AgentType.ARCHITECT,
+        ]:
             self.assertIn(agent_type, result["agent_analyses"])
             self.assertIsInstance(result["agent_analyses"][agent_type], str)
 

@@ -35,8 +35,11 @@ from .constants import (
 from .enums import (
     AgentType,
     ArtifactName,
+    ArtifactType,
     CLIDetectionString,
+    FeedbackGateStatus,
     ModelRouter,
+    QualityLevel,
     WorkflowPhase,
     WorkflowStep,
 )
@@ -58,7 +61,7 @@ class Artifact(BaseModel):
 
     key: str
     path: str
-    type: str  # "code_context", "design", "test", "implementation", "patch", "report"
+    type: ArtifactType
     content_digest: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
@@ -67,9 +70,9 @@ class Arbitration(BaseModel):
     """Represents a human arbitration decision."""
 
     id: str = Field(default_factory=lambda: str(uuid4()))
-    phase: str
+    phase: WorkflowPhase
     conflict_description: str
-    agents_involved: list[str]
+    agents_involved: list[AgentType]
     human_decision: str | None = None
     timestamp: datetime = Field(default_factory=datetime.now)
     applied: bool = False
@@ -103,7 +106,7 @@ class WorkflowState(TypedDict):
     pr_number: int | None
 
     # Agent outputs
-    agent_analyses: dict[str, str]  # agent_type -> analysis
+    agent_analyses: dict[AgentType, str]  # agent_type -> analysis
     synthesis_document: str | None
     conflicts: list[dict[str, Any]]
 
@@ -117,8 +120,8 @@ class WorkflowState(TypedDict):
     test_report: dict[str, Any]
     ci_status: dict[str, Any]
     lint_status: dict[str, Any]
-    quality: str  # "draft", "ok", "fail"
-    feedback_gate: str  # "open", "hold"
+    quality: QualityLevel
+    feedback_gate: FeedbackGateStatus
 
     # Resource routing
     model_router: ModelRouter
@@ -725,12 +728,14 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
 
         # Store analyses
         for agent_type, analysis in analyses:
-            state["agent_analyses"][str(agent_type)] = analysis
+            state["agent_analyses"][agent_type] = analysis
 
             # Save to artifacts
             analysis_path = self.artifacts_dir / f"analysis_{agent_type}.md"
             analysis_path.write_text(analysis)
-            state["artifacts_index"][f"analysis:{agent_type}"] = str(analysis_path)
+            state["artifacts_index"][f"{ArtifactType.ANALYSIS}:{agent_type}"] = str(
+                analysis_path
+            )
 
         state["messages_window"].append(
             AIMessage(content="All agents completed parallel analysis")
@@ -779,7 +784,7 @@ Remain neutral and document rather than judge."""
         # Save synthesis
         synthesis_path = self.artifacts_dir / "synthesis.md"
         synthesis_path.write_text(synthesis)
-        state["artifacts_index"]["synthesis"] = str(synthesis_path)
+        state["artifacts_index"][ArtifactName.SYNTHESIS] = str(synthesis_path)
 
         # Determine if code investigation needed
         state["messages_window"].append(
@@ -814,7 +819,7 @@ Remain neutral and document rather than judge."""
         state["synthesis_document"] = updated_synthesis
 
         # Update synthesis file
-        synthesis_path = Path(state["artifacts_index"]["synthesis"])
+        synthesis_path = Path(state["artifacts_index"][ArtifactName.SYNTHESIS])
         synthesis_path.write_text(updated_synthesis)
 
         state["messages_window"].append(
@@ -828,7 +833,7 @@ Remain neutral and document rather than judge."""
         logger.info("Phase 1: Human review")
 
         state["current_phase"] = WorkflowPhase.PHASE_1_HUMAN_REVIEW
-        state["feedback_gate"] = "hold"
+        state["feedback_gate"] = FeedbackGateStatus.HOLD
 
         # Create PR with synthesis for review
         pr_body = f"""## Design Synthesis for: {state['feature_description']}
@@ -857,7 +862,7 @@ Remain neutral and document rather than judge."""
         # In production, this would pause until human provides feedback
         # For now, simulate receiving feedback
         state["design_constraints_document"] = await self._get_human_feedback(pr_number)
-        state["feedback_gate"] = "open"
+        state["feedback_gate"] = FeedbackGateStatus.OPEN
 
         return state
 
@@ -898,7 +903,7 @@ Remain neutral and document rather than judge."""
         # Save initial document
         design_path = self.artifacts_dir / "design_document.md"
         design_path.write_text(design_doc)
-        state["artifacts_index"]["design_document"] = str(design_path)
+        state["artifacts_index"][ArtifactName.DESIGN_DOCUMENT] = str(design_path)
 
         state["messages_window"].append(
             AIMessage(content="Created initial design document")
@@ -937,7 +942,7 @@ Remain neutral and document rather than judge."""
         if objections:
             # Create conflict for arbitration
             conflict = {
-                "phase": "design_document",
+                "phase": WorkflowPhase.PHASE_2_DESIGN_DOCUMENT,
                 "contributor": str(agent_type),
                 "objectors": [str(t) for t, _ in objections],
                 "contribution": contribution,
@@ -961,7 +966,7 @@ Remain neutral and document rather than judge."""
             )
 
         # Update document file
-        design_path = Path(state["artifacts_index"]["design_document"])
+        design_path = Path(state["artifacts_index"][ArtifactName.DESIGN_DOCUMENT])
         design_path.write_text(state["design_document"] or "")
 
         state["messages_window"].append(
@@ -1008,7 +1013,7 @@ Remain neutral and document rather than judge."""
         if "disagree" in review.lower():
             # Need human arbitration
             conflict = {
-                "phase": "skeleton",
+                "phase": WorkflowPhase.PHASE_3_SKELETON,
                 "description": "Skeleton structure disagreement",
                 "senior_engineer": skeleton,
                 "architect_review": review,
@@ -1022,7 +1027,7 @@ Remain neutral and document rather than judge."""
         # Save skeleton
         skeleton_path = self.artifacts_dir / "skeleton.py"
         skeleton_path.write_text(skeleton)
-        state["artifacts_index"]["skeleton"] = str(skeleton_path)
+        state["artifacts_index"][ArtifactName.SKELETON] = str(skeleton_path)
 
         # Create branch for implementation
         impl_branch = f"impl/{self.thread_id}"
@@ -1060,11 +1065,11 @@ Remain neutral and document rather than judge."""
         # Save both
         test_path = self.artifacts_dir / "tests_initial.py"
         test_path.write_text(test_code)
-        state["artifacts_index"]["tests_initial"] = str(test_path)
+        state["artifacts_index"][ArtifactName.TESTS_INITIAL] = str(test_path)
 
         impl_path = self.artifacts_dir / "implementation_initial.py"
         impl_path.write_text(impl_code)
-        state["artifacts_index"]["implementation_initial"] = str(impl_path)
+        state["artifacts_index"][ArtifactName.IMPLEMENTATION_INITIAL] = str(impl_path)
 
         state["messages_window"].append(
             AIMessage(content="Parallel development complete")
@@ -1106,7 +1111,7 @@ Remain neutral and document rather than judge."""
             ):
                 # Need human arbitration
                 conflict = {
-                    "phase": "reconciliation",
+                    "phase": WorkflowPhase.PHASE_3_RECONCILIATION,
                     "mismatches": mismatches,
                     "test_argument": test_argument,
                     "impl_argument": impl_argument,
@@ -1225,9 +1230,9 @@ Remain neutral and document rather than judge."""
 
         if all("approve" in r.lower() for r in reviews):
             state["implementation_code"] = refined
-            state["quality"] = "ok"
+            state["quality"] = QualityLevel.OK
         else:
-            state["quality"] = "fail"
+            state["quality"] = QualityLevel.FAIL
             # Would need another iteration
 
         # Create final patch
@@ -1534,8 +1539,8 @@ async def main():
         test_report={},
         ci_status={},
         lint_status={},
-        quality="draft",
-        feedback_gate="open",
+        quality=QualityLevel.DRAFT,
+        feedback_gate=FeedbackGateStatus.OPEN,
         model_router=ModelRouter.OLLAMA,
         escalation_count=0,
     )

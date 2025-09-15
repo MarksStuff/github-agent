@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 from langchain_ollama import ChatOllama
 
+from langgraph_workflow import FeedbackGateStatus, QualityLevel
 from langgraph_workflow.enums import ModelRouter, WorkflowPhase
 from langgraph_workflow.langgraph_workflow import MultiAgentWorkflow, WorkflowState
 from langgraph_workflow.real_codebase_analyzer import RealCodebaseAnalyzer
@@ -115,7 +116,6 @@ async def get_profile():
     @pytest.fixture
     def real_workflow(self, temp_repo):
         """Create workflow with REAL Ollama model."""
-        import os
         from langgraph_workflow.config import get_ollama_base_url, get_ollama_model
 
         ollama_url = get_ollama_base_url()
@@ -149,9 +149,9 @@ async def get_profile():
     @pytest.mark.asyncio
     async def test_ollama_ping_and_models(self):
         """Test basic Ollama connectivity and list models - should show GPU activity."""
-        import os
 
         import requests
+
         from langgraph_workflow.config import get_ollama_base_url
 
         ollama_url = get_ollama_base_url()
@@ -189,10 +189,10 @@ async def get_profile():
     @pytest.mark.asyncio
     async def test_ollama_actual_inference(self):
         """Test actual model inference - should definitely show GPU activity."""
-        import os
 
         from langchain_core.messages import HumanMessage
         from langchain_ollama import ChatOllama
+
         from langgraph_workflow.config import get_ollama_base_url, get_ollama_model
 
         ollama_url = get_ollama_base_url()
@@ -257,8 +257,8 @@ async def get_profile():
             test_report={},
             ci_status={},
             lint_status={},
-            quality="draft",
-            feedback_gate="open",
+            quality=QualityLevel.DRAFT,
+            feedback_gate=FeedbackGateStatus.OPEN,
             model_router=ModelRouter.OLLAMA,
             escalation_count=0,
         )
@@ -304,13 +304,13 @@ async def get_profile():
 
         This simulates how code context would work with Ollama (read files, send content).
         """
-        import os
         from pathlib import Path
 
         from langchain_core.messages import HumanMessage
 
         # Integration tests should FAIL in CI if Ollama not configured (not skip)
         from langgraph_workflow.config import get_ollama_base_url, get_ollama_model
+
         ollama_url = get_ollama_base_url()
         print(f"🚀 Testing Ollama code context generation at: {ollama_url}")
         print("🔥 This should show GPU activity!")
@@ -471,14 +471,12 @@ Base everything on the provided analysis data. Be precise and factual.
 
         # Test the prompt with real Ollama
         try:
-            import os
-
             from langchain_core.messages import HumanMessage
             from langchain_ollama import ChatOllama
 
             # Get Ollama configuration from our config system
             from langgraph_workflow.config import get_ollama_base_url, get_ollama_model
-            
+
             ollama_base_url = get_ollama_base_url()
             ollama_model = get_ollama_model("default")
             ollama_client = ChatOllama(
@@ -576,8 +574,8 @@ Base everything on the provided analysis data. Be precise and factual.
             test_report={},
             ci_status={},
             lint_status={},
-            quality="draft",
-            feedback_gate="open",
+            quality=QualityLevel.DRAFT,
+            feedback_gate=FeedbackGateStatus.OPEN,
             model_router=ModelRouter.OLLAMA,  # Force Ollama usage
             escalation_count=0,
         )
@@ -612,9 +610,8 @@ Base everything on the provided analysis data. Be precise and factual.
 def is_ollama_available():
     """Check if Ollama is running on configured URL."""
     try:
-        import os
-
         import requests
+
         from langgraph_workflow.config import get_ollama_base_url
 
         ollama_url = get_ollama_base_url()
@@ -628,6 +625,7 @@ def is_ollama_available():
 def get_ollama_url():
     """Get the configured Ollama URL."""
     from langgraph_workflow.config import get_ollama_base_url
+
     return get_ollama_base_url()
 
 

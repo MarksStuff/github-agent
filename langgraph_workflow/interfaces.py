@@ -8,6 +8,8 @@ from typing import Any
 
 from langchain_core.messages import BaseMessage
 
+from .enums import ArtifactType
+
 
 class ModelInterface(ABC):
     """Abstract interface for language models."""
@@ -222,7 +224,9 @@ class ArtifactManagerInterface(ABC):
     """Abstract interface for artifact management."""
 
     @abstractmethod
-    async def save_artifact(self, key: str, content: str, artifact_type: str) -> str:
+    async def save_artifact(
+        self, key: str, content: str, artifact_type: ArtifactType
+    ) -> str:
         """Save an artifact and return its path."""
         pass
 

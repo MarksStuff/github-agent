@@ -9,8 +9,10 @@ from datetime import datetime
 from pathlib import Path
 
 from langgraph_workflow import (
+    FeedbackGateStatus,
     ModelRouter,
     MultiAgentWorkflow,
+    QualityLevel,
     WorkflowPhase,
     WorkflowState,
 )
@@ -381,8 +383,8 @@ async def run_workflow(
             test_report={},
             ci_status={},
             lint_status={},
-            quality="draft",
-            feedback_gate="open",
+            quality=QualityLevel.DRAFT,
+            feedback_gate=FeedbackGateStatus.OPEN,
             model_router=ModelRouter.OLLAMA,
             escalation_count=0,
         )

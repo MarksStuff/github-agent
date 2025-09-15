@@ -3,6 +3,13 @@
 from pathlib import Path
 from typing import Any
 
+from .enums import (
+    ComplexityLevel,
+    DatabaseType,
+    EffortEstimate,
+    FrameworkType,
+    LanguageType,
+)
 from .interfaces import CodebaseAnalyzerInterface
 
 
@@ -72,8 +79,8 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         # In a full version, this would use Claude or other analysis tools
 
         affected_files = []
-        complexity = "medium"
-        estimated_effort = "2-4 days"
+        complexity = ComplexityLevel.MEDIUM
+        estimated_effort = EffortEstimate.MEDIUM
         dependencies = []
         risks = []
 
@@ -107,7 +114,7 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
             "risks": risks,
         }
 
-    def _detect_languages(self) -> list[str]:
+    def _detect_languages(self) -> list[LanguageType]:
         """Detect programming languages used in the repository."""
         languages = []
 
@@ -141,20 +148,20 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
 
         # Check for common language file extensions
         language_patterns = {
-            "Python": ["*.py"],
-            "JavaScript": ["*.js", "*.jsx"],
-            "TypeScript": ["*.ts", "*.tsx"],
-            "Java": ["*.java"],
-            "C++": ["*.cpp", "*.cc", "*.cxx"],
-            "C": ["*.c"],
-            "Go": ["*.go"],
-            "Rust": ["*.rs"],
-            "Ruby": ["*.rb"],
-            "PHP": ["*.php"],
-            "SQL": ["*.sql"],
-            "Shell": ["*.sh", "*.bash"],
-            "YAML": ["*.yml", "*.yaml"],
-            "JSON": ["*.json"],
+            LanguageType.PYTHON: ["*.py"],
+            LanguageType.JAVASCRIPT: ["*.js", "*.jsx"],
+            LanguageType.TYPESCRIPT: ["*.ts", "*.tsx"],
+            LanguageType.JAVA: ["*.java"],
+            LanguageType.CPP: ["*.cpp", "*.cc", "*.cxx"],
+            LanguageType.C: ["*.c"],
+            LanguageType.GO: ["*.go"],
+            LanguageType.RUST: ["*.rs"],
+            LanguageType.RUBY: ["*.rb"],
+            LanguageType.PHP: ["*.php"],
+            LanguageType.SHELL: ["*.sh", "*.bash"],
+            LanguageType.YAML: ["*.yml", "*.yaml"],
+            LanguageType.JSON: ["*.json"],
+            LanguageType.SQL: ["*.sql"],
         }
 
         for language, patterns in language_patterns.items():
@@ -175,7 +182,7 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
 
         return languages
 
-    def _detect_frameworks(self) -> list[str]:
+    def _detect_frameworks(self) -> list[FrameworkType]:
         """Detect frameworks used in the repository."""
         frameworks = []
 
@@ -192,15 +199,15 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
                     }
 
                     if "react" in deps:
-                        frameworks.append("React")
+                        frameworks.append(FrameworkType.REACT)
                     if "vue" in deps:
-                        frameworks.append("Vue")
+                        frameworks.append(FrameworkType.VUE)
                     if "angular" in deps:
-                        frameworks.append("Angular")
+                        frameworks.append(FrameworkType.ANGULAR)
                     if "express" in deps:
-                        frameworks.append("Express")
+                        frameworks.append(FrameworkType.EXPRESS)
                     if "next" in deps:
-                        frameworks.append("Next.js")
+                        frameworks.append(FrameworkType.NEXTJS)
             except Exception:
                 pass
 
@@ -210,33 +217,33 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
                     requirements = f.read().lower()
 
                     if "fastapi" in requirements:
-                        frameworks.append("FastAPI")
+                        frameworks.append(FrameworkType.FASTAPI)
                     if "django" in requirements:
-                        frameworks.append("Django")
+                        frameworks.append(FrameworkType.DJANGO)
                     if "flask" in requirements:
-                        frameworks.append("Flask")
+                        frameworks.append(FrameworkType.FLASK)
                     if "langchain" in requirements:
-                        frameworks.append("LangChain")
+                        frameworks.append(FrameworkType.LANGCHAIN)
                     if "langgraph" in requirements:
-                        frameworks.append("LangGraph")
+                        frameworks.append(FrameworkType.LANGGRAPH)
                     if "sqlalchemy" in requirements:
-                        frameworks.append("SQLAlchemy")
+                        frameworks.append(FrameworkType.SQLALCHEMY)
             except Exception:
                 pass
 
         return frameworks
 
-    def _detect_databases(self) -> list[str]:
+    def _detect_databases(self) -> list[DatabaseType]:
         """Detect databases used in the repository."""
         databases = []
 
         # Check for database configuration files and patterns
         db_indicators = {
-            "PostgreSQL": ["postgres", "psycopg", "postgresql"],
-            "MySQL": ["mysql", "pymysql"],
-            "SQLite": ["sqlite", ".db", ".sqlite"],
-            "Redis": ["redis"],
-            "MongoDB": ["mongo", "pymongo"],
+            DatabaseType.POSTGRESQL: ["postgres", "psycopg", "postgresql"],
+            DatabaseType.MYSQL: ["mysql", "pymysql"],
+            DatabaseType.SQLITE: ["sqlite", ".db", ".sqlite"],
+            DatabaseType.REDIS: ["redis"],
+            DatabaseType.MONGODB: ["mongo", "pymongo"],
         }
 
         # Check requirements.txt
@@ -255,8 +262,8 @@ class RealCodebaseAnalyzer(CodebaseAnalyzerInterface):
         if list(self._repo_path.rglob("*.db")) or list(
             self._repo_path.rglob("*.sqlite")
         ):
-            if "SQLite" not in databases:
-                databases.append("SQLite")
+            if DatabaseType.SQLITE not in databases:
+                databases.append(DatabaseType.SQLITE)
 
         return databases
 

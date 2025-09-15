@@ -7,6 +7,7 @@ from typing import Any
 # Load environment variables from .env file
 try:
     from dotenv import load_dotenv
+
     # Look for .env file in project root (parent of langgraph_workflow)
     env_path = Path(__file__).parent.parent / ".env"
     if env_path.exists():

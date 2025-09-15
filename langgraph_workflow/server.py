@@ -13,8 +13,10 @@ from dotenv import load_dotenv
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from langgraph_workflow import (
+    FeedbackGateStatus,
     ModelRouter,
     MultiAgentWorkflow,
+    QualityLevel,
     WorkflowPhase,
     WorkflowState,
 )
@@ -113,8 +115,8 @@ def create_initial_state(feature_description: str, repo_path: str) -> WorkflowSt
         test_report={},
         ci_status={},
         lint_status={},
-        quality="draft",
-        feedback_gate="open",
+        quality=QualityLevel.DRAFT,
+        feedback_gate=FeedbackGateStatus.OPEN,
         model_router=ModelRouter.OLLAMA,
         escalation_count=0,
     )
