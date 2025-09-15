@@ -20,7 +20,7 @@ from langgraph_workflow import (
     WorkflowPhase,
     WorkflowState,
 )
-from langgraph_workflow.config import get_checkpoint_path
+from langgraph_workflow.config import get_checkpoint_path, get_ollama_base_url
 from langgraph_workflow.tests.mocks import create_mock_dependencies
 
 # Load environment variables
