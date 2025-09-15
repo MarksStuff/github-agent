@@ -88,7 +88,13 @@ def validate_ollama_connection() -> dict[str, Any]:
         "error": None,
     }
 
-    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    ollama_url = os.getenv("OLLAMA_BASE_URL")
+    if not ollama_url:
+        results["valid"] = False
+        results["error"] = "OLLAMA_BASE_URL environment variable not set"
+        results["url"] = "Not configured"
+        return results
+
     results["url"] = ollama_url
 
     try:

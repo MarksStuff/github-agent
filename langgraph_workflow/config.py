@@ -143,7 +143,9 @@ See: `agents/artifacts/{thread_id}/`
 # Model configuration
 MODEL_CONFIG: dict[str, Any] = {
     "ollama": {
-        "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+        "base_url": os.getenv(
+            "OLLAMA_BASE_URL"
+        ),  # No fallback - must be explicitly configured
         "models": {
             "default": OLLAMA_QWEN3_8B,
             "developer": OLLAMA_QWEN3_8B,
@@ -347,9 +349,19 @@ def get_ollama_base_url() -> str:
     """Get Ollama base URL from configuration.
 
     Returns:
-        Ollama base URL (sourced from environment or config)
+        Ollama base URL (must be configured via OLLAMA_BASE_URL environment variable)
+
+    Raises:
+        ValueError: If OLLAMA_BASE_URL is not configured
     """
-    return MODEL_CONFIG["ollama"]["base_url"]
+    url = MODEL_CONFIG["ollama"]["base_url"]
+    if not url:
+        raise ValueError(
+            "OLLAMA_BASE_URL environment variable is not set. "
+            "Please configure it in your .env file or environment. "
+            "Example: OLLAMA_BASE_URL=http://marks-pc:11434"
+        )
+    return url
 
 
 def get_ollama_model(agent_type: str = "default") -> str:

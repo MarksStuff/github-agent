@@ -611,6 +611,17 @@ jobs:
           clean: false
           fetch-depth: 0
 
+      - name: Create CI environment configuration
+        run: |
+          echo "Creating .env file for CI environment..."
+          cat > .env << EOF
+          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+          OLLAMA_BASE_URL=http://marks-pc:11434
+          EOF
+          echo "✅ Created .env file with CI-specific configuration"
+          echo "Contents:"
+          cat .env | grep -v TOKEN  # Show contents but hide token
+
       - name: Check Ollama availability
         id: ollama_check
         run: |

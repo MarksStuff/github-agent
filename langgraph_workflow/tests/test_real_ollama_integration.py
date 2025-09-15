@@ -223,7 +223,30 @@ async def get_profile():
             print("🎉 Actual model inference completed!")
 
         except Exception as e:
-            raise AssertionError(f"Failed to make inference call to Ollama: {e}") from e
+            error_msg = str(e)
+
+            # Check if it's a connection error
+            if "Connection" in error_msg or "connect" in error_msg.lower():
+                raise AssertionError(
+                    f"Cannot connect to Ollama at {ollama_url}. "
+                    f"Please ensure Ollama is running at this address. "
+                    f"Error: {e}"
+                ) from e
+
+            # Check if it's a model not found error
+            elif "not found" in error_msg and "model" in error_msg:
+                model_name = get_ollama_model("default")
+                raise AssertionError(
+                    f"Model '{model_name}' not found on Ollama server at {ollama_url}. "
+                    f"Please pull the model first: ollama pull {model_name}. "
+                    f"Error: {e}"
+                ) from e
+
+            # Other errors
+            else:
+                raise AssertionError(
+                    f"Failed to make inference call to Ollama at {ollama_url}: {e}"
+                ) from e
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -389,9 +412,30 @@ Keep the response concise and focused on what would be useful for implementing n
             return analysis
 
         except Exception as e:
-            raise AssertionError(
-                f"Failed to generate code context with Ollama: {e}"
-            ) from e
+            error_msg = str(e)
+
+            # Check if it's a connection error
+            if "Connection" in error_msg or "connect" in error_msg.lower():
+                raise AssertionError(
+                    f"Cannot connect to Ollama at {ollama_url}. "
+                    f"Please ensure Ollama is running at this address. "
+                    f"Error: {e}"
+                ) from e
+
+            # Check if it's a model not found error
+            elif "not found" in error_msg and "model" in error_msg:
+                model_name = get_ollama_model("default")
+                raise AssertionError(
+                    f"Model '{model_name}' not found on Ollama server at {ollama_url}. "
+                    f"Please pull the model first: ollama pull {model_name}. "
+                    f"Error: {e}"
+                ) from e
+
+            # Other errors
+            else:
+                raise AssertionError(
+                    f"Failed to generate code context with Ollama at {ollama_url}: {e}"
+                ) from e
 
     @pytest.mark.integration
     @pytest.mark.slow
