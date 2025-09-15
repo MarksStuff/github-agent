@@ -140,6 +140,7 @@ class MultiAgentWorkflow:
         claude_model: Any | None = None,
         thread_id: str | None = None,
         checkpoint_path: str = "agent_state.db",
+        ollama_base_url: str | None = None,
     ):
         """Initialize the workflow.
 
@@ -166,9 +167,11 @@ class MultiAgentWorkflow:
         if ollama_model is not None:
             self.ollama_model = ollama_model
         else:
+            # Use injected URL or get from config
+            base_url = ollama_base_url if ollama_base_url is not None else get_ollama_base_url()
             self.ollama_model = ChatOllama(
                 model=get_ollama_model("default"),
-                base_url=get_ollama_base_url(),
+                base_url=base_url,
             )
 
         if claude_model is not None:

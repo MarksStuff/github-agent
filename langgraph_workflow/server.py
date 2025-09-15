@@ -71,6 +71,7 @@ def create_workflow_graph(
         agents=mock_deps["agents"],
         codebase_analyzer=mock_deps["codebase_analyzer"],
         checkpoint_path=checkpoint_path,
+        ollama_base_url=get_ollama_base_url(),
     )
 
     return workflow.app
@@ -186,6 +187,7 @@ def create_api_app():
                 agents=mock_deps["agents"],
                 codebase_analyzer=mock_deps["codebase_analyzer"],
                 checkpoint_path=get_checkpoint_path("api_state"),
+                ollama_base_url=get_ollama_base_url(),
             )
 
             # Note: In production, this would be queued or run in background
@@ -273,6 +275,7 @@ def create_api_app():
                 agents=mock_deps["agents"],
                 codebase_analyzer=mock_deps["codebase_analyzer"],
                 checkpoint_path=get_checkpoint_path("api_state"),
+                ollama_base_url=get_ollama_base_url(),
             )
 
             # Get the step method
