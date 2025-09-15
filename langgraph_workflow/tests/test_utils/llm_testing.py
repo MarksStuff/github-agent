@@ -24,7 +24,9 @@ class LLMTestingMixin:
         """Check if Ollama is available for integration testing."""
         import os
 
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama_url = os.getenv("OLLAMA_BASE_URL")
+        if not ollama_url:
+            return False  # Not configured
         try:
             response = requests.get(f"{ollama_url}/api/version", timeout=2)
             return response.status_code == 200
@@ -290,7 +292,12 @@ class LLMTestFramework(LLMTestingMixin):
             # Use existing OLLAMA_BASE_URL or default
             import os
 
-            ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+            ollama_url = os.getenv("OLLAMA_BASE_URL")
+            if not ollama_url:
+                raise ValueError(
+                    "OLLAMA_BASE_URL environment variable not set. "
+                    "Cannot run Ollama tests without configuration."
+                )
             env_patches["OLLAMA_BASE_URL"] = ollama_url
             # Clear Claude CLI availability to force API usage with Ollama
             env_patches["PATH"] = ""

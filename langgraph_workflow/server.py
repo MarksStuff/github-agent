@@ -13,12 +13,14 @@ from dotenv import load_dotenv
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from langgraph_workflow import (
+    FeedbackGateStatus,
     ModelRouter,
     MultiAgentWorkflow,
+    QualityLevel,
     WorkflowPhase,
     WorkflowState,
 )
-from langgraph_workflow.config import get_checkpoint_path
+from langgraph_workflow.config import get_checkpoint_path, get_ollama_base_url
 from langgraph_workflow.tests.mocks import create_mock_dependencies
 
 # Load environment variables
@@ -69,6 +71,7 @@ def create_workflow_graph(
         agents=mock_deps["agents"],
         codebase_analyzer=mock_deps["codebase_analyzer"],
         checkpoint_path=checkpoint_path,
+        ollama_base_url=get_ollama_base_url(),
     )
 
     return workflow.app
@@ -113,8 +116,8 @@ def create_initial_state(feature_description: str, repo_path: str) -> WorkflowSt
         test_report={},
         ci_status={},
         lint_status={},
-        quality="draft",
-        feedback_gate="open",
+        quality=QualityLevel.DRAFT,
+        feedback_gate=FeedbackGateStatus.OPEN,
         model_router=ModelRouter.OLLAMA,
         escalation_count=0,
     )
@@ -184,6 +187,7 @@ def create_api_app():
                 agents=mock_deps["agents"],
                 codebase_analyzer=mock_deps["codebase_analyzer"],
                 checkpoint_path=get_checkpoint_path("api_state"),
+                ollama_base_url=get_ollama_base_url(),
             )
 
             # Note: In production, this would be queued or run in background
@@ -271,6 +275,7 @@ def create_api_app():
                 agents=mock_deps["agents"],
                 codebase_analyzer=mock_deps["codebase_analyzer"],
                 checkpoint_path=get_checkpoint_path("api_state"),
+                ollama_base_url=get_ollama_base_url(),
             )
 
             # Get the step method

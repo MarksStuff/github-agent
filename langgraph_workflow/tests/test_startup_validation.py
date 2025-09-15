@@ -118,6 +118,7 @@ class TestValidateOllamaConnection:
     """Test Ollama connection validation."""
 
     @patch("requests.get")
+    @patch.dict("os.environ", {"OLLAMA_BASE_URL": "http://test:11434"})
     def test_ollama_connection_success(self, mock_get):
         """Test successful Ollama connection."""
         # Mock version endpoint
@@ -143,6 +144,7 @@ class TestValidateOllamaConnection:
         assert result["error"] is None
 
     @patch("requests.get")
+    @patch.dict("os.environ", {"OLLAMA_BASE_URL": "http://test:11434"})
     def test_ollama_connection_failure(self, mock_get):
         """Test failed Ollama connection."""
         mock_get.side_effect = requests.exceptions.ConnectionError("Connection refused")
@@ -153,6 +155,7 @@ class TestValidateOllamaConnection:
         assert "Cannot connect to Ollama" in result["error"]
 
     @patch("requests.get")
+    @patch.dict("os.environ", {"OLLAMA_BASE_URL": "http://test:11434"})
     def test_ollama_timeout(self, mock_get):
         """Test Ollama connection timeout."""
         mock_get.side_effect = requests.exceptions.Timeout("Timeout")
@@ -163,6 +166,7 @@ class TestValidateOllamaConnection:
         assert "Timeout connecting to Ollama" in result["error"]
 
     @patch("requests.get")
+    @patch.dict("os.environ", {"OLLAMA_BASE_URL": "http://test:11434"})
     def test_ollama_http_error(self, mock_get):
         """Test Ollama HTTP error response."""
         response = Mock()

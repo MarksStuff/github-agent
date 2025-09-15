@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch  # Only for external dependencies
 
 from ..enums import ModelRouter, WorkflowPhase
-from ..langgraph_workflow import WorkflowState
+from ..langgraph_workflow import FeedbackGateStatus, QualityLevel, WorkflowState
 from .mocks import create_mock_dependencies
 from .mocks.test_workflow import MockTestMultiAgentWorkflow
 
@@ -71,8 +71,8 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
             test_report={},
             ci_status={},
             lint_status={},
-            quality="draft",
-            feedback_gate="open",
+            quality=QualityLevel.DRAFT,
+            feedback_gate=FeedbackGateStatus.OPEN,
             model_router=ModelRouter.OLLAMA,
             escalation_count=0,
         )

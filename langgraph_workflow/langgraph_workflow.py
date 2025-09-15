@@ -18,8 +18,31 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
+# Import config utilities
+from .config import (
+    get_claude_cli_path,
+    get_claude_cli_timeout,
+    get_ollama_base_url,
+    get_ollama_model,
+)
+
+# Import constants
+from .constants import (
+    MODEL_VERSION_CHECK_TIMEOUT,
+)
+
 # Import enums from separate module to avoid circular imports
-from .enums import AgentType, ModelRouter, WorkflowPhase, WorkflowStep
+from .enums import (
+    AgentType,
+    ArtifactName,
+    ArtifactType,
+    CLIDetectionString,
+    FeedbackGateStatus,
+    ModelRouter,
+    QualityLevel,
+    WorkflowPhase,
+    WorkflowStep,
+)
 
 # Import agent personas and interfaces
 from .interfaces import CodebaseAnalyzerInterface
@@ -38,7 +61,7 @@ class Artifact(BaseModel):
 
     key: str
     path: str
-    type: str  # "code_context", "design", "test", "implementation", "patch", "report"
+    type: ArtifactType
     content_digest: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
@@ -47,9 +70,9 @@ class Arbitration(BaseModel):
     """Represents a human arbitration decision."""
 
     id: str = Field(default_factory=lambda: str(uuid4()))
-    phase: str
+    phase: WorkflowPhase
     conflict_description: str
-    agents_involved: list[str]
+    agents_involved: list[AgentType]
     human_decision: str | None = None
     timestamp: datetime = Field(default_factory=datetime.now)
     applied: bool = False
@@ -83,7 +106,7 @@ class WorkflowState(TypedDict):
     pr_number: int | None
 
     # Agent outputs
-    agent_analyses: dict[str, str]  # agent_type -> analysis
+    agent_analyses: dict[AgentType, str]  # agent_type -> analysis
     synthesis_document: str | None
     conflicts: list[dict[str, Any]]
 
@@ -97,8 +120,8 @@ class WorkflowState(TypedDict):
     test_report: dict[str, Any]
     ci_status: dict[str, Any]
     lint_status: dict[str, Any]
-    quality: str  # "draft", "ok", "fail"
-    feedback_gate: str  # "open", "hold"
+    quality: QualityLevel
+    feedback_gate: FeedbackGateStatus
 
     # Resource routing
     model_router: ModelRouter
@@ -117,6 +140,7 @@ class MultiAgentWorkflow:
         claude_model: Any | None = None,
         thread_id: str | None = None,
         checkpoint_path: str = "agent_state.db",
+        ollama_base_url: str | None = None,
     ):
         """Initialize the workflow.
 
@@ -143,9 +167,15 @@ class MultiAgentWorkflow:
         if ollama_model is not None:
             self.ollama_model = ollama_model
         else:
+            # Use injected URL or get from config
+            base_url = (
+                ollama_base_url
+                if ollama_base_url is not None
+                else get_ollama_base_url()
+            )
             self.ollama_model = ChatOllama(
-                model="qwen3:8b",
-                base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+                model=get_ollama_model("default"),
+                base_url=base_url,
             )
 
         if claude_model is not None:
@@ -349,7 +379,9 @@ class MultiAgentWorkflow:
         # Update artifacts index
         if "artifacts_index" not in state:
             state["artifacts_index"] = {}
-        state["artifacts_index"]["feature_description"] = str(feature_artifact_path)
+        state["artifacts_index"][ArtifactName.FEATURE_DESCRIPTION] = str(
+            feature_artifact_path
+        )
 
         # Store the final feature description
         state["feature_description"] = feature_to_use or ""
@@ -379,7 +411,7 @@ class MultiAgentWorkflow:
         context_path.write_text(context_doc)
 
         state["code_context_document"] = context_doc
-        state["artifacts_index"]["code_context"] = str(context_path)
+        state["artifacts_index"][ArtifactName.CODE_CONTEXT] = str(context_path)
         state["messages_window"].append(
             AIMessage(
                 content=f"Extracted comprehensive code context document (saved to {context_path})"
@@ -396,6 +428,8 @@ class MultiAgentWorkflow:
         Note: feature_description is included for compatibility but not used
         to keep analysis unbiased.
         """
+        # Quality threshold for code context - defined locally where it's used
+        min_code_context_length = 2000
 
         # Get the repository path from the analyzer
         repo_path = self.codebase_analyzer.repo_path
@@ -606,10 +640,14 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
 
             # Check if Claude CLI is available
             claude_result = subprocess.run(
-                ["claude", "--version"], capture_output=True, text=True, timeout=5
+                [get_claude_cli_path(), "--version"],
+                capture_output=True,
+                text=True,
+                timeout=MODEL_VERSION_CHECK_TIMEOUT,
             )
             use_claude_cli = (
-                claude_result.returncode == 0 and "Claude Code" in claude_result.stdout
+                claude_result.returncode == 0
+                and CLIDetectionString.CLAUDE_CODE in claude_result.stdout
             )
 
             if use_claude_cli:
@@ -617,11 +655,11 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                     "Using Claude CLI for code context generation (has file access)"
                 )
                 claude_result = subprocess.run(
-                    ["claude"],
+                    [get_claude_cli_path()],
                     input=analysis_prompt,
                     capture_output=True,
                     text=True,
-                    timeout=600,  # 10 minutes - optimize for quality, not speed
+                    timeout=get_claude_cli_timeout(),  # Configured timeout - optimize for quality, not speed
                 )
 
                 if claude_result.returncode == 0:
@@ -635,8 +673,8 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                             f"Claude CLI response preview: {context_doc[:500]}..."
                         )
 
-                        # Expect comprehensive analysis (should be 2000+ chars for detailed code context)
-                        if len(context_doc.strip()) > 2000:
+                        # Expect comprehensive analysis (configured minimum length for detailed code context)
+                        if len(context_doc.strip()) > min_code_context_length:
                             return context_doc
                         else:
                             logger.error(
@@ -648,7 +686,7 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
                             logger.error(f"Response preview: {context_doc[:200]}...")
                             raise RuntimeError(
                                 "Claude CLI failed to provide comprehensive code analysis. "
-                                f"Expected 2000+ characters, got {len(context_doc)}. "
+                                f"Expected {min_code_context_length}+ characters, got {len(context_doc)}. "
                                 "This indicates Claude CLI cannot properly examine the repository code."
                             )
                     else:
@@ -697,12 +735,14 @@ Remember: You have the actual code. Read it. Don't guess based on file names or 
 
         # Store analyses
         for agent_type, analysis in analyses:
-            state["agent_analyses"][str(agent_type)] = analysis
+            state["agent_analyses"][agent_type] = analysis
 
             # Save to artifacts
             analysis_path = self.artifacts_dir / f"analysis_{agent_type}.md"
             analysis_path.write_text(analysis)
-            state["artifacts_index"][f"analysis:{agent_type}"] = str(analysis_path)
+            state["artifacts_index"][f"{ArtifactType.ANALYSIS}:{agent_type}"] = str(
+                analysis_path
+            )
 
         state["messages_window"].append(
             AIMessage(content="All agents completed parallel analysis")
@@ -751,7 +791,7 @@ Remain neutral and document rather than judge."""
         # Save synthesis
         synthesis_path = self.artifacts_dir / "synthesis.md"
         synthesis_path.write_text(synthesis)
-        state["artifacts_index"]["synthesis"] = str(synthesis_path)
+        state["artifacts_index"][ArtifactName.SYNTHESIS] = str(synthesis_path)
 
         # Determine if code investigation needed
         state["messages_window"].append(
@@ -786,7 +826,7 @@ Remain neutral and document rather than judge."""
         state["synthesis_document"] = updated_synthesis
 
         # Update synthesis file
-        synthesis_path = Path(state["artifacts_index"]["synthesis"])
+        synthesis_path = Path(state["artifacts_index"][ArtifactName.SYNTHESIS])
         synthesis_path.write_text(updated_synthesis)
 
         state["messages_window"].append(
@@ -800,7 +840,7 @@ Remain neutral and document rather than judge."""
         logger.info("Phase 1: Human review")
 
         state["current_phase"] = WorkflowPhase.PHASE_1_HUMAN_REVIEW
-        state["feedback_gate"] = "hold"
+        state["feedback_gate"] = FeedbackGateStatus.HOLD
 
         # Create PR with synthesis for review
         pr_body = f"""## Design Synthesis for: {state['feature_description']}
@@ -829,7 +869,7 @@ Remain neutral and document rather than judge."""
         # In production, this would pause until human provides feedback
         # For now, simulate receiving feedback
         state["design_constraints_document"] = await self._get_human_feedback(pr_number)
-        state["feedback_gate"] = "open"
+        state["feedback_gate"] = FeedbackGateStatus.OPEN
 
         return state
 
@@ -870,7 +910,7 @@ Remain neutral and document rather than judge."""
         # Save initial document
         design_path = self.artifacts_dir / "design_document.md"
         design_path.write_text(design_doc)
-        state["artifacts_index"]["design_document"] = str(design_path)
+        state["artifacts_index"][ArtifactName.DESIGN_DOCUMENT] = str(design_path)
 
         state["messages_window"].append(
             AIMessage(content="Created initial design document")
@@ -909,7 +949,7 @@ Remain neutral and document rather than judge."""
         if objections:
             # Create conflict for arbitration
             conflict = {
-                "phase": "design_document",
+                "phase": WorkflowPhase.PHASE_2_DESIGN_DOCUMENT,
                 "contributor": str(agent_type),
                 "objectors": [str(t) for t, _ in objections],
                 "contribution": contribution,
@@ -933,7 +973,7 @@ Remain neutral and document rather than judge."""
             )
 
         # Update document file
-        design_path = Path(state["artifacts_index"]["design_document"])
+        design_path = Path(state["artifacts_index"][ArtifactName.DESIGN_DOCUMENT])
         design_path.write_text(state["design_document"] or "")
 
         state["messages_window"].append(
@@ -980,7 +1020,7 @@ Remain neutral and document rather than judge."""
         if "disagree" in review.lower():
             # Need human arbitration
             conflict = {
-                "phase": "skeleton",
+                "phase": WorkflowPhase.PHASE_3_SKELETON,
                 "description": "Skeleton structure disagreement",
                 "senior_engineer": skeleton,
                 "architect_review": review,
@@ -994,7 +1034,7 @@ Remain neutral and document rather than judge."""
         # Save skeleton
         skeleton_path = self.artifacts_dir / "skeleton.py"
         skeleton_path.write_text(skeleton)
-        state["artifacts_index"]["skeleton"] = str(skeleton_path)
+        state["artifacts_index"][ArtifactName.SKELETON] = str(skeleton_path)
 
         # Create branch for implementation
         impl_branch = f"impl/{self.thread_id}"
@@ -1032,11 +1072,11 @@ Remain neutral and document rather than judge."""
         # Save both
         test_path = self.artifacts_dir / "tests_initial.py"
         test_path.write_text(test_code)
-        state["artifacts_index"]["tests_initial"] = str(test_path)
+        state["artifacts_index"][ArtifactName.TESTS_INITIAL] = str(test_path)
 
         impl_path = self.artifacts_dir / "implementation_initial.py"
         impl_path.write_text(impl_code)
-        state["artifacts_index"]["implementation_initial"] = str(impl_path)
+        state["artifacts_index"][ArtifactName.IMPLEMENTATION_INITIAL] = str(impl_path)
 
         state["messages_window"].append(
             AIMessage(content="Parallel development complete")
@@ -1078,7 +1118,7 @@ Remain neutral and document rather than judge."""
             ):
                 # Need human arbitration
                 conflict = {
-                    "phase": "reconciliation",
+                    "phase": WorkflowPhase.PHASE_3_RECONCILIATION,
                     "mismatches": mismatches,
                     "test_argument": test_argument,
                     "impl_argument": impl_argument,
@@ -1197,9 +1237,9 @@ Remain neutral and document rather than judge."""
 
         if all("approve" in r.lower() for r in reviews):
             state["implementation_code"] = refined
-            state["quality"] = "ok"
+            state["quality"] = QualityLevel.OK
         else:
-            state["quality"] = "fail"
+            state["quality"] = QualityLevel.FAIL
             # Would need another iteration
 
         # Create final patch
@@ -1506,8 +1546,8 @@ async def main():
         test_report={},
         ci_status={},
         lint_status={},
-        quality="draft",
-        feedback_gate="open",
+        quality=QualityLevel.DRAFT,
+        feedback_gate=FeedbackGateStatus.OPEN,
         model_router=ModelRouter.OLLAMA,
         escalation_count=0,
     )

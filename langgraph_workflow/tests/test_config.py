@@ -13,6 +13,10 @@ from ..config import (
     get_config,
     get_workspace_path,
 )
+from ..constants import (
+    OLLAMA_LLAMA3_1,
+    OLLAMA_QWEN3_8B,
+)
 
 
 class TestWorkflowConfig(unittest.TestCase):
@@ -119,16 +123,18 @@ class TestModelConfig(unittest.TestCase):
         """Test Ollama model configuration."""
         ollama_config = MODEL_CONFIG["ollama"]
 
-        # Test base URL (could be from env or default)
+        # Test base URL (should be None or a valid URL if configured)
         base_url = ollama_config["base_url"]
-        self.assertTrue(base_url.endswith(":11434") or base_url.endswith(":11434/"))
+        if base_url is not None:
+            self.assertTrue(base_url.endswith(":11434") or base_url.endswith(":11434/"))
+        # If None, that's expected when OLLAMA_BASE_URL is not set
 
         # Test models
         models = ollama_config["models"]
-        self.assertEqual(models["default"], "qwen3:8b")
-        self.assertEqual(models["developer"], "qwen3:8b")
-        self.assertEqual(models["tester"], "llama3.1")
-        self.assertEqual(models["summarizer"], "llama3.1")
+        self.assertEqual(models["default"], OLLAMA_QWEN3_8B)
+        self.assertEqual(models["developer"], OLLAMA_QWEN3_8B)
+        self.assertEqual(models["tester"], OLLAMA_LLAMA3_1)
+        self.assertEqual(models["summarizer"], OLLAMA_LLAMA3_1)
 
         # Test parameters
         params = ollama_config["parameters"]

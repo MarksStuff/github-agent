@@ -69,10 +69,10 @@ class TestMockTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
             "Add user authentication system"
         )
         state["agent_analyses"] = {
-            "test-first": "Authentication tests needed",
-            "fast-coder": "Quick JWT implementation",
-            "senior-engineer": "Secure authentication with OAuth2",
-            "architect": "Microservice authentication design",
+            AgentType.TEST_FIRST: "Authentication tests needed",
+            AgentType.FAST_CODER: "Quick JWT implementation",
+            AgentType.SENIOR_ENGINEER: "Secure authentication with OAuth2",
+            AgentType.ARCHITECT: "Microservice authentication design",
         }
 
         # Execute the phase

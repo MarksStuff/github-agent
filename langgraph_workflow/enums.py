@@ -68,3 +68,187 @@ class WorkflowStep(str, Enum):
     PUSH_TO_GITHUB = "push_to_github"
     WAIT_FOR_CI = "wait_for_ci"
     APPLY_PATCHES = "apply_patches"
+
+
+class CLIDetectionString(str, Enum):
+    """Strings used to detect CLI availability."""
+
+    CLAUDE_CODE = "Claude Code"
+
+
+class ArtifactName(str, Enum):
+    """Standard artifact names for artifacts_index."""
+
+    FEATURE_DESCRIPTION = "feature_description"
+    CODE_CONTEXT = "code_context"
+    DESIGN_DOCUMENT = "design_document"
+    SYNTHESIS = "synthesis"
+    SKELETON = "skeleton"
+    TESTS_INITIAL = "tests_initial"
+    IMPLEMENTATION_INITIAL = "implementation_initial"
+
+
+class ArtifactType(str, Enum):
+    """Types of artifacts created during workflow."""
+
+    CODE_CONTEXT = "code_context"
+    DESIGN = "design"
+    TEST = "test"
+    IMPLEMENTATION = "implementation"
+    PATCH = "patch"
+    REPORT = "report"
+    ANALYSIS = "analysis"
+    SYNTHESIS = "synthesis"
+    SKELETON = "skeleton"
+
+
+class ComplexityLevel(str, Enum):
+    """Complexity levels for features and tasks."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    VERY_HIGH = "very_high"
+
+
+class EffortEstimate(str, Enum):
+    """Effort estimates for feature implementation."""
+
+    SMALL = "small"
+    MEDIUM = "medium"
+    LARGE = "large"
+    EXTRA_LARGE = "extra_large"
+
+
+class DatabaseType(str, Enum):
+    """Database types detected in codebase."""
+
+    POSTGRESQL = "PostgreSQL"
+    MYSQL = "MySQL"
+    SQLITE = "SQLite"
+    REDIS = "Redis"
+    MONGODB = "MongoDB"
+
+
+class FrameworkType(str, Enum):
+    """Framework types detected in codebase."""
+
+    FASTAPI = "FastAPI"
+    DJANGO = "Django"
+    FLASK = "Flask"
+    LANGCHAIN = "LangChain"
+    LANGGRAPH = "LangGraph"
+    SQLALCHEMY = "SQLAlchemy"
+    REACT = "React"
+    VUE = "Vue"
+    ANGULAR = "Angular"
+    EXPRESS = "Express"
+    NEXTJS = "Next.js"
+
+
+class LanguageType(str, Enum):
+    """Programming languages detected in codebase."""
+
+    PYTHON = "Python"
+    JAVASCRIPT = "JavaScript"
+    TYPESCRIPT = "TypeScript"
+    JAVA = "Java"
+    CPP = "C++"
+    C = "C"
+    CSHARP = "C#"
+    GO = "Go"
+    RUST = "Rust"
+    RUBY = "Ruby"
+    PHP = "PHP"
+    SWIFT = "Swift"
+    KOTLIN = "Kotlin"
+    SCALA = "Scala"
+    SHELL = "Shell"
+    YAML = "YAML"
+    JSON = "JSON"
+    SQL = "SQL"
+
+
+class QualityLevel(str, Enum):
+    """Quality levels for code and workflow output."""
+
+    DRAFT = "draft"
+    OK = "ok"
+    FAIL = "fail"
+
+
+class FeedbackGateStatus(str, Enum):
+    """Feedback gate status for workflow control."""
+
+    OPEN = "open"
+    HOLD = "hold"
+    CLOSED = "closed"
+
+
+class CIStatus(str, Enum):
+    """CI/CD pipeline status values."""
+
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    SUCCESS = "success"
+    FAILURE = "failure"
+    ERROR = "error"
+    UNKNOWN = "unknown"
+
+
+class CheckStatus(str, Enum):
+    """Individual check status in CI."""
+
+    QUEUED = "queued"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+
+
+class CheckConclusion(str, Enum):
+    """Check conclusion after completion."""
+
+    SUCCESS = "success"
+    FAILURE = "failure"
+    NEUTRAL = "neutral"
+    CANCELLED = "cancelled"
+    SKIPPED = "skipped"
+    TIMED_OUT = "timed_out"
+    ACTION_REQUIRED = "action_required"
+
+
+class FileExtension(str, Enum):
+    """File extensions for artifacts and source code files."""
+
+    # Documentation and text files
+    MARKDOWN = ".md"
+    TEXT = ".txt"
+    JSON = ".json"
+    YAML = ".yml"
+    XML = ".xml"
+
+    # Programming languages
+    PYTHON = ".py"
+    JAVASCRIPT = ".js"
+    TYPESCRIPT = ".ts"
+    JAVA = ".java"
+    CPP = ".cpp"
+    C = ".c"
+    CSHARP = ".cs"
+    SWIFT = ".swift"
+    KOTLIN = ".kt"
+    GO = ".go"
+    RUST = ".rs"
+    PHP = ".php"
+    RUBY = ".rb"
+    SCALA = ".scala"
+
+    # Web technologies
+    HTML = ".html"
+    CSS = ".css"
+    SCSS = ".scss"
+
+    # Shell and config
+    SHELL = ".sh"
+    BASH = ".bash"
+    DOCKERFILE = "Dockerfile"
+    MAKEFILE = "Makefile"

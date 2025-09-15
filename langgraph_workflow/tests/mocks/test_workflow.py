@@ -14,7 +14,9 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from ...enums import AgentType, ModelRouter, WorkflowPhase
 from ...langgraph_workflow import (
+    FeedbackGateStatus,
     MultiAgentWorkflow,
+    QualityLevel,
     WorkflowState,
 )
 from .mock_agent import MockAgent
@@ -313,19 +315,19 @@ This is a test repository analysis for: {feature_description}
 
 ## Acceptance Criteria
 <!-- Generated from Test-first agent analysis -->
-{state.get('agent_analyses', {}).get(str(AgentType.TEST_FIRST), 'Acceptance criteria to be defined')}
+{state.get('agent_analyses', {}).get(AgentType.TEST_FIRST, 'Acceptance criteria to be defined')}
 
 ## Technical Design
 <!-- Detailed technical approach -->
-{state.get('agent_analyses', {}).get(str(AgentType.SENIOR_ENGINEER), 'Technical design to be detailed')}
+{state.get('agent_analyses', {}).get(AgentType.SENIOR_ENGINEER, 'Technical design to be detailed')}
 
 ## Implementation Plan
 <!-- Step-by-step implementation -->
-{state.get('agent_analyses', {}).get(str(AgentType.FAST_CODER), 'Implementation plan to be created')}
+{state.get('agent_analyses', {}).get(AgentType.FAST_CODER, 'Implementation plan to be created')}
 
 ## Architecture Considerations
 <!-- System-level design -->
-{state.get('agent_analyses', {}).get(str(AgentType.ARCHITECT), 'Architecture to be designed')}
+{state.get('agent_analyses', {}).get(AgentType.ARCHITECT, 'Architecture to be designed')}
 
 ## Human Additions
 <!-- Empty section for human to comment -->
@@ -378,8 +380,8 @@ This is a test repository analysis for: {feature_description}
             test_report={},
             ci_status={},
             lint_status={},
-            quality="draft",
-            feedback_gate="open",
+            quality=QualityLevel.DRAFT,
+            feedback_gate=FeedbackGateStatus.OPEN,
             model_router=ModelRouter.OLLAMA,
             escalation_count=0,
         )
