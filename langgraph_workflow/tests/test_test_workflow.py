@@ -47,7 +47,8 @@ class TestMockTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
         )
 
         # Execute the phase
-        result = await self.test_workflow.extract_code_context(initial_state)
+        state_dict = initial_state.__dict__
+        result = await self.test_workflow.extract_code_context(state_dict)
 
         # Verify state updates
         self.assertEqual(result["current_phase"], WorkflowPhase.PHASE_0_CODE_CONTEXT)
@@ -76,7 +77,8 @@ class TestMockTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
         }
 
         # Execute the phase
-        result = await self.test_workflow.create_design_document(state)
+        state_dict = state.__dict__
+        result = await self.test_workflow.create_design_document(state_dict)
 
         # Verify document creation
         self.assertIsNotNone(result["design_document"])
@@ -182,7 +184,9 @@ class TestMockTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
     def test_cleanup(self):
         """Test that cleanup works correctly."""
         # Verify artifacts directory exists before cleanup
-        self.assertTrue(self.test_workflow.artifacts_dir.exists())
+        from pathlib import Path
+        artifacts_path = Path(self.test_workflow.artifacts_dir)
+        self.assertTrue(artifacts_path.exists())
 
         # Run cleanup
         self.test_workflow.cleanup()
@@ -198,7 +202,8 @@ class TestMockTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
         )
 
         # Execute code context phase
-        state1 = await self.test_workflow.extract_code_context(initial_state)
+        state_dict = initial_state.__dict__
+        state1 = await self.test_workflow.extract_code_context(state_dict)
 
         # Verify it progressed correctly
         self.assertEqual(state1["current_phase"], WorkflowPhase.PHASE_0_CODE_CONTEXT)

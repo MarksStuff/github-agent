@@ -129,7 +129,7 @@ async def get_profile():
                 f"   Or set OLLAMA_BASE_URL to correct URL"
             )
 
-        real_ollama = ChatOllama(
+        _real_ollama = ChatOllama(
             model=get_ollama_model("default"),
             base_url=ollama_url,
         )
@@ -141,8 +141,6 @@ async def get_profile():
             thread_id="real-ollama-test",
             agents=agents,  # type: ignore
             codebase_analyzer=analyzer,
-            ollama_model=real_ollama,  # REAL OLLAMA MODEL
-            claude_model=None,  # Optional
         )
         return workflow
 

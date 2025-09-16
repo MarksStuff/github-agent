@@ -3,6 +3,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch  # Only for external dependencies
 
 from ..enums import (
@@ -44,7 +45,7 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
         self.workflow.artifacts_dir = artifacts_path
 
         # Create initial state as dict (enhanced workflow uses dicts)
-        self.initial_state = {
+        self.initial_state: dict[str, Any] = {
             "thread_id": self.thread_id,
             "feature_description": "Test feature: Add user authentication",
             "raw_feature_input": None,
@@ -255,13 +256,17 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
         state = self.initial_state.copy()
 
         # Add some artifacts to the index
-        state["artifacts_index"]["test_artifact"] = "/tmp/test-artifacts/test.md"
-        state["artifacts_index"]["design_doc"] = "/tmp/test-artifacts/design.md"
+        artifacts_index = state["artifacts_index"]
+        assert isinstance(artifacts_index, dict)
+        artifacts_index["test_artifact"] = "/tmp/test-artifacts/test.md"
+        artifacts_index["design_doc"] = "/tmp/test-artifacts/design.md"
 
         # Verify artifact management
-        self.assertIn("test_artifact", state["artifacts_index"])
-        self.assertIn("design_doc", state["artifacts_index"])
-        self.assertEqual(len(state["artifacts_index"]), 2)
+        artifacts_index = state["artifacts_index"]
+        assert isinstance(artifacts_index, dict)
+        self.assertIn("test_artifact", artifacts_index)
+        self.assertIn("design_doc", artifacts_index)
+        self.assertEqual(len(artifacts_index), 2)
 
 
 if __name__ == "__main__":

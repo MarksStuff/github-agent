@@ -37,7 +37,6 @@ class TestFeatureExtractionNode:
             thread_id="test-feature-extraction",
             agents=agents,  # type: ignore
             codebase_analyzer=analyzer,
-            ollama_base_url="http://test-ollama:11434",  # Mock URL for unit tests
         )
         return workflow
 

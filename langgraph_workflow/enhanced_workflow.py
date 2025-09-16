@@ -422,26 +422,50 @@ class EnhancedMultiAgentWorkflow:
     # Compatibility methods for old run.py interface
     async def extract_feature(self, state: dict) -> dict:
         """Extract and save the feature description to artifact file."""
-        from pathlib import Path
 
+        # Get feature description from multiple possible sources
         feature_description = state.get("feature_description", "")
-        if not feature_description:
-            logger.warning("No feature description found in state")
-            return state
 
-        # Create artifact with proper base path and PR number
-        artifacts_path = Path.home() / ".local/share/github-agent/artifacts"
-        artifacts_path.mkdir(parents=True, exist_ok=True)
+        # If no feature description, try to extract from raw input or extracted feature
+        if not feature_description:
+            raw_input = state.get("raw_feature_input", "")
+            extracted_feature = state.get("extracted_feature", "")
+
+            # Prefer extracted_feature if available, otherwise use raw_feature_input
+            if extracted_feature:
+                feature_description = extracted_feature
+            elif raw_input:
+                feature_description = raw_input
+            else:
+                logger.warning("No feature description found in state")
+                # Even with empty inputs, create an empty artifact
+                feature_description = ""
+
+            # Update the state with the extracted feature description
+            state["feature_description"] = feature_description
+
+        # Create artifact with proper base path using config function
+        from .config import get_artifacts_path
 
         pr_number = state.get("pr_number")
+        thread_id = state.get("thread_id")
+
         if pr_number:
+            # For PR-based workflows, use the configured artifacts path with PR structure
+            artifacts_base = get_artifacts_path("global")  # Use global for PR structure
             artifact_path = (
-                artifacts_path
+                artifacts_base.parent
                 / f"pr-{pr_number}"
                 / "analysis"
                 / "feature_description.md"
             )
+        elif thread_id:
+            # Use thread-specific artifacts path
+            artifacts_path = get_artifacts_path(thread_id)
+            artifact_path = artifacts_path / "feature_description.md"
         else:
+            # Fallback to global artifacts path
+            artifacts_path = get_artifacts_path("global")
             artifact_path = artifacts_path / "feature_description.md"
 
         artifact_path.parent.mkdir(parents=True, exist_ok=True)
@@ -454,6 +478,19 @@ class EnhancedMultiAgentWorkflow:
 
         logger.info(f"✅ Feature description saved: {artifact_path}")
         return state
+
+    async def _agent_analysis(
+        self, agent: Any, agent_type: str, context: dict | None = None
+    ) -> tuple[str, str] | dict[str, Any]:
+        """Call agent analysis method (compatibility with test interface)."""
+        if hasattr(agent, "analyze"):
+            result = await agent.analyze(context or {})
+            if isinstance(result, str):
+                return agent_type, result
+            return result
+        else:
+            # Fallback for agents without analyze method
+            return agent_type, f"Analysis from {agent_type}"
 
     async def extract_code_context(self, state: dict) -> dict:
         """Execute the extract_code_context node."""

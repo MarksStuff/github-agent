@@ -4,6 +4,7 @@ import asyncio
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 from ..enums import (
     AgentType,
@@ -47,7 +48,7 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         self.workflow.artifacts_dir = artifacts_path
 
         # Create initial state for full workflow as dict
-        self.initial_state = {
+        self.initial_state: dict[str, Any] = {
             "thread_id": self.thread_id,
             "feature_description": "Add comprehensive user authentication with JWT tokens, role-based access control, and session management",
             "raw_feature_input": None,
