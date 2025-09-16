@@ -113,7 +113,9 @@ class MockTestMultiAgentWorkflow(EnhancedMultiAgentWorkflow):
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize with provided or test dependencies
-        self.agents: dict[str, Any] = agents if agents is not None else self._create_test_agents()  # type: ignore
+        self.agents: dict[str, Any] = (
+            agents if agents is not None else self._create_test_agents()
+        )  # type: ignore
         self.ollama_model = (
             ollama_model
             if ollama_model is not None
@@ -407,7 +409,9 @@ This is a test repository analysis for: {feature_description}
             return f"Mock response from {agent_type}: {prompt[:50]}..."
         return f"Mock response: {prompt[:50]}..."
 
-    async def _agent_analysis(self, prompt: str, agent_name: str = "test") -> dict[str, Any]:
+    async def _agent_analysis(
+        self, prompt: str, agent_name: str = "test"
+    ) -> dict[str, Any]:
         """Mock agent analysis for tests."""
         return {
             "agent": agent_name,

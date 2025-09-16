@@ -12,7 +12,6 @@ from ..enums import (
     QualityLevel,
     WorkflowPhase,
 )
-from ..workflow_state import WorkflowState
 from .mocks import create_mock_dependencies
 from .mocks.test_workflow import MockTestMultiAgentWorkflow
 
