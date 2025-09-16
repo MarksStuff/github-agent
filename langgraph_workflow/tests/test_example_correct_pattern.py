@@ -81,8 +81,8 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
         # CORRECT: Mock external dependencies only (filesystem in this case)
         with patch("pathlib.Path.write_text") as mock_filesystem:
             # CORRECT: Test the actual workflow method using injected dependencies
-            state_dict = state.__dict__
-            result = await self.workflow.extract_code_context(state_dict)
+            # state is already a dict since WorkflowState is a TypedDict
+            result = await self.workflow.extract_code_context(state)
 
             # Verify the workflow behavior through state changes
             self.assertEqual(

@@ -47,8 +47,8 @@ class TestMockTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
         )
 
         # Execute the phase
-        state_dict = initial_state.__dict__
-        result = await self.test_workflow.extract_code_context(state_dict)
+        # initial_state is already a dict from create_test_initial_state
+        result = await self.test_workflow.extract_code_context(initial_state)
 
         # Verify state updates
         self.assertEqual(result["current_phase"], WorkflowPhase.PHASE_0_CODE_CONTEXT)
@@ -77,8 +77,8 @@ class TestMockTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
         }
 
         # Execute the phase
-        state_dict = state.__dict__
-        result = await self.test_workflow.create_design_document(state_dict)
+        # state is already a dict from create_test_initial_state
+        result = await self.test_workflow.create_design_document(state)
 
         # Verify document creation
         self.assertIsNotNone(result["design_document"])
@@ -203,8 +203,8 @@ class TestMockTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
         )
 
         # Execute code context phase
-        state_dict = initial_state.__dict__
-        state1 = await self.test_workflow.extract_code_context(state_dict)
+        # initial_state is already a dict from create_test_initial_state
+        state1 = await self.test_workflow.extract_code_context(initial_state)
 
         # Verify it progressed correctly
         self.assertEqual(state1["current_phase"], WorkflowPhase.PHASE_0_CODE_CONTEXT)
