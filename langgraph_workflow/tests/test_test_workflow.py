@@ -185,6 +185,7 @@ class TestMockTestMultiAgentWorkflow(unittest.IsolatedAsyncioTestCase):
         """Test that cleanup works correctly."""
         # Verify artifacts directory exists before cleanup
         from pathlib import Path
+
         artifacts_path = Path(self.test_workflow.artifacts_dir)
         self.assertTrue(artifacts_path.exists())
 
