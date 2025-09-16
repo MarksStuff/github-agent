@@ -3,7 +3,6 @@
 import unittest
 from unittest.mock import patch
 
-from ..enums import WorkflowPhase
 from ..nodes.extract_code_context import extract_code_context_handler
 
 
