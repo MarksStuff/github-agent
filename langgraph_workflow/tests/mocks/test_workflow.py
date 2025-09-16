@@ -12,8 +12,14 @@ from uuid import uuid4
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
 
-from ...enums import AgentType, FeedbackGateStatus, ModelRouter, QualityLevel, WorkflowPhase
 from ...enhanced_workflow import EnhancedMultiAgentWorkflow
+from ...enums import (
+    AgentType,
+    FeedbackGateStatus,
+    ModelRouter,
+    QualityLevel,
+    WorkflowPhase,
+)
 from ...workflow_state import WorkflowState
 from .mock_agent import MockAgent
 from .mock_codebase_analyzer import MockCodebaseAnalyzer
@@ -97,7 +103,7 @@ class MockTestMultiAgentWorkflow(EnhancedMultiAgentWorkflow):
             checkpoint_path: Checkpoint path (uses memory by default)
         """
         # Set basic attributes without calling parent __init__
-        self.repo_path = Path(repo_path)
+        self.repo_path = str(repo_path)  # Keep as string for compatibility
         self.thread_id = thread_id or f"test-{uuid4().hex[:8]}"
         self.checkpoint_path = checkpoint_path
 
@@ -107,7 +113,7 @@ class MockTestMultiAgentWorkflow(EnhancedMultiAgentWorkflow):
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize with provided or test dependencies
-        self.agents = agents if agents is not None else self._create_test_agents()
+        self.agents: dict[str, Any] = agents if agents is not None else self._create_test_agents()  # type: ignore
         self.ollama_model = (
             ollama_model
             if ollama_model is not None
@@ -128,12 +134,11 @@ class MockTestMultiAgentWorkflow(EnhancedMultiAgentWorkflow):
         # Create test GitHub integration
         self.github = MockGitHub()
 
-        # Build the real graph structure with test dependencies
-        self.graph = self._build_graph()
-
         # Use test checkpointer
         self.checkpointer = MockTestLangGraphCheckpointer()  # type: ignore
-        self.app = self.graph.compile(checkpointer=self.checkpointer)
+
+        # Initialize minimal workflow structure for tests
+        # Note: This mock doesn't need the full enhanced workflow graph
 
     def _create_test_agents(self) -> dict[AgentType, MockAgent]:
         """Create test agents with intelligent, pattern-based responses."""
@@ -243,7 +248,7 @@ This is a test repository analysis for: {feature_description}
         return context_doc
 
     # Override methods that need filesystem operations
-    async def extract_code_context(self, state: WorkflowState) -> WorkflowState:
+    async def extract_code_context(self, state: dict) -> dict:
         """Extract code context using test analyzer and filesystem."""
         # Use real workflow logic but with test dependencies
         state["model_router"] = ModelRouter.OLLAMA
@@ -298,7 +303,7 @@ This is a test repository analysis for: {feature_description}
         return state
 
     # Override other methods similarly to use test dependencies
-    async def create_design_document(self, state: WorkflowState) -> WorkflowState:
+    async def create_design_document(self, state: dict) -> dict:
         """Create design document using test filesystem."""
         state["model_router"] = ModelRouter.OLLAMA
         state["current_phase"] = WorkflowPhase.PHASE_2_DESIGN_DOCUMENT
@@ -393,4 +398,20 @@ This is a test repository analysis for: {feature_description}
                 for agent_type, agent in self.agents.items()
             },
             "filesystem_operations": getattr(self.test_fs, "operations", []),
+        }
+
+    # Add missing methods that tests expect
+    async def _call_model(self, prompt: str, agent_type: str = "default") -> str:
+        """Mock model call for tests."""
+        if agent_type in self.agents:
+            return f"Mock response from {agent_type}: {prompt[:50]}..."
+        return f"Mock response: {prompt[:50]}..."
+
+    async def _agent_analysis(self, prompt: str, agent_name: str = "test") -> dict[str, Any]:
+        """Mock agent analysis for tests."""
+        return {
+            "agent": agent_name,
+            "analysis": f"Mock analysis from {agent_name}",
+            "confidence": 0.9,
+            "recommendations": ["Test recommendation 1", "Test recommendation 2"],
         }

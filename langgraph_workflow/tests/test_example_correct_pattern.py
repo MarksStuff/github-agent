@@ -34,8 +34,9 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
         )
 
         # Set up artifacts directory
-        self.workflow.artifacts_dir = Path(self.temp_dir.name) / "artifacts"
-        self.workflow.artifacts_dir.mkdir(parents=True, exist_ok=True)
+        artifacts_path = Path(self.temp_dir.name) / "artifacts"
+        artifacts_path.mkdir(parents=True, exist_ok=True)
+        self.workflow.artifacts_dir = artifacts_path
 
     def tearDown(self):
         """Clean up test fixtures."""

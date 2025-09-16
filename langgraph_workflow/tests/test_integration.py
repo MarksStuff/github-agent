@@ -5,7 +5,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ..enums import AgentType, FeedbackGateStatus, ModelRouter, QualityLevel, WorkflowPhase
+from ..enums import (
+    AgentType,
+    FeedbackGateStatus,
+    ModelRouter,
+    QualityLevel,
+    WorkflowPhase,
+)
 from ..workflow_state import WorkflowState
 from .mocks import create_mock_dependencies
 from .mocks.test_workflow import MockTestMultiAgentWorkflow
@@ -37,15 +43,16 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         self.workflow.checkpointer = self.mock_deps["checkpointer"]
 
         # Set up artifacts directory
-        self.workflow.artifacts_dir = Path(self.temp_dir.name) / "artifacts"
-        self.workflow.artifacts_dir.mkdir(parents=True, exist_ok=True)
+        artifacts_path = Path(self.temp_dir.name) / "artifacts"
+        artifacts_path.mkdir(parents=True, exist_ok=True)
+        self.workflow.artifacts_dir = artifacts_path
 
-        # Create initial state for full workflow
-        self.initial_state = WorkflowState(
-            thread_id=self.thread_id,
-            feature_description="Add comprehensive user authentication with JWT tokens, role-based access control, and session management",
-            raw_feature_input=None,
-            extracted_feature=None,
+        # Create initial state for full workflow as dict
+        self.initial_state = {
+            "thread_id": self.thread_id,
+            "feature_description": "Add comprehensive user authentication with JWT tokens, role-based access control, and session management",
+            "raw_feature_input": None,
+            "extracted_feature": None,
             current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
             messages_window=[],
             summary_log="",

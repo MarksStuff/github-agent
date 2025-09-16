@@ -13,8 +13,8 @@ import pytest
 from langchain_ollama import ChatOllama
 
 from langgraph_workflow import FeedbackGateStatus, QualityLevel
-from langgraph_workflow.enums import ModelRouter, WorkflowPhase
 from langgraph_workflow.enhanced_workflow import EnhancedMultiAgentWorkflow
+from langgraph_workflow.enums import ModelRouter, WorkflowPhase
 from langgraph_workflow.real_codebase_analyzer import RealCodebaseAnalyzer
 from langgraph_workflow.tests.real_agents import create_real_ollama_agents
 from langgraph_workflow.workflow_state import WorkflowState
