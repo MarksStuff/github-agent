@@ -4,9 +4,15 @@ import asyncio
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
-from ..enums import AgentType, ModelRouter, WorkflowPhase
-from ..langgraph_workflow import FeedbackGateStatus, QualityLevel, WorkflowState
+from ..enums import (
+    AgentType,
+    FeedbackGateStatus,
+    ModelRouter,
+    QualityLevel,
+    WorkflowPhase,
+)
 from .mocks import create_mock_dependencies
 from .mocks.test_workflow import MockTestMultiAgentWorkflow
 
@@ -37,42 +43,43 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         self.workflow.checkpointer = self.mock_deps["checkpointer"]
 
         # Set up artifacts directory
-        self.workflow.artifacts_dir = Path(self.temp_dir.name) / "artifacts"
-        self.workflow.artifacts_dir.mkdir(parents=True, exist_ok=True)
+        artifacts_path = Path(self.temp_dir.name) / "artifacts"
+        artifacts_path.mkdir(parents=True, exist_ok=True)
+        self.workflow.artifacts_dir = str(artifacts_path)
 
-        # Create initial state for full workflow
-        self.initial_state = WorkflowState(
-            thread_id=self.thread_id,
-            feature_description="Add comprehensive user authentication with JWT tokens, role-based access control, and session management",
-            raw_feature_input=None,
-            extracted_feature=None,
-            current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
-            messages_window=[],
-            summary_log="",
-            artifacts_index={},
-            code_context_document=None,
-            design_constraints_document=None,
-            design_document=None,
-            arbitration_log=[],
-            repo_path=self.repo_path,
-            git_branch="main",
-            last_commit_sha=None,
-            pr_number=None,
-            agent_analyses={},
-            synthesis_document=None,
-            conflicts=[],
-            skeleton_code=None,
-            test_code=None,
-            implementation_code=None,
-            patch_queue=[],
-            test_report={},
-            ci_status={},
-            lint_status={},
-            quality=QualityLevel.DRAFT,
-            feedback_gate=FeedbackGateStatus.OPEN,
-            model_router=ModelRouter.OLLAMA,
-            escalation_count=0,
-        )
+        # Create initial state for full workflow as dict
+        self.initial_state: dict[str, Any] = {
+            "thread_id": self.thread_id,
+            "feature_description": "Add comprehensive user authentication with JWT tokens, role-based access control, and session management",
+            "raw_feature_input": None,
+            "extracted_feature": None,
+            "current_phase": WorkflowPhase.PHASE_0_CODE_CONTEXT,
+            "messages_window": [],
+            "summary_log": "",
+            "artifacts_index": {},
+            "code_context_document": None,
+            "design_constraints_document": None,
+            "design_document": None,
+            "arbitration_log": [],
+            "repo_path": self.repo_path,
+            "git_branch": "main",
+            "last_commit_sha": None,
+            "pr_number": None,
+            "agent_analyses": {},
+            "synthesis_document": None,
+            "conflicts": [],
+            "skeleton_code": None,
+            "test_code": None,
+            "implementation_code": None,
+            "patch_queue": [],
+            "test_report": {},
+            "ci_status": {},
+            "lint_status": {},
+            "quality": QualityLevel.DRAFT,
+            "feedback_gate": FeedbackGateStatus.OPEN,
+            "model_router": ModelRouter.OLLAMA,
+            "escalation_count": 0,
+        }
 
     def tearDown(self):
         """Clean up integration test fixtures."""

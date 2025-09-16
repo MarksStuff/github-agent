@@ -113,7 +113,9 @@ class TestRunWorkflow(unittest.IsolatedAsyncioTestCase):
         # actual checkpoint data
         from unittest.mock import AsyncMock
 
-        with patch("langgraph_workflow.run.MultiAgentWorkflow") as mock_workflow:
+        with patch(
+            "langgraph_workflow.run.EnhancedMultiAgentWorkflow"
+        ) as mock_workflow:
             mock_app = AsyncMock()
             mock_app.ainvoke.return_value = {
                 "thread_id": self.thread_id,

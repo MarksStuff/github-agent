@@ -6,6 +6,7 @@ from .constants import (
     OLLAMA_LLAMA3_1,
     OLLAMA_QWEN3_8B,
 )
+from .enhanced_workflow import EnhancedMultiAgentWorkflow
 from .enums import (
     AgentType,
     ArtifactName,
@@ -25,13 +26,10 @@ from .enums import (
     QualityLevel,
     WorkflowPhase,
 )
-from .langgraph_workflow import (
-    MultiAgentWorkflow,
-    WorkflowState,
-)
+from .workflow_state import WorkflowState
 
 __all__ = [
-    "MultiAgentWorkflow",
+    "EnhancedMultiAgentWorkflow",
     "WorkflowState",
     "WorkflowPhase",
     "AgentType",

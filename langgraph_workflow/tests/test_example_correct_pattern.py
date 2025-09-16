@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch  # Only for external dependencies
 
-from ..enums import ModelRouter, WorkflowPhase
-from ..langgraph_workflow import FeedbackGateStatus, QualityLevel, WorkflowState
+from ..enums import FeedbackGateStatus, ModelRouter, QualityLevel, WorkflowPhase
+from ..workflow_state import WorkflowState
 from .mocks import create_mock_dependencies
 from .mocks.test_workflow import MockTestMultiAgentWorkflow
 
@@ -34,8 +34,9 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
         )
 
         # Set up artifacts directory
-        self.workflow.artifacts_dir = Path(self.temp_dir.name) / "artifacts"
-        self.workflow.artifacts_dir.mkdir(parents=True, exist_ok=True)
+        artifacts_path = Path(self.temp_dir.name) / "artifacts"
+        artifacts_path.mkdir(parents=True, exist_ok=True)
+        self.workflow.artifacts_dir = str(artifacts_path)
 
     def tearDown(self):
         """Clean up test fixtures."""
@@ -80,7 +81,8 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
         # CORRECT: Mock external dependencies only (filesystem in this case)
         with patch("pathlib.Path.write_text") as mock_filesystem:
             # CORRECT: Test the actual workflow method using injected dependencies
-            result = await self.workflow.extract_code_context(state)
+            # state is a WorkflowState (TypedDict), cast to dict for type checker
+            result = await self.workflow.extract_code_context(dict(state))
 
             # Verify the workflow behavior through state changes
             self.assertEqual(

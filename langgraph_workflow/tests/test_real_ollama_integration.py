@@ -13,10 +13,11 @@ import pytest
 from langchain_ollama import ChatOllama
 
 from langgraph_workflow import FeedbackGateStatus, QualityLevel
+from langgraph_workflow.enhanced_workflow import EnhancedMultiAgentWorkflow
 from langgraph_workflow.enums import ModelRouter, WorkflowPhase
-from langgraph_workflow.langgraph_workflow import MultiAgentWorkflow, WorkflowState
 from langgraph_workflow.real_codebase_analyzer import RealCodebaseAnalyzer
 from langgraph_workflow.tests.real_agents import create_real_ollama_agents
+from langgraph_workflow.workflow_state import WorkflowState
 
 
 @pytest.mark.integration
@@ -128,20 +129,18 @@ async def get_profile():
                 f"   Or set OLLAMA_BASE_URL to correct URL"
             )
 
-        real_ollama = ChatOllama(
+        _real_ollama = ChatOllama(
             model=get_ollama_model("default"),
             base_url=ollama_url,
         )
         analyzer = RealCodebaseAnalyzer(temp_repo)
         agents = create_real_ollama_agents()  # REAL AGENTS that call Ollama!
 
-        workflow = MultiAgentWorkflow(
+        workflow = EnhancedMultiAgentWorkflow(
             repo_path=temp_repo,
             thread_id="real-ollama-test",
             agents=agents,  # type: ignore
             codebase_analyzer=analyzer,
-            ollama_model=real_ollama,  # REAL OLLAMA MODEL
-            claude_model=None,  # Optional
         )
         return workflow
 

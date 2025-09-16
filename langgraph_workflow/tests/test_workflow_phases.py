@@ -3,10 +3,16 @@
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch  # Only for external dependencies
 
-from ..enums import AgentType, ModelRouter, WorkflowPhase
-from ..langgraph_workflow import FeedbackGateStatus, QualityLevel, WorkflowState
+from ..enums import (
+    AgentType,
+    FeedbackGateStatus,
+    ModelRouter,
+    QualityLevel,
+    WorkflowPhase,
+)
 from .mocks import create_mock_dependencies
 from .mocks.test_workflow import MockTestMultiAgentWorkflow
 
@@ -34,42 +40,43 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
         )
 
         # Set up artifacts directory
-        self.workflow.artifacts_dir = Path(self.temp_dir.name) / "artifacts"
-        self.workflow.artifacts_dir.mkdir(parents=True, exist_ok=True)
+        artifacts_path = Path(self.temp_dir.name) / "artifacts"
+        artifacts_path.mkdir(parents=True, exist_ok=True)
+        self.workflow.artifacts_dir = str(artifacts_path)
 
-        # Create initial state
-        self.initial_state = WorkflowState(
-            thread_id=self.thread_id,
-            feature_description="Test feature: Add user authentication",
-            raw_feature_input=None,
-            extracted_feature=None,
-            current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
-            messages_window=[],
-            summary_log="",
-            artifacts_index={},
-            code_context_document=None,
-            design_constraints_document=None,
-            design_document=None,
-            arbitration_log=[],
-            repo_path=self.repo_path,
-            git_branch="main",
-            last_commit_sha=None,
-            pr_number=None,
-            agent_analyses={},
-            synthesis_document=None,
-            conflicts=[],
-            skeleton_code=None,
-            test_code=None,
-            implementation_code=None,
-            patch_queue=[],
-            test_report={},
-            ci_status={},
-            lint_status={},
-            quality=QualityLevel.DRAFT,
-            feedback_gate=FeedbackGateStatus.OPEN,
-            model_router=ModelRouter.OLLAMA,
-            escalation_count=0,
-        )
+        # Create initial state as dict (enhanced workflow uses dicts)
+        self.initial_state: dict[str, Any] = {
+            "thread_id": self.thread_id,
+            "feature_description": "Test feature: Add user authentication",
+            "raw_feature_input": None,
+            "extracted_feature": None,
+            "current_phase": WorkflowPhase.PHASE_0_CODE_CONTEXT,
+            "messages_window": [],
+            "summary_log": "",
+            "artifacts_index": {},
+            "code_context_document": None,
+            "design_constraints_document": None,
+            "design_document": None,
+            "arbitration_log": [],
+            "repo_path": self.repo_path,
+            "git_branch": "main",
+            "last_commit_sha": None,
+            "pr_number": None,
+            "agent_analyses": {},
+            "synthesis_document": None,
+            "conflicts": [],
+            "skeleton_code": None,
+            "test_code": None,
+            "implementation_code": None,
+            "patch_queue": [],
+            "test_report": {},
+            "ci_status": {},
+            "lint_status": {},
+            "quality": QualityLevel.DRAFT,
+            "feedback_gate": FeedbackGateStatus.OPEN,
+            "model_router": ModelRouter.OLLAMA,
+            "escalation_count": 0,
+        }
 
     def tearDown(self):
         """Clean up test fixtures."""
@@ -249,13 +256,17 @@ class TestWorkflowPhasesFixed(unittest.IsolatedAsyncioTestCase):
         state = self.initial_state.copy()
 
         # Add some artifacts to the index
-        state["artifacts_index"]["test_artifact"] = "/tmp/test-artifacts/test.md"
-        state["artifacts_index"]["design_doc"] = "/tmp/test-artifacts/design.md"
+        artifacts_index = state["artifacts_index"]
+        assert isinstance(artifacts_index, dict)
+        artifacts_index["test_artifact"] = "/tmp/test-artifacts/test.md"
+        artifacts_index["design_doc"] = "/tmp/test-artifacts/design.md"
 
         # Verify artifact management
-        self.assertIn("test_artifact", state["artifacts_index"])
-        self.assertIn("design_doc", state["artifacts_index"])
-        self.assertEqual(len(state["artifacts_index"]), 2)
+        artifacts_index = state["artifacts_index"]
+        assert isinstance(artifacts_index, dict)
+        self.assertIn("test_artifact", artifacts_index)
+        self.assertIn("design_doc", artifacts_index)
+        self.assertEqual(len(artifacts_index), 2)
 
 
 if __name__ == "__main__":
