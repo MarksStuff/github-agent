@@ -13,14 +13,14 @@ from dotenv import load_dotenv
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from langgraph_workflow import (
+    EnhancedMultiAgentWorkflow,
     FeedbackGateStatus,
     ModelRouter,
-    MultiAgentWorkflow,
     QualityLevel,
     WorkflowPhase,
     WorkflowState,
 )
-from langgraph_workflow.config import get_checkpoint_path, get_ollama_base_url
+from langgraph_workflow.config import get_checkpoint_path
 from langgraph_workflow.tests.mocks import create_mock_dependencies
 
 # Load environment variables
@@ -65,13 +65,12 @@ def create_workflow_graph(
 
     # Use mock dependencies for development (production mode disabled until dependencies are implemented)
     mock_deps = create_mock_dependencies(thread_id)
-    workflow = MultiAgentWorkflow(
+    workflow = EnhancedMultiAgentWorkflow(
         repo_path=repo_path,
         thread_id=thread_id,
         agents=mock_deps["agents"],
         codebase_analyzer=mock_deps["codebase_analyzer"],
         checkpoint_path=checkpoint_path,
-        ollama_base_url=get_ollama_base_url(),
     )
 
     return workflow.app
@@ -181,13 +180,12 @@ def create_api_app():
         try:
             # Create workflow with mock dependencies (production mode disabled until dependencies are implemented)
             mock_deps = create_mock_dependencies(thread_id)
-            MultiAgentWorkflow(
+            EnhancedMultiAgentWorkflow(
                 repo_path=repo_path,
                 thread_id=thread_id,
                 agents=mock_deps["agents"],
                 codebase_analyzer=mock_deps["codebase_analyzer"],
                 checkpoint_path=get_checkpoint_path("api_state"),
-                ollama_base_url=get_ollama_base_url(),
             )
 
             # Note: In production, this would be queued or run in background
@@ -269,13 +267,12 @@ def create_api_app():
         try:
             # Load workflow with mock dependencies (production mode disabled until dependencies are implemented)
             mock_deps = create_mock_dependencies(thread_id)
-            workflow = MultiAgentWorkflow(
+            workflow = EnhancedMultiAgentWorkflow(
                 repo_path=repo_path,
                 thread_id=thread_id,
                 agents=mock_deps["agents"],
                 codebase_analyzer=mock_deps["codebase_analyzer"],
                 checkpoint_path=get_checkpoint_path("api_state"),
-                ollama_base_url=get_ollama_base_url(),
             )
 
             # Get the step method

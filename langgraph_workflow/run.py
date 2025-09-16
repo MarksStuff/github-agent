@@ -9,9 +9,9 @@ from datetime import datetime
 from pathlib import Path
 
 from langgraph_workflow import (
+    EnhancedMultiAgentWorkflow,
     FeedbackGateStatus,
     ModelRouter,
-    MultiAgentWorkflow,
     QualityLevel,
     WorkflowPhase,
     WorkflowState,
@@ -45,12 +45,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def extract_feature_from_prd(prd_content: str, feature_name: str) -> str | None:
+async def extract_feature_from_prd(
+    prd_content: str, feature_name: str, debug: bool = False
+) -> str | None:
     """Extract a specific feature from a PRD document using LLM.
 
     Args:
         prd_content: Full PRD content
         feature_name: Name/title of the feature to extract
+        debug: Enable verbose output
 
     Returns:
         Feature description or None if not found
@@ -98,12 +101,28 @@ Feature Extract:"""
         extracted_content = str(response.content).strip() if response.content else ""
 
         if extracted_content and len(extracted_content) > 10:
-            logger.info("Successfully extracted feature using Ollama")
+            logger.info("✅ Successfully extracted feature using Ollama")
 
             # Check if feature was not found
             if extracted_content == "FEATURE_NOT_FOUND":
                 return None
-            return extracted_content
+
+            # Clean up extracted content - remove LLM thinking
+            cleaned_content = extracted_content
+            if cleaned_content.startswith("<think>"):
+                # Find the end of thinking section and extract clean content
+                import re
+
+                # Remove <think>...</think> sections
+                cleaned_content = re.sub(
+                    r"<think>.*?</think>", "", cleaned_content, flags=re.DOTALL
+                ).strip()
+
+            # Only show full extracted content in debug mode
+            if debug:
+                logger.info(f"📄 Extracted content: {extracted_content}")
+
+            return cleaned_content
         else:
             logger.warning("Ollama returned empty or very short response")
 
@@ -205,7 +224,7 @@ async def run_workflow_until_step(workflow, initial_state, config, stop_after):
     """Run workflow progressively until a specific step.
 
     Args:
-        workflow: MultiAgentWorkflow instance
+        workflow: EnhancedMultiAgentWorkflow instance
         initial_state: Initial workflow state
         config: LangGraph config with thread_id
         stop_after: Step name or number to stop after
@@ -278,6 +297,7 @@ async def run_workflow(
     feature_name: str | None = None,
     workflow_class=None,
     stop_after: str | None = None,
+    debug: bool = False,
 ):
     """Run the multi-agent workflow.
 
@@ -289,8 +309,9 @@ async def run_workflow(
         resume: Whether to resume from existing checkpoint
         feature_file: Path to file containing feature description
         feature_name: Name of specific feature within a larger PRD
-        workflow_class: Workflow class to use (defaults to MultiAgentWorkflow)
+        workflow_class: Workflow class to use (defaults to EnhancedMultiAgentWorkflow)
         stop_after: Stop execution after this step (step name or number)
+        debug: Enable debug logging and verbose output
     """
 
     # Handle feature input variations
@@ -309,7 +330,7 @@ async def run_workflow(
         if feature_name:
             # Extract specific feature from PRD using LLM
             extracted_feature = await extract_feature_from_prd(
-                prd_content, feature_name
+                prd_content, feature_name, debug
             )
             if not extracted_feature:
                 raise ValueError(f"Feature '{feature_name}' not found in PRD")
@@ -319,11 +340,20 @@ async def run_workflow(
             feature_description = prd_content
     elif feature_name and not feature_file:
         raise ValueError("feature_name requires feature_file to be specified")
-    logger.info(f"Starting workflow for: {feature_description}")
+    if debug:
+        logger.info(f"Starting workflow for: {feature_description}")
+    else:
+        # Show truncated feature description in normal mode
+        truncated = (
+            feature_description[:100] + "..."
+            if len(feature_description) > 100
+            else feature_description
+        )
+        logger.info(f"Starting workflow for: {truncated}")
 
     # Initialize workflow
     if workflow_class is None:
-        workflow_class = MultiAgentWorkflow
+        workflow_class = EnhancedMultiAgentWorkflow
 
     # Use REAL dependencies for CLI execution (NOT mocks!)
     from .real_codebase_analyzer import RealCodebaseAnalyzer
@@ -557,11 +587,18 @@ async def execute_single_step(
     agents = create_mock_agents()  # Still using mock agents until implemented
 
     if workflow_class is None:
-        workflow_class = MultiAgentWorkflow
+        workflow_class = EnhancedMultiAgentWorkflow
 
     # Use config-based checkpoint path if not specified
     if checkpoint_path is None:
         checkpoint_path = get_checkpoint_path("agent_state")
+
+    # Don't log workflow creation for single steps
+    import logging
+
+    enhanced_logger = logging.getLogger("langgraph_workflow.enhanced_workflow")
+    original_level = enhanced_logger.level
+    enhanced_logger.setLevel(logging.WARNING)
 
     workflow = workflow_class(
         repo_path=repo_path,
@@ -635,6 +672,10 @@ async def execute_single_step(
     # Execute the step
     print(f"📍 Initial phase: {initial_state.get('current_phase', 'Unknown')}")
     result_state = await step_methods[step_name](initial_state)
+
+    # Restore logging level
+    enhanced_logger.setLevel(original_level)
+
     print(f"📍 Final phase: {result_state.get('current_phase', 'Unknown')}")
 
     # Show key changes
@@ -741,7 +782,7 @@ async def interactive_step_mode():
 
                 print(f"\n⚡ Executing step: {step_name}")
                 result_state = await execute_single_step(
-                    MultiAgentWorkflow,
+                    EnhancedMultiAgentWorkflow,
                     step_name,
                     repo_path,
                     feature,
@@ -937,7 +978,7 @@ Examples:
         # Execute single step
         asyncio.run(
             execute_single_step(
-                MultiAgentWorkflow,
+                EnhancedMultiAgentWorkflow,
                 args.step,
                 args.repo_path,
                 feature_description,
@@ -967,6 +1008,7 @@ Examples:
                 feature_file=args.feature_file,
                 feature_name=args.feature_name,
                 stop_after=args.stop_after,
+                debug=args.debug,
             )
         )
     else:

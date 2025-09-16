@@ -81,11 +81,15 @@ class ArtifactName(str, Enum):
 
     FEATURE_DESCRIPTION = "feature_description"
     CODE_CONTEXT = "code_context"
+    CODE_CONTEXT_DOCUMENT = "code_context_document"
     DESIGN_DOCUMENT = "design_document"
     SYNTHESIS = "synthesis"
     SKELETON = "skeleton"
     TESTS_INITIAL = "tests_initial"
     IMPLEMENTATION_INITIAL = "implementation_initial"
+    AGENT_ANALYSES = "agent_analyses"
+    IMPLEMENTATION_CODE = "implementation_code"
+    TEST_CODE = "test_code"
 
 
 class ArtifactType(str, Enum):
