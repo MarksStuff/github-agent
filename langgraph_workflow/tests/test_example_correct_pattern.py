@@ -36,7 +36,7 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
         # Set up artifacts directory
         artifacts_path = Path(self.temp_dir.name) / "artifacts"
         artifacts_path.mkdir(parents=True, exist_ok=True)
-        self.workflow.artifacts_dir = artifacts_path
+        self.workflow.artifacts_dir = str(artifacts_path)
 
     def tearDown(self):
         """Clean up test fixtures."""
@@ -81,8 +81,8 @@ class TestCorrectPattern(unittest.IsolatedAsyncioTestCase):
         # CORRECT: Mock external dependencies only (filesystem in this case)
         with patch("pathlib.Path.write_text") as mock_filesystem:
             # CORRECT: Test the actual workflow method using injected dependencies
-            # state is already a dict since WorkflowState is a TypedDict
-            result = await self.workflow.extract_code_context(state)
+            # state is a WorkflowState (TypedDict), cast to dict for type checker
+            result = await self.workflow.extract_code_context(dict(state))
 
             # Verify the workflow behavior through state changes
             self.assertEqual(

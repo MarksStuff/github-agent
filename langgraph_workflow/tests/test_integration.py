@@ -45,7 +45,7 @@ class TestWorkflowIntegrationFixed(unittest.IsolatedAsyncioTestCase):
         # Set up artifacts directory
         artifacts_path = Path(self.temp_dir.name) / "artifacts"
         artifacts_path.mkdir(parents=True, exist_ok=True)
-        self.workflow.artifacts_dir = artifacts_path
+        self.workflow.artifacts_dir = str(artifacts_path)
 
         # Create initial state for full workflow as dict
         self.initial_state: dict[str, Any] = {
