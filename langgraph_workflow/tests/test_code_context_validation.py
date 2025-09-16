@@ -1,6 +1,7 @@
 """Test for code context document validation."""
 
 import unittest
+from typing import Any
 from unittest.mock import patch
 
 from ..nodes.extract_code_context import extract_code_context_handler
@@ -11,7 +12,7 @@ class TestCodeContextValidation(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.state = {
+        self.state: dict[str, Any] = {
             "repo_path": "/test/repo",
             "feature_description": "Test feature",
             "current_phase": None,

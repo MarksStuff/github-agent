@@ -230,7 +230,6 @@ async def extract_code_context_handler(state: dict) -> dict:
 
     # Get repository information
     repo_path = state.get("repo_path", ".")
-    feature_description = state.get("feature_description", "")
 
     # Actually call the agent with the comprehensive prompt
     # Format the prompt with repository path only
@@ -251,7 +250,7 @@ async def extract_code_context_handler(state: dict) -> dict:
         )
 
     # Validate that we got a comprehensive analysis, not just a summary
-    MIN_CONTEXT_LENGTH = 2000  # Minimum characters for a proper code context document
+    min_context_length = 2000  # Minimum characters for a proper code context document
 
     if not code_context:
         logger.error("❌ Agent returned None or empty response")
@@ -261,9 +260,9 @@ async def extract_code_context_handler(state: dict) -> dict:
 
     logger.info(f"📄 Agent analysis completed ({len(code_context)} chars)")
 
-    if len(code_context) < MIN_CONTEXT_LENGTH:
+    if len(code_context) < min_context_length:
         error_msg = (
-            f"Code context document is too short ({len(code_context)} chars, minimum: {MIN_CONTEXT_LENGTH}).\n"
+            f"Code context document is too short ({len(code_context)} chars, minimum: {min_context_length}).\n"
             f"This usually indicates the agent provided only a brief summary instead of comprehensive analysis.\n"
             f"Repository: {repo_path}\n"
             f"Got: {code_context[:500]}..."
