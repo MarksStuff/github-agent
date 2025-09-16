@@ -78,7 +78,7 @@ Feature Extract:"""
             [HumanMessage(content=extraction_prompt)]
         )
 
-        extracted_content = response.content.strip()
+        extracted_content = str(response.content).strip() if response.content else ""
         logger.info("✅ Successfully extracted feature using Ollama")
 
     except Exception as e:
@@ -104,7 +104,7 @@ class WorkflowCLI:
         """
         self.repo_path = Path(repo_path).resolve()
         self.thread_id = thread_id
-        self.workflow = None
+        self.workflow: Any = None
 
     def _create_workflow(self, checkpoint_path: str | None = None) -> Any:
         """Create workflow instance with checkpointing."""
@@ -174,6 +174,7 @@ class WorkflowCLI:
 
         # Run workflow until interruption or completion
         try:
+            assert self.workflow is not None  # Type hint for mypy
             final_state = await self.workflow.run_workflow(
                 feature_description=final_feature_description,
                 pr_number=pr_number,
@@ -216,6 +217,7 @@ class WorkflowCLI:
 
         try:
             # LangGraph automatically resumes from last checkpoint
+            assert self.workflow is not None  # Type hint for mypy
             final_state = await self.workflow.app.ainvoke({}, config=config)
 
             if stop_at:
@@ -247,6 +249,7 @@ class WorkflowCLI:
 
         try:
             # Get all checkpoints for this thread
+            assert self.workflow is not None  # Type hint for mypy
             checkpoints = []
             async for checkpoint in self.workflow.checkpointer.alist(config):
                 checkpoints.append(checkpoint)
@@ -294,6 +297,7 @@ class WorkflowCLI:
         config: RunnableConfig = {"configurable": {"thread_id": self.thread_id}}
 
         checkpoints = []
+        assert self.workflow is not None  # Type hint for mypy
         async for checkpoint in self.workflow.checkpointer.alist(config):
             state = checkpoint.state
             checkpoints.append(

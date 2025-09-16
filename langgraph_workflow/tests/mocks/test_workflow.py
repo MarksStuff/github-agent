@@ -1,4 +1,4 @@
-"""Test implementation of MultiAgentWorkflow with controlled dependencies.
+"""Test implementation of EnhancedMultiAgentWorkflow with controlled dependencies.
 
 This is not a simple mock but a real test implementation that executes
 actual workflow logic with predictable, controlled dependencies.
@@ -12,13 +12,9 @@ from uuid import uuid4
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
 
-from ...enums import AgentType, ModelRouter, WorkflowPhase
-from ...langgraph_workflow import (
-    FeedbackGateStatus,
-    MultiAgentWorkflow,
-    QualityLevel,
-    WorkflowState,
-)
+from ...enums import AgentType, FeedbackGateStatus, ModelRouter, QualityLevel, WorkflowPhase
+from ...enhanced_workflow import EnhancedMultiAgentWorkflow
+from ...workflow_state import WorkflowState
 from .mock_agent import MockAgent
 from .mock_codebase_analyzer import MockCodebaseAnalyzer
 from .mock_github import MockGitHub
@@ -72,10 +68,10 @@ class MockTestLangGraphCheckpointer(BaseCheckpointSaver):
         return self.memory_saver.put_writes(config, writes, task_id, task_path)
 
 
-class MockTestMultiAgentWorkflow(MultiAgentWorkflow):
+class MockTestMultiAgentWorkflow(EnhancedMultiAgentWorkflow):
     """Test implementation that executes real workflow logic with controlled dependencies.
 
-    This class inherits from MultiAgentWorkflow and overrides dependency creation
+    This class inherits from EnhancedMultiAgentWorkflow and overrides dependency creation
     to use test implementations, while maintaining all the real workflow logic.
     """
 

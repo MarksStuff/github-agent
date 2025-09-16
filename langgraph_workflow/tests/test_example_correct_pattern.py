@@ -5,8 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch  # Only for external dependencies
 
-from ..enums import ModelRouter, WorkflowPhase
-from ..langgraph_workflow import FeedbackGateStatus, QualityLevel
+from ..enums import FeedbackGateStatus, ModelRouter, QualityLevel, WorkflowPhase
 from ..workflow_state import WorkflowState
 from .mocks import create_mock_dependencies
 from .mocks.test_workflow import MockTestMultiAgentWorkflow

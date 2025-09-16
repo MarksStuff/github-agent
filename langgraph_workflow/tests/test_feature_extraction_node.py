@@ -7,7 +7,7 @@ import pytest
 
 from langgraph_workflow import FeedbackGateStatus, QualityLevel
 from langgraph_workflow.enums import ModelRouter, WorkflowPhase
-from langgraph_workflow.langgraph_workflow import MultiAgentWorkflow
+from langgraph_workflow.enhanced_workflow import EnhancedMultiAgentWorkflow
 from langgraph_workflow.tests.mocks import create_mock_agents
 from langgraph_workflow.workflow_state import WorkflowState
 
@@ -32,7 +32,7 @@ class TestFeatureExtractionNode:
         analyzer = RealCodebaseAnalyzer(temp_repo)
         agents = create_mock_agents()
 
-        workflow = MultiAgentWorkflow(
+        workflow = EnhancedMultiAgentWorkflow(
             repo_path=temp_repo,
             thread_id="test-feature-extraction",
             agents=agents,  # type: ignore
