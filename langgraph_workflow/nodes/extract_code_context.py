@@ -250,11 +250,25 @@ async def extract_code_context_handler(state: dict) -> dict:
             "Code context extraction requires Claude Code with code access. Ollama cannot access the codebase."
         )
 
+    # Validate that we got a comprehensive analysis, not just a summary
+    MIN_CONTEXT_LENGTH = 2000  # Minimum characters for a proper code context document
+
+    if not code_context:
+        logger.error("❌ Agent returned None or empty response")
+        error_msg = f"Agent failed to provide any analysis for repository: {repo_path}"
+        logger.error(f"❌ Analysis failed: {error_msg}")
+        raise RuntimeError(f"Code context extraction failed: {error_msg}")
+
     logger.info(f"📄 Agent analysis completed ({len(code_context)} chars)")
 
-    if not code_context or len(code_context) < 100:
-        error_msg = f"Agent failed to provide comprehensive analysis for: {feature_description}\nRepository: {repo_path}\nAnalysis too short or empty: {len(code_context)} chars"
-        logger.error(f"❌ Analysis failed: {error_msg}")
+    if len(code_context) < MIN_CONTEXT_LENGTH:
+        error_msg = (
+            f"Code context document is too short ({len(code_context)} chars, minimum: {MIN_CONTEXT_LENGTH}).\n"
+            f"This usually indicates the agent provided only a brief summary instead of comprehensive analysis.\n"
+            f"Repository: {repo_path}\n"
+            f"Got: {code_context[:500]}..."
+        )
+        logger.error(f"❌ Insufficient analysis: {error_msg}")
         raise RuntimeError(f"Code context extraction failed: {error_msg}")
 
     # Store the code context document
