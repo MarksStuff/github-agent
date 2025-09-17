@@ -231,34 +231,46 @@ async def extract_code_context_handler(state: dict) -> dict:
     # Get repository information
     repo_path = state.get("repo_path", ".")
 
-    # Actually call the agent with the comprehensive prompt
-    # Format the prompt with repository path only
-    prompt = extract_code_context_config.prompt_template.format(repo_path=repo_path)
-
-    logger.info(
-        f"🤖 Calling agent with comprehensive analysis prompt ({len(prompt)} chars)"
-    )
-
-    # Call the actual agent based on configuration
-    if extract_code_context_config.model_preference == ModelRouter.CLAUDE_CODE:
-        # Use Claude Code for code access - MUST succeed, no fallback allowed
-        code_context = await _call_claude_code_agent(prompt, repo_path)
-    else:
-        # This should never happen for code context extraction since we need code access
-        raise RuntimeError(
-            "Code context extraction requires Claude Code with code access. Ollama cannot access the codebase."
-        )
-
-    # Validate that we got a comprehensive analysis, not just a summary
+    # Check if we already have VALID code context in our workflow state
+    existing_code_context = state.get("code_context_document")
     min_context_length = 2000  # Minimum characters for a proper code context document
 
+    if existing_code_context and len(existing_code_context) >= min_context_length:
+        logger.info(
+            f"✅ Found valid existing code context in workflow state ({len(existing_code_context)} chars)"
+        )
+        code_context = existing_code_context
+    else:
+        # If no valid content exists in state, this step hasn't completed successfully
+        # Generate new code context
+        logger.info("🔍 Generating code context (no valid content in workflow state)")
+
+        # Actually call the agent with the comprehensive prompt
+        # Format the prompt with repository path only
+        prompt = extract_code_context_config.prompt_template.format(repo_path=repo_path)
+
+        logger.info(
+            f"🤖 Calling agent with comprehensive analysis prompt ({len(prompt)} chars)"
+        )
+
+        # Call the actual agent based on configuration
+        if extract_code_context_config.model_preference == ModelRouter.CLAUDE_CODE:
+            # Use Claude Code for code access - MUST succeed, no fallback allowed
+            code_context = await _call_claude_code_agent(prompt, repo_path)
+        else:
+            # This should never happen for code context extraction since we need code access
+            raise RuntimeError(
+                "Code context extraction requires Claude Code with code access. Ollama cannot access the codebase."
+            )
+
+    # Final validation of the code context (whether reused or newly generated)
     if not code_context:
-        logger.error("❌ Agent returned None or empty response")
-        error_msg = f"Agent failed to provide any analysis for repository: {repo_path}"
-        logger.error(f"❌ Analysis failed: {error_msg}")
+        logger.error("❌ No code context available")
+        error_msg = f"Failed to get code context for repository: {repo_path}"
+        logger.error(f"❌ Context failed: {error_msg}")
         raise RuntimeError(f"Code context extraction failed: {error_msg}")
 
-    logger.info(f"📄 Agent analysis completed ({len(code_context)} chars)")
+    logger.info(f"📄 Code context ready ({len(code_context)} chars)")
 
     if len(code_context) < min_context_length:
         error_msg = (
@@ -304,6 +316,7 @@ async def _call_claude_code_agent(prompt: str, repo_path: str) -> str:
     This calls the Claude CLI directly with the comprehensive analysis prompt,
     allowing Claude to access and analyze the actual codebase.
     """
+    import asyncio
     import subprocess
 
     from ..config import get_claude_cli_path, get_claude_cli_timeout
@@ -313,46 +326,58 @@ async def _call_claude_code_agent(prompt: str, repo_path: str) -> str:
 
         # First, check if Claude CLI is available
         try:
-            version_check = subprocess.run(
-                [get_claude_cli_path(), "--version"],
-                capture_output=True,
-                text=True,
-                timeout=5,
+            version_check = await asyncio.create_subprocess_exec(
+                get_claude_cli_path(),
+                "--version",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(
+                version_check.communicate(), timeout=5
             )
             if version_check.returncode != 0:
                 raise RuntimeError(
-                    f"Claude CLI version check failed: {version_check.stderr}"
+                    f"Claude CLI version check failed: {stderr.decode()}"
                 )
 
-            logger.info(f"Claude CLI available: {version_check.stdout.strip()}")
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            logger.info(f"Claude CLI available: {stdout.decode().strip()}")
+        except (asyncio.TimeoutError, FileNotFoundError) as e:
             raise RuntimeError(
                 f"Claude CLI not available or not responding: {e}"
             ) from e
 
-        # Call Claude CLI with the comprehensive analysis prompt
-        claude_result = subprocess.run(
-            [get_claude_cli_path()],
-            input=prompt,
-            capture_output=True,
-            text=True,
-            timeout=get_claude_cli_timeout(),
+        # Call Claude CLI with the comprehensive analysis prompt using async subprocess
+        claude_process = await asyncio.create_subprocess_exec(
+            get_claude_cli_path(),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             cwd=repo_path,  # Set working directory to repository path
         )
 
-        if claude_result.returncode != 0:
-            error_msg = (
-                claude_result.stderr.strip()
-                if claude_result.stderr
-                else "Unknown error"
-            )
+        stdout, stderr = await asyncio.wait_for(
+            claude_process.communicate(input=prompt.encode()),
+            timeout=get_claude_cli_timeout(),
+        )
+
+        if claude_process.returncode != 0:
+            error_msg = stderr.decode().strip() if stderr else "Unknown error"
+            logger.error("❌ Claude CLI process failed:")
+            logger.error(f"   Return code: {claude_process.returncode}")
+            logger.error(f"   Stderr: {stderr.decode()}")
+            logger.error(f"   Stdout: {stdout.decode()}")
             raise RuntimeError(
-                f"Claude CLI failed with return code {claude_result.returncode}: {error_msg}"
+                f"Claude CLI failed with return code {claude_process.returncode}: {error_msg}"
             )
 
-        analysis_result = claude_result.stdout.strip()
+        analysis_result = stdout.decode().strip()
 
         if not analysis_result:
+            logger.error("❌ Claude CLI returned empty response:")
+            logger.error(f"   Return code: {claude_process.returncode}")
+            logger.error(f"   Stderr: {stderr.decode()}")
+            logger.error(f"   Stdout length: {len(stdout)}")
+            logger.error(f"   Stdout content: '{stdout.decode()}'")
             raise RuntimeError("Claude CLI returned empty analysis")
 
         logger.info(f"✅ Claude CLI analysis completed ({len(analysis_result)} chars)")

@@ -19,6 +19,7 @@ from .enums import (
 )
 from .nodes import (
     create_design_document_node,
+    design_synthesis_node,
     extract_code_context_node,
     parallel_design_exploration_node,
     parallel_development_node,
@@ -66,6 +67,7 @@ class EnhancedMultiAgentWorkflow:
         self.node_definitions = {
             WorkflowStep.EXTRACT_CODE_CONTEXT: extract_code_context_node,
             WorkflowStep.PARALLEL_DESIGN_EXPLORATION: parallel_design_exploration_node,
+            WorkflowStep.DESIGN_SYNTHESIS: design_synthesis_node,
             WorkflowStep.CREATE_DESIGN_DOCUMENT: create_design_document_node,
             WorkflowStep.PARALLEL_DEVELOPMENT: parallel_development_node,
         }
@@ -107,6 +109,10 @@ class EnhancedMultiAgentWorkflow:
         )
         workflow.add_edge(
             WorkflowStep.PARALLEL_DESIGN_EXPLORATION.value,
+            WorkflowStep.DESIGN_SYNTHESIS.value,
+        )
+        workflow.add_edge(
+            WorkflowStep.DESIGN_SYNTHESIS.value,
             WorkflowStep.CREATE_DESIGN_DOCUMENT.value,
         )
         workflow.add_edge(
@@ -268,7 +274,7 @@ class EnhancedMultiAgentWorkflow:
             logger.info(f"📋 PR integration enabled for PR #{pr_number}")
 
         # Create initial state
-        initial_state: WorkflowState = {
+        initial_state: dict[str, Any] = {
             "thread_id": self.thread_id,
             "feature_description": feature_description,
             "repo_path": self.repo_path,
@@ -300,6 +306,11 @@ class EnhancedMultiAgentWorkflow:
             "model_router": ModelRouter.OLLAMA,
             "escalation_count": 0,
         }
+
+        # Import any existing valid artifacts into the state (migration helper)
+        from .utils import populate_all_artifacts_from_files
+
+        initial_state = populate_all_artifacts_from_files(initial_state, self.repo_path)
 
         # Configure workflow execution
         from langchain_core.runnables import RunnableConfig
@@ -504,9 +515,19 @@ class EnhancedMultiAgentWorkflow:
 
     # TODO: Implement these step by step as we build the workflow
     async def parallel_design_exploration(self, state: dict) -> dict:
-        """TODO: Implement parallel design exploration."""
-        logger.info("🚧 parallel_design_exploration: Not yet implemented")
-        return state
+        """Run parallel design exploration with 4 Claude-based agents."""
+        # Call the actual node handler
+        from .nodes.parallel_design_exploration import (
+            parallel_design_exploration_handler,
+        )
+
+        return await parallel_design_exploration_handler(state)
+
+    async def design_synthesis(self, state: dict) -> dict:
+        """Execute design synthesis to analyze agent consensus and conflicts."""
+        from .nodes.design_synthesis import design_synthesis_handler
+
+        return await design_synthesis_handler(state)
 
     async def architect_synthesis(self, state: dict) -> dict:
         """TODO: Implement architect synthesis."""

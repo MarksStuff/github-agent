@@ -257,34 +257,142 @@ async def run_workflow_until_step(workflow, initial_state, config, stop_after):
     for i, step in enumerate(all_steps[: stop_index + 1], 1):
         print(f"   {i:2}. {step}")
 
-    # Execute steps one by one until we reach the stop point
-    current_state = initial_state.copy()
+    # Check if there's an existing checkpoint for this thread using sync methods
+    try:
+        # For SqliteSaver, we can check the state synchronously by examining files
+        # Check if artifacts already exist that indicate completed steps
+        from pathlib import Path
 
-    for i, step_name in enumerate(all_steps[: stop_index + 1], 1):
-        print(f"\n🔧 Executing step {i}: {step_name}")
+        artifacts_path = Path.home() / ".local" / "share" / "github-agent" / "artifacts"
+        completed_artifacts = {}
 
-        # Use execute_single_step to run this step
-        updated_state = await execute_single_step(
+        # Check for existing artifacts
+        if artifacts_path.exists():
+            code_context_file = artifacts_path / "code_context_document.md"
+            if code_context_file.exists() and code_context_file.stat().st_size > 2000:
+                completed_artifacts["code_context_document"] = str(code_context_file)
+
+            design_dir = artifacts_path / "design" / "explorations"
+            if design_dir.exists():
+                design_files = list(design_dir.glob("*-design.md"))
+                if len(design_files) >= 4:  # All 4 agent designs exist
+                    for design_file in design_files:
+                        key = design_file.stem.replace("-", "_")
+                        completed_artifacts[key] = str(design_file)
+
+        if completed_artifacts:
+            print("📍 Found existing artifacts indicating completed work")
+            print(f"📁 Found {len(completed_artifacts)} completed artifacts")
+
+            # Determine which steps are already complete based on artifacts
+            completed_steps = []
+            if "code_context_document" in completed_artifacts:
+                completed_steps.append("extract_code_context")
+            if any(key.endswith("_design") for key in completed_artifacts.keys()):
+                completed_steps.append("parallel_design_exploration")
+
+            print(f"✅ Already completed steps: {completed_steps}")
+
+            # Update initial state with the found artifacts
+            initial_state["artifacts_index"] = completed_artifacts
+
+            # If we have design files, also populate agent_analyses for synthesis
+            if any(key.endswith("_design") for key in completed_artifacts.keys()):
+                from .enums import AgentType
+
+                agent_analyses = {}
+                for key, path in completed_artifacts.items():
+                    if key.endswith("_design"):
+                        # Read the design document content
+                        try:
+                            with open(path) as f:
+                                content = f.read()
+                            # Map file names to agent types
+                            if "architect" in key:
+                                agent_analyses[AgentType.ARCHITECT] = content
+                            elif "senior_engineer" in key:
+                                agent_analyses[AgentType.SENIOR_ENGINEER] = content
+                            elif "fast_coder" in key:
+                                agent_analyses[AgentType.FAST_CODER] = content
+                            elif "test_first" in key:
+                                agent_analyses[AgentType.TEST_FIRST] = content
+                        except Exception as e:
+                            print(f"⚠️  Could not read design file {path}: {e}")
+
+                if agent_analyses:
+                    initial_state["agent_analyses"] = agent_analyses
+                    print(f"📄 Loaded {len(agent_analyses)} agent design documents")
+
+            # If the target step is already complete, no need to run anything
+            if stop_step in completed_steps:
+                print(f"🎯 Target step '{stop_step}' already completed!")
+                # Return the initial state with artifacts
+                return initial_state
+
+        else:
+            print("📍 No existing artifacts found, starting fresh")
+            completed_steps = []
+
+        current_state = initial_state
+
+    except Exception as e:
+        print(f"⚠️  Could not check existing artifacts: {e}")
+        print("📍 Starting fresh execution")
+        completed_steps = []
+        current_state = initial_state
+
+    # Use the actual LangGraph workflow execution
+    print(f"\n🚀 Executing workflow until step: {stop_step}")
+
+    # For steps that haven't been completed yet, we need to execute them
+    # We'll use the direct step execution to avoid async checkpoint issues
+    steps_to_run = []
+    all_steps_until_target = all_steps[: stop_index + 1]
+
+    for step in all_steps_until_target:
+        if step not in completed_steps:
+            steps_to_run.append(step)
+
+    if not steps_to_run:
+        print(f"✅ All steps up to {stop_step} are already completed!")
+        return current_state
+
+    print(f"📋 Steps to execute: {steps_to_run}")
+
+    # Execute remaining steps one by one
+    for step in steps_to_run:
+        print(f"\n🔧 Executing step: {step}")
+
+        # Use execute_single_step for each step to avoid checkpoint issues
+        current_state = await execute_single_step(
             type(workflow),
-            step_name,
-            current_state["repo_path"],
-            current_state["feature_description"],
-            current_state["thread_id"],
-            input_state=current_state,
+            step,
+            current_state["repo_path"] if isinstance(current_state, dict) else ".",
+            current_state.get("feature_description", "")
+            if isinstance(current_state, dict)
+            else "",
+            workflow.thread_id,
+            input_state=current_state
+            if isinstance(current_state, dict)
+            else initial_state,
         )
 
-        current_state = updated_state
-        print(f"✅ Step {i} completed: {step_name}")
+        print(f"✅ Step completed: {step}")
 
-    print(
-        f"\n🏁 Progressive execution stopped after step {stop_index + 1}: {stop_step}"
+    print("\n🏁 Workflow execution completed")
+    result = (
+        current_state
+        if isinstance(current_state, dict)
+        else {"thread_id": workflow.thread_id}
     )
-    print(f"💾 State saved with thread_id: {current_state['thread_id']}")
     print(
-        f"🔄 To continue from here, use: --thread-id {current_state['thread_id']} --resume"
+        f"💾 State saved with thread_id: {result.get('thread_id', workflow.thread_id)}"
+    )
+    print(
+        f"🔄 To continue from here, use: --thread-id {result.get('thread_id', workflow.thread_id)} --resume"
     )
 
-    return current_state
+    return result
 
 
 async def run_workflow(
@@ -386,38 +494,45 @@ async def run_workflow(
         result = await workflow.app.ainvoke(None, config)
     else:
         # Create initial state
-        initial_state = WorkflowState(
-            thread_id=workflow.thread_id,
-            feature_description=feature_description,
-            raw_feature_input=raw_feature_input,
-            extracted_feature=extracted_feature,
-            current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
-            messages_window=[],
-            summary_log="",
-            artifacts_index={},
-            code_context_document=None,
-            design_constraints_document=None,
-            design_document=None,
-            arbitration_log=[],
-            repo_path=repo_path,
-            git_branch="main",
-            last_commit_sha=None,
-            pr_number=None,
-            agent_analyses={},
-            synthesis_document=None,
-            conflicts=[],
-            skeleton_code=None,
-            test_code=None,
-            implementation_code=None,
-            patch_queue=[],
-            test_report={},
-            ci_status={},
-            lint_status={},
-            quality=QualityLevel.DRAFT,
-            feedback_gate=FeedbackGateStatus.OPEN,
-            model_router=ModelRouter.OLLAMA,
-            escalation_count=0,
+        initial_state = dict(
+            WorkflowState(
+                thread_id=workflow.thread_id,
+                feature_description=feature_description,
+                raw_feature_input=raw_feature_input,
+                extracted_feature=extracted_feature,
+                current_phase=WorkflowPhase.PHASE_0_CODE_CONTEXT,
+                messages_window=[],
+                summary_log="",
+                artifacts_index={},
+                code_context_document=None,
+                design_constraints_document=None,
+                design_document=None,
+                arbitration_log=[],
+                repo_path=repo_path,
+                git_branch="main",
+                last_commit_sha=None,
+                pr_number=None,
+                agent_analyses={},
+                synthesis_document=None,
+                conflicts=[],
+                skeleton_code=None,
+                test_code=None,
+                implementation_code=None,
+                patch_queue=[],
+                test_report={},
+                ci_status={},
+                lint_status={},
+                quality=QualityLevel.DRAFT,
+                feedback_gate=FeedbackGateStatus.OPEN,
+                model_router=ModelRouter.OLLAMA,
+                escalation_count=0,
+            )
         )
+
+        # Import any existing valid artifacts into the state (migration helper)
+        from .utils import populate_all_artifacts_from_files
+
+        initial_state = populate_all_artifacts_from_files(initial_state, repo_path)
 
         # Run workflow (with optional stop_after)
         config = {"configurable": {"thread_id": workflow.thread_id}}
@@ -650,6 +765,7 @@ async def execute_single_step(
         WorkflowStep.EXTRACT_FEATURE.value: workflow.extract_feature,
         WorkflowStep.EXTRACT_CODE_CONTEXT.value: workflow.extract_code_context,
         WorkflowStep.PARALLEL_DESIGN_EXPLORATION.value: workflow.parallel_design_exploration,
+        WorkflowStep.DESIGN_SYNTHESIS.value: workflow.design_synthesis,
         WorkflowStep.ARCHITECT_SYNTHESIS.value: workflow.architect_synthesis,
         WorkflowStep.CODE_INVESTIGATION.value: workflow.code_investigation,
         WorkflowStep.HUMAN_REVIEW.value: workflow.human_review,
@@ -701,6 +817,7 @@ async def list_available_steps() -> list[str]:
         WorkflowStep.EXTRACT_FEATURE.value,
         WorkflowStep.EXTRACT_CODE_CONTEXT.value,
         WorkflowStep.PARALLEL_DESIGN_EXPLORATION.value,
+        WorkflowStep.DESIGN_SYNTHESIS.value,
         WorkflowStep.ARCHITECT_SYNTHESIS.value,
         WorkflowStep.CODE_INVESTIGATION.value,
         WorkflowStep.HUMAN_REVIEW.value,

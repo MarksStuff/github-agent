@@ -45,6 +45,7 @@ class WorkflowStep(str, Enum):
 
     # Phase 1: Design
     PARALLEL_DESIGN_EXPLORATION = "parallel_design_exploration"
+    DESIGN_SYNTHESIS = "design_synthesis"
     ARCHITECT_SYNTHESIS = "architect_synthesis"
     CODE_INVESTIGATION = "code_investigation"
     HUMAN_REVIEW = "human_review"
@@ -83,6 +84,7 @@ class ArtifactName(str, Enum):
     CODE_CONTEXT = "code_context"
     CODE_CONTEXT_DOCUMENT = "code_context_document"
     DESIGN_DOCUMENT = "design_document"
+    DESIGN_SYNTHESIS = "design_synthesis"
     SYNTHESIS = "synthesis"
     SKELETON = "skeleton"
     TESTS_INITIAL = "tests_initial"

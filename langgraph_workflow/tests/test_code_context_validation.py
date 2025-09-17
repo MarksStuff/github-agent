@@ -142,7 +142,7 @@ The system is built around a master-worker pattern where a main process manages 
                 await extract_code_context_handler(self.state)
 
             error_msg = str(context.exception)
-            self.assertIn("Agent failed to provide any analysis", error_msg)
+            self.assertIn("Failed to get code context", error_msg)
 
     async def test_none_context_fails(self):
         """Test that None context document fails validation."""
@@ -156,7 +156,7 @@ The system is built around a master-worker pattern where a main process manages 
                 await extract_code_context_handler(self.state)
 
             error_msg = str(context.exception)
-            self.assertIn("Agent failed to provide any analysis", error_msg)
+            self.assertIn("Failed to get code context", error_msg)
 
     async def test_borderline_context_fails(self):
         """Test that a context just under 2000 chars fails."""
@@ -195,3 +195,44 @@ The system is built around a master-worker pattern where a main process manages 
 
             # Should succeed
             self.assertEqual(result["code_context_document"], exact_analysis)
+
+    async def test_reuse_existing_state_context(self):
+        """Test that existing code context in state is reused without regeneration."""
+        # Set up state with existing comprehensive code context
+        existing_context = "# Existing Code Context\n" + "x" * 2500
+        self.state["code_context_document"] = existing_context
+
+        with patch(
+            "langgraph_workflow.nodes.extract_code_context._call_claude_code_agent"
+        ) as mock_agent:
+            # Agent should NOT be called since we have existing context
+            mock_agent.return_value = "Should not be called"
+
+            with patch("pathlib.Path.mkdir"):
+                with patch("pathlib.Path.write_text"):
+                    result = await extract_code_context_handler(self.state)
+
+            # Should reuse existing context without calling agent
+            mock_agent.assert_not_called()
+            self.assertEqual(result["code_context_document"], existing_context)
+
+    async def test_generate_when_state_has_invalid_context(self):
+        """Test that short existing context in state triggers new generation."""
+        # Set up state with existing short context (invalid)
+        short_existing = "Short context"
+        self.state["code_context_document"] = short_existing
+
+        comprehensive_new = "# New Comprehensive Context\n" + "x" * 2500
+
+        with patch(
+            "langgraph_workflow.nodes.extract_code_context._call_claude_code_agent"
+        ) as mock_agent:
+            mock_agent.return_value = comprehensive_new
+
+            with patch("pathlib.Path.mkdir"):
+                with patch("pathlib.Path.write_text"):
+                    result = await extract_code_context_handler(self.state)
+
+            # Should call agent since existing content is invalid (too short)
+            mock_agent.assert_called_once()
+            self.assertEqual(result["code_context_document"], comprehensive_new)
