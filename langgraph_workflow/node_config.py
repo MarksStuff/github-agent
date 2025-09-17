@@ -18,6 +18,7 @@ class OutputLocation(str, Enum):
 
     LOCAL = "local"  # .local directory (intermediate)
     REPOSITORY = "repository"  # Repository for review
+    GITHUB = "github"  # GitHub for human review
 
 
 class CodeQualityCheck(str, Enum):

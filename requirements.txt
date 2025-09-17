@@ -39,6 +39,7 @@ langchain-community>=0.1.0
 
 # Async support
 asyncio
+aiosqlite
 
 # Async database for checkpointing
 aiosqlite
