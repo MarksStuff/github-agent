@@ -10,7 +10,6 @@ from typing import Any, Literal
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import StateGraph
 
-from .enums import WorkflowStep
 from .workflow_state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -34,6 +33,7 @@ class ProperLangGraphWorkflow:
 
         # Create SQLite checkpointer for state persistence
         import sqlite3
+
         conn = sqlite3.connect(checkpoint_path)
         self.checkpointer = SqliteSaver(conn)
 
@@ -48,7 +48,9 @@ class ProperLangGraphWorkflow:
         # Add all nodes
         workflow.add_node("extract_feature", self._extract_feature)
         workflow.add_node("extract_code_context", self._extract_code_context)
-        workflow.add_node("parallel_design_exploration", self._parallel_design_exploration)
+        workflow.add_node(
+            "parallel_design_exploration", self._parallel_design_exploration
+        )
         workflow.add_node("design_synthesis", self._design_synthesis)
         workflow.add_node("create_design_document", self._create_design_document)
 
@@ -59,37 +61,25 @@ class ProperLangGraphWorkflow:
         workflow.add_conditional_edges(
             "extract_feature",
             self._should_extract_code_context,
-            {
-                "extract": "extract_code_context",
-                "skip": "parallel_design_exploration"
-            }
+            {"extract": "extract_code_context", "skip": "parallel_design_exploration"},
         )
 
         workflow.add_conditional_edges(
             "extract_code_context",
             self._should_run_design_exploration,
-            {
-                "run": "parallel_design_exploration",
-                "skip": "design_synthesis"
-            }
+            {"run": "parallel_design_exploration", "skip": "design_synthesis"},
         )
 
         workflow.add_conditional_edges(
             "parallel_design_exploration",
             self._should_run_synthesis,
-            {
-                "synthesis": "design_synthesis",
-                "retry": "parallel_design_exploration"
-            }
+            {"synthesis": "design_synthesis", "retry": "parallel_design_exploration"},
         )
 
         workflow.add_conditional_edges(
             "design_synthesis",
             self._should_create_design_doc,
-            {
-                "create": "create_design_document",
-                "end": "__end__"
-            }
+            {"create": "create_design_document", "end": "__end__"},
         )
 
         workflow.add_edge("create_design_document", "__end__")
@@ -122,7 +112,9 @@ class ProperLangGraphWorkflow:
         if len(agent_analyses) >= 4:
             return "synthesis"
         else:
-            logger.warning(f"Only {len(agent_analyses)} agent analyses available, retrying...")
+            logger.warning(
+                f"Only {len(agent_analyses)} agent analyses available, retrying..."
+            )
             return "retry"
 
     def _should_create_design_doc(self, state: dict) -> Literal["create", "end"]:
@@ -151,7 +143,9 @@ class ProperLangGraphWorkflow:
 
     async def _parallel_design_exploration(self, state: dict) -> dict:
         """Run parallel design exploration using existing implementation."""
-        from .nodes.parallel_design_exploration import parallel_design_exploration_handler
+        from .nodes.parallel_design_exploration import (
+            parallel_design_exploration_handler,
+        )
 
         logger.info("🎨 Running parallel design exploration...")
         return await parallel_design_exploration_handler(state)
@@ -202,11 +196,7 @@ class ProperLangGraphWorkflow:
 
     async def run_until_step(self, initial_state: dict, target_step: str) -> dict:
         """Run until a specific step using LangGraph's built-in interruption."""
-        config = {
-            "configurable": {
-                "thread_id": self.thread_id
-            }
-        }
+        config = {"configurable": {"thread_id": self.thread_id}}
 
         # LangGraph way: Use interrupt_before to stop at target step
         interrupt_before = [target_step] if target_step != "__end__" else []
@@ -214,7 +204,9 @@ class ProperLangGraphWorkflow:
         logger.info(f"🎯 Running until step: {target_step}")
 
         # This will stop BEFORE the target step, leaving it ready to execute
-        async for chunk in self.app.astream(initial_state, config, interrupt_before=interrupt_before):
+        async for chunk in self.app.astream(
+            initial_state, config, interrupt_before=interrupt_before
+        ):
             logger.info(f"📍 Completed step: {list(chunk.keys())[0]}")
 
         # Get final state
@@ -230,11 +222,13 @@ class ProperLangGraphWorkflow:
         # LangGraph provides complete history automatically
         history = []
         for state in self.app.get_state_history(config):
-            history.append({
-                "step": state.next,
-                "values": dict(state.values),
-                "metadata": state.metadata
-            })
+            history.append(
+                {
+                    "step": state.next,
+                    "values": dict(state.values),
+                    "metadata": state.metadata,
+                }
+            )
 
         return history
 

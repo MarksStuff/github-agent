@@ -305,7 +305,7 @@ async def run_workflow_until_step(workflow, initial_state, config, stop_after):
                     if key.endswith("_design"):
                         # Read the design document content
                         try:
-                            with open(path, 'r') as f:
+                            with open(path) as f:
                                 content = f.read()
                             # Map file names to agent types
                             if "architect" in key:
@@ -368,17 +368,29 @@ async def run_workflow_until_step(workflow, initial_state, config, stop_after):
             type(workflow),
             step,
             current_state["repo_path"] if isinstance(current_state, dict) else ".",
-            current_state.get("feature_description", "") if isinstance(current_state, dict) else "",
+            current_state.get("feature_description", "")
+            if isinstance(current_state, dict)
+            else "",
             workflow.thread_id,
-            input_state=current_state if isinstance(current_state, dict) else initial_state,
+            input_state=current_state
+            if isinstance(current_state, dict)
+            else initial_state,
         )
 
         print(f"✅ Step completed: {step}")
 
     print("\n🏁 Workflow execution completed")
-    result = current_state if isinstance(current_state, dict) else {"thread_id": workflow.thread_id}
-    print(f"💾 State saved with thread_id: {result.get('thread_id', workflow.thread_id)}")
-    print(f"🔄 To continue from here, use: --thread-id {result.get('thread_id', workflow.thread_id)} --resume")
+    result = (
+        current_state
+        if isinstance(current_state, dict)
+        else {"thread_id": workflow.thread_id}
+    )
+    print(
+        f"💾 State saved with thread_id: {result.get('thread_id', workflow.thread_id)}"
+    )
+    print(
+        f"🔄 To continue from here, use: --thread-id {result.get('thread_id', workflow.thread_id)} --resume"
+    )
 
     return result
 

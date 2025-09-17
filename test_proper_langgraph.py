@@ -6,8 +6,8 @@ import tempfile
 from pathlib import Path
 
 from langgraph_workflow.proper_langgraph_workflow import ProperLangGraphWorkflow
-from langgraph_workflow.tests.mocks import create_mock_agents
 from langgraph_workflow.real_codebase_analyzer import RealCodebaseAnalyzer
+from langgraph_workflow.tests.mocks import create_mock_agents
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ async def test_proper_langgraph_workflow():
             agents=agents,
             codebase_analyzer=codebase_analyzer,
             thread_id="test-proper-workflow",
-            checkpoint_path=checkpoint_path
+            checkpoint_path=checkpoint_path,
         )
 
         # Initial state
@@ -50,7 +50,7 @@ async def test_proper_langgraph_workflow():
 
         # Run until design_synthesis step
         result1 = await workflow.run_until_step(initial_state, "design_synthesis")
-        print(f"✅ Stopped before design_synthesis")
+        print("✅ Stopped before design_synthesis")
         print(f"📊 Current state keys: {list(result1.keys())}")
 
         print("\n2️⃣ Testing workflow resumption:")
@@ -58,7 +58,7 @@ async def test_proper_langgraph_workflow():
 
         # Resume from checkpoint - LangGraph handles this automatically!
         result2 = await workflow.resume_workflow()
-        print(f"✅ Resumed and completed workflow")
+        print("✅ Resumed and completed workflow")
         print(f"📊 Final state keys: {list(result2.keys())}")
 
         print("\n3️⃣ Testing workflow history:")
@@ -68,7 +68,11 @@ async def test_proper_langgraph_workflow():
         history = workflow.get_workflow_history()
         print(f"📜 Execution history ({len(history)} checkpoints):")
         for i, checkpoint in enumerate(history[:3], 1):  # Show first 3
-            step = checkpoint.get("step", ["unknown"])[0] if isinstance(checkpoint.get("step"), list) else checkpoint.get("step", "unknown")
+            step = (
+                checkpoint.get("step", ["unknown"])[0]
+                if isinstance(checkpoint.get("step"), list)
+                else checkpoint.get("step", "unknown")
+            )
             print(f"   {i}. Step: {step}")
 
         print("\n4️⃣ Testing current state retrieval:")
@@ -76,7 +80,7 @@ async def test_proper_langgraph_workflow():
 
         # Get current state
         current = workflow.get_current_state()
-        print(f"📍 Current workflow state:")
+        print("📍 Current workflow state:")
         print(f"   - Feature: {current.get('feature_description', 'N/A')}")
         print(f"   - Phase: {current.get('current_phase', 'N/A')}")
         print(f"   - Quality: {current.get('quality', 'N/A')}")
@@ -93,6 +97,7 @@ async def test_proper_langgraph_workflow():
     except Exception as e:
         logger.error(f"❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
 
     finally:

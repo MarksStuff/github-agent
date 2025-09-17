@@ -6,7 +6,6 @@ and the proper LangGraph-native implementation.
 
 import asyncio
 import logging
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,8 @@ async def demo_current_vs_proper_approach():
     print("\n❌ CURRENT MANUAL APPROACH:")
     print("-" * 40)
 
-    print("""
+    print(
+        """
     # What we're doing now (fighting LangGraph):
 
     def run_workflow_until_step():
@@ -54,13 +54,15 @@ async def demo_current_vs_proper_approach():
     - Manual step execution bypasses LangGraph's workflow engine
     - AsyncSqliteSaver conflicts because we avoid using it properly
     - Complex conditional logic that LangGraph handles natively
-    """)
+    """
+    )
 
     # ========== PROPER LANGGRAPH APPROACH ==========
     print("\n✅ PROPER LANGGRAPH APPROACH:")
     print("-" * 40)
 
-    print("""
+    print(
+        """
     # What we should be doing (using LangGraph properly):
 
     class ProperLangGraphWorkflow:
@@ -117,19 +119,44 @@ async def demo_current_vs_proper_approach():
     ✅ Automatic state persistence
     ✅ Built-in error recovery and time travel
     ✅ Cleaner, more maintainable code
-    """)
+    """
+    )
 
     # ========== KEY DIFFERENCES ==========
     print("\n🔍 KEY DIFFERENCES:")
     print("-" * 40)
 
     differences = [
-        ("State Management", "❌ File-based artifact checking", "✅ LangGraph state-based conditions"),
-        ("Step Execution", "❌ Manual execute_single_step() calls", "✅ Native graph.ainvoke() execution"),
-        ("Resumption", "❌ Complex checkpoint avoidance logic", "✅ app.ainvoke(None, config) auto-resume"),
-        ("Conditional Logic", "❌ if/else in run_workflow_until_step()", "✅ add_conditional_edges() declarative"),
-        ("Progress Tracking", "❌ Manual completed_steps list", "✅ LangGraph checkpoint history"),
-        ("Error Handling", "❌ AsyncSqliteSaver workarounds", "✅ Native async checkpoint support"),
+        (
+            "State Management",
+            "❌ File-based artifact checking",
+            "✅ LangGraph state-based conditions",
+        ),
+        (
+            "Step Execution",
+            "❌ Manual execute_single_step() calls",
+            "✅ Native graph.ainvoke() execution",
+        ),
+        (
+            "Resumption",
+            "❌ Complex checkpoint avoidance logic",
+            "✅ app.ainvoke(None, config) auto-resume",
+        ),
+        (
+            "Conditional Logic",
+            "❌ if/else in run_workflow_until_step()",
+            "✅ add_conditional_edges() declarative",
+        ),
+        (
+            "Progress Tracking",
+            "❌ Manual completed_steps list",
+            "✅ LangGraph checkpoint history",
+        ),
+        (
+            "Error Handling",
+            "❌ AsyncSqliteSaver workarounds",
+            "✅ Native async checkpoint support",
+        ),
         ("Time Travel", "❌ Not implemented", "✅ get_state_history() built-in"),
         ("Interruption", "❌ Manual stop_after logic", "✅ interrupt_before parameter"),
     ]
@@ -149,7 +176,7 @@ async def demo_current_vs_proper_approach():
         "🕰️  Time travel and state history for debugging",
         "📊 Better observability with LangGraph's built-in tools",
         "🧪 Easier testing with deterministic state management",
-        "🔒 Type safety with proper StateGraph usage"
+        "🔒 Type safety with proper StateGraph usage",
     ]
 
     for benefit in benefits:
@@ -166,7 +193,8 @@ async def demonstrate_proper_usage():
     print("=" * 50)
 
     # This would be much simpler:
-    print("""
+    print(
+        """
     # Simple, clean usage:
 
     workflow = ProperLangGraphWorkflow(
@@ -191,7 +219,8 @@ async def demonstrate_proper_usage():
     # Time travel to any point
     for checkpoint in history:
         print(f"Step: {checkpoint['step']}, State: {checkpoint['values']}")
-    """)
+    """
+    )
 
 
 if __name__ == "__main__":
